@@ -47,27 +47,38 @@ export default function AdminSidebar({ profile }) {
   return (
     <>
       {/* Mobile top bar — replaces the sidebar below the md breakpoint */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700">
-        <div className="flex items-center gap-2.5 font-extrabold text-base dark:text-night-100">
-          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
-          NexaVerify <span className="badge badge-neutral">Admin</span>
+      <div className="md:hidden relative z-40">
+        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700">
+          <div className="flex items-center gap-2.5 font-extrabold text-base dark:text-night-100">
+            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+            NexaVerify <span className="badge badge-neutral">Admin</span>
+          </div>
+          <button
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            className="p-1.5 rounded-lg text-gray-500 dark:text-night-300 hover:bg-gray-100 dark:hover:bg-night-800"
+          >
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
-        <button
-          onClick={() => setMobileOpen((v) => !v)}
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          className="p-1.5 rounded-lg text-gray-500 dark:text-night-300 hover:bg-gray-100 dark:hover:bg-night-800"
-        >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+
+        {/* Floats over the page content instead of pushing it down */}
+        {mobileOpen && (
+          <nav className="absolute top-full left-0 right-0 bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700 shadow-modal p-3 space-y-0.5">
+            {navLinks}
+            <div className="pt-2 mt-2 border-t border-gray-200 dark:border-night-700">
+              <SignOutButton className="nav-link w-full" />
+            </div>
+          </nav>
+        )}
       </div>
 
+      {/* Dims the page behind the dropdown; tapping it closes the menu */}
       {mobileOpen && (
-        <nav className="md:hidden bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700 p-3 space-y-0.5">
-          {navLinks}
-          <div className="pt-2 mt-2 border-t border-gray-200 dark:border-night-700">
-            <SignOutButton className="nav-link w-full" />
-          </div>
-        </nav>
+        <div
+          className="md:hidden fixed inset-0 top-[52px] bg-black/20 z-30"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
       {/* Desktop sidebar */}
