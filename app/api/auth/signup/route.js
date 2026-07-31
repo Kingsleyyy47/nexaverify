@@ -32,7 +32,17 @@ export async function POST(request) {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { username } },
+    options: {
+      data: { username },
+      // Point the "confirm your email" link at whichever domain this signup
+      // actually happened on (localhost while developing, the .vercel.app
+      // preview while testing, nexaverify.org once that's live) instead of
+      // Supabase's fixed Site URL setting — so nobody has to remember to
+      // flip that setting every time the environment changes. Supabase only
+      // honors this if the domain is also listed in Authentication -> URL
+      // Configuration -> Redirect URLs.
+      emailRedirectTo: `${request.nextUrl.origin}/login`,
+    },
   });
 
   if (error) {
