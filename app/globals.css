@@ -64,7 +64,7 @@ body {
   }
 
   .nav-link {
-    @apply flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-night-400 dark:hover:bg-night-800 dark:hover:text-night-100;
+    @apply flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-night-400 dark:hover:bg-night-800 dark:hover:text-night-100;
   }
   .nav-link.active {
     @apply bg-brand-50 text-brand-700 font-bold dark:bg-brand-900 dark:text-brand-300;

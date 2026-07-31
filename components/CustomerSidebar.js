@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import SignOutButton from "./SignOutButton";
+import CurrencySwitcher from "./CurrencySwitcher";
+import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
@@ -58,13 +60,17 @@ export default function CustomerSidebar({ profile }) {
             <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
             NexaVerify
           </div>
-          <button
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
-            className="p-1.5 rounded-lg text-gray-500 dark:text-night-300 hover:bg-gray-100 dark:hover:bg-night-800"
-          >
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <CurrencySwitcher compact />
+            <ThemeToggle />
+            <button
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              className="p-1.5 rounded-lg text-gray-500 dark:text-night-300 hover:bg-gray-100 dark:hover:bg-night-800"
+            >
+              {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          </div>
         </div>
 
         {/* Floats over the page content instead of pushing it down */}

@@ -8,6 +8,11 @@ import ThemeToggle from "./ThemeToggle";
 // display currency, the currency switcher (₦ / $ / £ / €), and the
 // light/dark toggle. `balance` is always the real NGN number from the
 // profile — this component just converts it for display.
+//
+// On mobile, the currency switcher + theme toggle live in the header bar
+// (CustomerSidebar's mobile top bar) instead, to keep this row from getting
+// cramped next to the wallet balance — so they're hidden here below the md
+// breakpoint and only show at md+ where there's room for both.
 export default function CustomerTopBar({ balance }) {
   const { format } = useCurrency();
 
@@ -19,7 +24,7 @@ export default function CustomerTopBar({ balance }) {
         </div>
         <div className="text-lg font-bold dark:text-night-100">{format(balance)}</div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="hidden md:flex items-center gap-2">
         <CurrencySwitcher />
         <ThemeToggle />
       </div>
