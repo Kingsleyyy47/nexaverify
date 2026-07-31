@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 
 const DURATIONS = [
@@ -19,9 +20,16 @@ export default function BuyForm({ services }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [query, setQuery] = useState("");
 
   const selected = services.find((s) => s.id === serviceId);
   const isLongTerm = duration !== "";
+
+  const filteredServices = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter((s) => s.name?.toLowerCase().includes(q));
+  }, [services, query]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -59,23 +67,45 @@ export default function BuyForm({ services }) {
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
       {/* Product grid */}
-      <div className="grid sm:grid-cols-2 gap-3">
-        {services.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setServiceId(s.id)}
-            className={`card card-pad text-left transition ${
-              serviceId === s.id
-                ? "border-brand-500 ring-2 ring-brand-100 dark:ring-brand-900"
-                : "hover:border-brand-300"
-            }`}
-          >
-            <div className="font-bold text-sm mb-1">{s.name}</div>
-            <div className="text-brand-700 dark:text-brand-400 font-bold text-lg">
-              {format(s.customer_price)}
-            </div>
-          </button>
-        ))}
+      <div>
+        <div className="relative mb-3">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400"
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search products…"
+            className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-9 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+          />
+        </div>
+
+        {filteredServices.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-night-400 py-2">
+            No products match &quot;{query}&quot;.
+          </p>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {filteredServices.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setServiceId(s.id)}
+                className={`card card-pad text-left transition ${
+                  serviceId === s.id
+                    ? "border-brand-500 ring-2 ring-brand-100 dark:ring-brand-900"
+                    : "hover:border-brand-300"
+                }`}
+              >
+                <div className="font-bold text-sm mb-1">{s.name}</div>
+                <div className="text-brand-700 dark:text-brand-400 font-bold text-lg">
+                  {format(s.customer_price)}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Purchase panel */}
