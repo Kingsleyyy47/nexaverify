@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ToggleSwitch from "./ToggleSwitch";
 import { formatMoney } from "@/lib/currency";
 
@@ -9,6 +9,21 @@ export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
   const [price, setPrice] = useState(service.customer_price ?? "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Bulk actions elsewhere on the page ("Enable all", "Markup") update many
+  // rows server-side and then call router.refresh(). Because rows are keyed
+  // by service.id (unchanged across a refresh), React reuses these existing
+  // component instances instead of remounting them — so useState's initial
+  // value above only applies once, on first mount, and silently goes stale
+  // after any bulk update. Re-sync local state whenever the prop actually
+  // changes so the toggle/price shown always matches the database.
+  useEffect(() => {
+    setEnabled(service.enabled);
+  }, [service.enabled]);
+
+  useEffect(() => {
+    setPrice(service.customer_price ?? "");
+  }, [service.customer_price]);
 
   async function handleToggle() {
     const next = !enabled;

@@ -181,8 +181,8 @@ export default function ProductsList({ services, usdRate }) {
         title={`${markupValue > 0 ? "Raise" : "Lower"} price by ₦${Math.abs(markupValue).toLocaleString()}?`}
         message={
           query
-            ? `This changes the customer price of all ${filtered.length} product(s) currently shown for "${query}" by ₦${markupValue.toLocaleString()} each. Products with no price set yet are unaffected.`
-            : `This changes the customer price of all ${filtered.length} products in the catalog by ₦${markupValue.toLocaleString()} each. Products with no price set yet are unaffected.`
+            ? `This changes the customer price of all ${filtered.length} product(s) currently shown for "${query}" by ₦${markupValue.toLocaleString()} each. Products with no price yet start from ₦0.`
+            : `This changes the customer price of all ${filtered.length} products in the catalog by ₦${markupValue.toLocaleString()} each. Products with no price yet start from ₦0.`
         }
         confirmLabel="Yes, apply it"
         cancelLabel="Cancel"

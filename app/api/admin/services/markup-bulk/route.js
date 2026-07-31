@@ -35,19 +35,18 @@ export async function POST(request) {
     return NextResponse.json({ error: "Could not load services" }, { status: 500 });
   }
 
-  // Only adjusts services that already have a price set — "increase by X"
-  // implies there's an existing price to increase. Unpriced services are
-  // left untouched rather than seeded with the markup amount as a new price.
-  const updates = (rows || [])
-    .filter((r) => r.customer_price != null && Number(r.customer_price) > 0)
-    .map((r) => ({
-      id: r.id,
-      // NOT NULL with no default — must be carried through on every row or
-      // Postgres rejects the whole upsert (see services/sync/route.js for
-      // the same gotcha explained in more detail).
-      name: r.name,
-      customer_price: Math.max(0, Number(r.customer_price) + amt),
-    }));
+  // Applies to every matching service, whether it already has a price or
+  // not — a service with no price yet is treated as starting from ₦0, so
+  // this also works as a way to bulk-set a first price for never-priced
+  // products (e.g. right after "Enable all"), not just bump existing ones.
+  const updates = (rows || []).map((r) => ({
+    id: r.id,
+    // NOT NULL with no default — must be carried through on every row or
+    // Postgres rejects the whole upsert (see services/sync/route.js for
+    // the same gotcha explained in more detail).
+    name: r.name,
+    customer_price: Math.max(0, Number(r.customer_price || 0) + amt),
+  }));
 
   if (updates.length > 0) {
     const { error } = await admin.from("services").upsert(updates, { onConflict: "id" });
