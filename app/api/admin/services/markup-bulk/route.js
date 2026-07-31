@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Bulk-adjusts customer_price (NGN — what customers actually pay, set by
-// admins on this page) for a set of services by a flat amount. Used by the
-// "Markup" control on /admin/products, scoped to whatever's currently
-// visible (respects the search filter), same as "Enable all". A positive
-// amount raises every matching product's price by that much; a negative
-// amount lowers it. Result is floored at 0 so a price can never go negative.
+// Sets customer_price (NGN — what customers actually pay) for a set of
+// services to DaisySMS's own cost (last_price, USD, converted to NGN using
+// the admin-set USD rate) plus a flat margin. Used by the "Markup" control
+// on /admin/products, scoped to whatever's currently visible (respects the
+// search filter), same as "Enable all"/"Disable all". This recomputes the
+// price from cost every time it's run — it does NOT add to whatever
+// customer_price happened to be before, so running it twice with the same
+// margin is idempotent rather than compounding.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
@@ -15,38 +17,51 @@ export async function POST(request) {
   }
 
   const { serviceIds, amount } = await request.json();
-  const amt = Number(amount);
+  const margin = Number(amount);
 
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     return NextResponse.json({ error: "serviceIds must be a non-empty array" }, { status: 400 });
   }
-  if (!Number.isFinite(amt) || amt === 0) {
-    return NextResponse.json({ error: "Enter a non-zero amount" }, { status: 400 });
+  if (!Number.isFinite(margin)) {
+    return NextResponse.json({ error: "Enter a valid amount" }, { status: 400 });
   }
 
   const admin = createAdminClient();
 
+  const { data: usdRateRow } = await admin
+    .from("currency_rates")
+    .select("ngn_per_unit")
+    .eq("currency", "USD")
+    .maybeSingle();
+  const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
+
+  if (!usdRate) {
+    return NextResponse.json(
+      { error: "Set a USD rate in Currency rates first — needed to convert DaisySMS's cost to Naira." },
+      { status: 400 }
+    );
+  }
+
   const { data: rows, error: fetchError } = await admin
     .from("services")
-    .select("id, name, customer_price")
+    .select("id, name, last_price")
     .in("id", serviceIds);
 
   if (fetchError) {
     return NextResponse.json({ error: "Could not load services" }, { status: 500 });
   }
 
-  // Applies to every matching service, whether it already has a price or
-  // not — a service with no price yet is treated as starting from ₦0, so
-  // this also works as a way to bulk-set a first price for never-priced
-  // products (e.g. right after "Enable all"), not just bump existing ones.
-  const updates = (rows || []).map((r) => ({
-    id: r.id,
-    // NOT NULL with no default — must be carried through on every row or
-    // Postgres rejects the whole upsert (see services/sync/route.js for
-    // the same gotcha explained in more detail).
-    name: r.name,
-    customer_price: Math.max(0, Number(r.customer_price || 0) + amt),
-  }));
+  const updates = (rows || []).map((r) => {
+    const costNgn = Number(r.last_price || 0) * usdRate;
+    return {
+      id: r.id,
+      // NOT NULL with no default — must be carried through on every row or
+      // Postgres rejects the whole upsert (see services/sync/route.js for
+      // the same gotcha explained in more detail).
+      name: r.name,
+      customer_price: Math.max(0, Math.round((costNgn + margin) * 100) / 100),
+    };
+  });
 
   if (updates.length > 0) {
     const { error } = await admin.from("services").upsert(updates, { onConflict: "id" });

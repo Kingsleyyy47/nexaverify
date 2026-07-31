@@ -14,7 +14,7 @@ export default function ProductsList({ services, usdRate }) {
   const [query, setQuery] = useState("");
   const [showCostInNgn, setShowCostInNgn] = useState(false);
   const [markupAmount, setMarkupAmount] = useState("");
-  const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "markup"
+  const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "disable" | "markup"
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,7 +27,7 @@ export default function ProductsList({ services, usdRate }) {
   }, [services, query]);
 
   const markupValue = Number(markupAmount);
-  const markupIsValid = markupAmount !== "" && Number.isFinite(markupValue) && markupValue !== 0;
+  const markupIsValid = markupAmount !== "" && Number.isFinite(markupValue);
 
   async function handleEnableAll() {
     setPendingAction(null);
@@ -41,6 +41,26 @@ export default function ProductsList({ services, usdRate }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not enable products");
+      router.refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisableAll() {
+    setPendingAction(null);
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/services/disable-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceIds: filtered.map((s) => s.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not disable products");
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -142,6 +162,18 @@ export default function ProductsList({ services, usdRate }) {
             : `Enable all (${filtered.length})`}
         </button>
 
+        <button
+          onClick={() => setPendingAction("disable")}
+          disabled={busy || filtered.length === 0}
+          className="btn-secondary btn-sm"
+        >
+          {busy
+            ? "Working…"
+            : query
+            ? `Disable all (${filtered.length} shown)`
+            : `Disable all (${filtered.length})`}
+        </button>
+
         {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
       </div>
 
@@ -177,12 +209,27 @@ export default function ProductsList({ services, usdRate }) {
       />
 
       <ConfirmDialog
-        open={pendingAction === "markup"}
-        title={`${markupValue > 0 ? "Raise" : "Lower"} price by ₦${Math.abs(markupValue).toLocaleString()}?`}
+        open={pendingAction === "disable"}
+        danger
+        title="Disable all matching products?"
         message={
           query
-            ? `This changes the customer price of all ${filtered.length} product(s) currently shown for "${query}" by ₦${markupValue.toLocaleString()} each. Products with no price yet start from ₦0.`
-            : `This changes the customer price of all ${filtered.length} products in the catalog by ₦${markupValue.toLocaleString()} each. Products with no price yet start from ₦0.`
+            ? `This turns off all ${filtered.length} product(s) currently shown for "${query}". Customers won't be able to buy any of them until re-enabled.`
+            : `This turns off all ${filtered.length} products in the catalog. Customers won't be able to buy any of them until re-enabled.`
+        }
+        confirmLabel="Yes, disable them"
+        cancelLabel="Cancel"
+        onConfirm={handleDisableAll}
+        onCancel={() => setPendingAction(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingAction === "markup"}
+        title={`Set price to DaisySMS cost + ₦${markupValue.toLocaleString()} margin?`}
+        message={
+          query
+            ? `This recalculates the customer price of all ${filtered.length} product(s) currently shown for "${query}" as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString()} margin — replacing whatever price was set before, not adding on top of it.`
+            : `This recalculates the customer price of all ${filtered.length} products in the catalog as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString()} margin — replacing whatever price was set before, not adding on top of it.`
         }
         confirmLabel="Yes, apply it"
         cancelLabel="Cancel"
