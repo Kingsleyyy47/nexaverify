@@ -36,6 +36,20 @@ export default function CustomerSidebar({ profile }) {
             {link.label}
           </Link>
         ))}
+
+        {profile?.role === "admin" && (
+          <>
+            <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold px-3 pt-4 pb-1.5">
+              Admin
+            </div>
+            <Link
+              href="/admin"
+              className={`nav-link ${pathname.startsWith("/admin") ? "active" : ""}`}
+            >
+              Admin panel
+            </Link>
+          </>
+        )}
       </nav>
 
       <div className="pt-4 mt-auto border-t border-gray-200 dark:border-night-700">
