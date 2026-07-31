@@ -50,15 +50,16 @@ export async function POST(request) {
     });
   }
 
-  // One query to find out which of these already exist, instead of one
-  // query PER service — this is what made syncing dozens/hundreds of
-  // DaisySMS services slow enough to time out (each service previously cost
-  // up to 2 sequential round trips: a lookup, then an insert or update).
-  const { data: existingRows } = await admin.from("services").select("id");
-  const existingIds = new Set((existingRows || []).map((r) => r.id));
+  // One query to find out which of these already exist (and what they're
+  // currently named), instead of one query PER service — this is what made
+  // syncing dozens/hundreds of DaisySMS services slow enough to time out
+  // (each service previously cost up to 2 sequential round trips: a lookup,
+  // then an insert or update).
+  const { data: existingRows } = await admin.from("services").select("id, name");
+  const existingNameById = new Map((existingRows || []).map((r) => [r.id, r.name]));
 
   const toInsert = rows
-    .filter((r) => !existingIds.has(r.id))
+    .filter((r) => !existingNameById.has(r.id))
     .map((r) => ({
       id: r.id,
       name: r.id,
@@ -69,9 +70,16 @@ export async function POST(request) {
     }));
 
   const toUpdate = rows
-    .filter((r) => existingIds.has(r.id))
+    .filter((r) => existingNameById.has(r.id))
     .map((r) => ({
       id: r.id,
+      // `name` is NOT NULL with no default in the schema. Postgres's
+      // ON CONFLICT DO UPDATE still validates NOT NULL constraints on the
+      // candidate INSERT row for columns not listed here — even though this
+      // will always resolve as an UPDATE (toUpdate is pre-filtered to ids
+      // that already exist) — so name has to be carried through unchanged,
+      // otherwise upsert() fails before it ever reaches the update.
+      name: existingNameById.get(r.id),
       last_price: r.cost,
       last_count: r.count,
       last_synced_at: now,
@@ -80,20 +88,22 @@ export async function POST(request) {
   // Bulk insert brand-new services (one call for all of them).
   if (toInsert.length > 0) {
     const { error } = await admin.from("services").insert(toInsert);
-    if (error) return NextResponse.json({ error: "Could not insert new services" }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: `Could not insert new services: ${error.message}` }, { status: 500 });
+    }
   }
 
   // Bulk-refresh price/count for services that already exist. Deliberately
-  // only sends last_price/last_count/last_synced_at — never `enabled` or
-  // `name` — so this can never silently disable or reprice a service an
-  // admin already turned on. Safe to use upsert() here specifically because
-  // toUpdate is pre-filtered to ids we already confirmed exist, so it always
-  // resolves as an update, never an insert.
+  // only sends last_price/last_count/last_synced_at (plus the unchanged
+  // name, see above) — never `enabled` or `customer_price` — so this can
+  // never silently disable or reprice a service an admin already turned on.
   if (toUpdate.length > 0) {
     const { error } = await admin
       .from("services")
       .upsert(toUpdate, { onConflict: "id" });
-    if (error) return NextResponse.json({ error: "Could not update existing services" }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: `Could not update existing services: ${error.message}` }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ synced: toInsert.length + toUpdate.length });
