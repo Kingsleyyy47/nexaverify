@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import ToggleSwitch from "./ToggleSwitch";
+import { formatMoney } from "@/lib/currency";
 
-export default function ProductPriceRow({ service }) {
+export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
   const [enabled, setEnabled] = useState(service.enabled);
   const [price, setPrice] = useState(service.customer_price ?? "");
   const [busy, setBusy] = useState(false);
@@ -62,7 +63,11 @@ export default function ProductPriceRow({ service }) {
         <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">
           DaisySMS cost
         </div>
-        <div className="text-sm font-semibold">${Number(service.last_price || 0).toFixed(2)}</div>
+        <div className="text-sm font-semibold">
+          {showCostInNgn && usdRate
+            ? formatMoney(Number(service.last_price || 0) * usdRate, "NGN")
+            : `$${Number(service.last_price || 0).toFixed(2)}`}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

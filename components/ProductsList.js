@@ -9,11 +9,13 @@ import ConfirmDialog from "./ConfirmDialog";
 // Client-side filter over the already-fetched services list — there are only
 // a few hundred rows (DaisySMS's whole service catalog), so no extra round
 // trip to the DB is needed just to search by name/shortcode.
-export default function ProductsList({ services }) {
+export default function ProductsList({ services, usdRate }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [enabling, setEnabling] = useState(false);
+  const [showCostInNgn, setShowCostInNgn] = useState(false);
+  const [markupAmount, setMarkupAmount] = useState("");
+  const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "markup"
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const filtered = useMemo(() => {
@@ -24,9 +26,12 @@ export default function ProductsList({ services }) {
     );
   }, [services, query]);
 
+  const markupValue = Number(markupAmount);
+  const markupIsValid = markupAmount !== "" && Number.isFinite(markupValue) && markupValue !== 0;
+
   async function handleEnableAll() {
-    setConfirmOpen(false);
-    setEnabling(true);
+    setPendingAction(null);
+    setBusy(true);
     setError("");
     try {
       const res = await fetch("/api/admin/services/enable-bulk", {
@@ -40,7 +45,28 @@ export default function ProductsList({ services }) {
     } catch (err) {
       setError(err.message);
     } finally {
-      setEnabling(false);
+      setBusy(false);
+    }
+  }
+
+  async function handleApplyMarkup() {
+    setPendingAction(null);
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/services/markup-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceIds: filtered.map((s) => s.id), amount: markupValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update prices");
+      setMarkupAmount("");
+      router.refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -55,6 +81,17 @@ export default function ProductsList({ services }) {
 
   return (
     <>
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setShowCostInNgn((v) => !v)}
+          disabled={!usdRate}
+          title={!usdRate ? "Set a USD rate in Currency rates first" : ""}
+          className="btn-secondary btn-sm"
+        >
+          Show DaisySMS cost in {showCostInNgn ? "$" : "₦"}
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="relative">
           <Search
@@ -70,13 +107,36 @@ export default function ProductsList({ services }) {
           />
         </div>
 
+        <div className="flex items-center gap-1.5">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400 text-sm">
+              ₦
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              value={markupAmount}
+              onChange={(e) => setMarkupAmount(e.target.value)}
+              placeholder="e.g. 1000"
+              className="w-32 rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-6 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+            />
+          </div>
+          <button
+            onClick={() => setPendingAction("markup")}
+            disabled={busy || !markupIsValid || filtered.length === 0}
+            className="btn-secondary btn-sm"
+          >
+            Markup
+          </button>
+        </div>
+
         <button
-          onClick={() => setConfirmOpen(true)}
-          disabled={enabling || filtered.length === 0}
+          onClick={() => setPendingAction("enable")}
+          disabled={busy || filtered.length === 0}
           className="btn-secondary btn-sm"
         >
-          {enabling
-            ? "Enabling…"
+          {busy
+            ? "Working…"
             : query
             ? `Enable all (${filtered.length} shown)`
             : `Enable all (${filtered.length})`}
@@ -97,11 +157,13 @@ export default function ProductsList({ services }) {
           No products match &quot;{query}&quot;.
         </p>
       ) : (
-        filtered.map((s) => <ProductPriceRow key={s.id} service={s} />)
+        filtered.map((s) => (
+          <ProductPriceRow key={s.id} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} />
+        ))
       )}
 
       <ConfirmDialog
-        open={confirmOpen}
+        open={pendingAction === "enable"}
         title="Enable all matching products?"
         message={
           query
@@ -111,7 +173,21 @@ export default function ProductsList({ services }) {
         confirmLabel="Yes, enable them"
         cancelLabel="Cancel"
         onConfirm={handleEnableAll}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => setPendingAction(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingAction === "markup"}
+        title={`${markupValue > 0 ? "Raise" : "Lower"} price by ₦${Math.abs(markupValue).toLocaleString()}?`}
+        message={
+          query
+            ? `This changes the customer price of all ${filtered.length} product(s) currently shown for "${query}" by ₦${markupValue.toLocaleString()} each. Products with no price set yet are unaffected.`
+            : `This changes the customer price of all ${filtered.length} products in the catalog by ₦${markupValue.toLocaleString()} each. Products with no price set yet are unaffected.`
+        }
+        confirmLabel="Yes, apply it"
+        cancelLabel="Cancel"
+        onConfirm={handleApplyMarkup}
+        onCancel={() => setPendingAction(null)}
       />
     </>
   );
