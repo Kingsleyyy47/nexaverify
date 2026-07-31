@@ -20,7 +20,14 @@ export async function POST(request) {
   try {
     const result = await syncLtrsIntoDb(admin);
     return NextResponse.json(result);
-  } catch {
-    return NextResponse.json({ error: "Could not reach DaisySMS" }, { status: 502 });
+  } catch (err) {
+    // Include the real error message (DaisySMS error code, JSON parse
+    // failure, etc.) instead of a generic string — this endpoint is only
+    // ever called by an admin or a cron job carrying the shared secret,
+    // never by a customer, so it's safe to be specific here.
+    return NextResponse.json(
+      { error: `Could not reach DaisySMS: ${err.message || err.code || "unknown error"}` },
+      { status: 502 }
+    );
   }
 }
