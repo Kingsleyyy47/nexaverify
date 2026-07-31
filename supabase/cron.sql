@@ -29,19 +29,29 @@ select cron.schedule(
   $$
 );
 
--- 2. Sync long-term rentals (paid_until / auto_renew) and charge renewal
---    fees every 3 hours. This is the job that makes auto-renew billing
---    actually automatic — see lib/ltr-sync.js.
-select cron.schedule(
-  'nexaverify-sync-ltrs',
-  '0 */3 * * *', -- every 3 hours
-  $$
-  select net.http_post(
-    url := 'https://YOUR-DOMAIN.com/api/admin/rentals/sync-ltrs',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
-  );
-  $$
-);
+-- 2. PAUSED (2026-07-31): this was meant to sync long-term rentals
+--    (paid_until / auto_renew) and charge renewal fees every 3 hours via
+--    DaisySMS's GET /api/ltrs. Live testing proved that endpoint is a
+--    .com-only web dashboard route that doesn't accept api_key auth on
+--    .io — it redirects to the login page instead of returning JSON. .io's
+--    own published docs (daisysms.io/docs/api) don't document any bulk
+--    list/expiry-check action either, only getNumber/getStatus/setStatus.
+--    Auto-renewal billing is paused until there's a real endpoint to sync
+--    against; admins should track/renew long-term rentals manually via
+--    /admin/numbers for now — see lib/ltr-sync.js and the sync-ltrs route.
+--    Do NOT re-enable this schedule without first confirming a working
+--    DaisySMS endpoint exists for this account.
+--
+-- select cron.schedule(
+--   'nexaverify-sync-ltrs',
+--   '0 */3 * * *', -- every 3 hours
+--   $$
+--   select net.http_post(
+--     url := 'https://YOUR-DOMAIN.com/api/admin/rentals/sync-ltrs',
+--     headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+--   );
+--   $$
+-- );
 
 -- 3. Snapshot profiles/transactions/rentals to the private "backups" Storage
 --    bucket once a day. Replaces manually exporting CSVs from Table Editor.

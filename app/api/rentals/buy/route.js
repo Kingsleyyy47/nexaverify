@@ -13,7 +13,7 @@ export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { serviceId, duration, autoRenew } = await request.json();
+  const { serviceId, duration } = await request.json();
   if (!serviceId) return NextResponse.json({ error: "serviceId is required" }, { status: 400 });
 
   // duration is a string like "1D" / "12H" / "1M" for long-term rentals, or
@@ -43,13 +43,17 @@ export async function POST(request) {
   // synced cost. If the live price has since risen above this, the call
   // fails closed (MAX_PRICE_EXCEEDED) rather than silently eating the
   // difference out of NexaVerify's margin — re-sync services if that happens.
+  //
+  // NOTE: auto_renew is deliberately not offered/passed here. It maps to a
+  // DaisySMS action (setAutoRenew) that isn't in .io's published API docs —
+  // unverified against this account, so removed from the customer-facing
+  // flow entirely rather than left as a control that might silently fail.
   let daisyResult;
   try {
     daisyResult = await getNumber({
       service: serviceId,
       maxPrice: service.last_price || undefined,
       duration: isLongTerm ? duration : undefined,
-      autoRenew: isLongTerm ? Boolean(autoRenew) : undefined,
     });
   } catch (err) {
     if (err instanceof DaisyError) {
@@ -78,7 +82,7 @@ export async function POST(request) {
       cost_usd: daisyResult.price, // USD — what DaisySMS actually charged us
       status: "waiting",
       is_long_term: isLongTerm,
-      auto_renew: isLongTerm ? Boolean(autoRenew) : false,
+      auto_renew: false,
     })
     .select()
     .single();

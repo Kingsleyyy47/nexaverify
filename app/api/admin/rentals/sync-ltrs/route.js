@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { syncLtrsIntoDb } from "@/lib/ltr-sync";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 
-// Callable two ways: by a logged-in admin (button click in /admin/numbers),
-// or by a scheduled job carrying CRON_SECRET (see lib/cron-auth.js and
-// supabase/cron.sql) — that's what lets renewal charges happen automatically
-// on a timer instead of only when someone remembers to click the button.
+// PAUSED (2026-07-31): this route used to call syncLtrsIntoDb(), which
+// pulls the "authoritative" long-term-rental list from DaisySMS's GET
+// /api/ltrs and auto-charges renewal fees. Live testing proved that
+// endpoint is a .com-only web dashboard route — on .io it redirects to the
+// login page instead of returning JSON, and .io's own published API docs
+// (daisysms.io/docs/api) don't document any bulk list/expiry-check action
+// at all (only getNumber/getStatus/setStatus). There is currently no real
+// DaisySMS endpoint on this account to sync against, so automatic renewal
+// billing is paused rather than left calling a broken endpoint on a timer.
+// The scheduled job in supabase/cron.sql has been commented out to match.
+// Admins should track/renew long-term rentals manually via /admin/numbers
+// until a working sync source exists — see lib/ltr-sync.js for the parked
+// implementation (kept for reference, not called from here anymore).
 export async function POST(request) {
   if (!isAuthorizedCron(request)) {
     const { user, profile } = await getSessionProfile();
@@ -16,18 +23,13 @@ export async function POST(request) {
     }
   }
 
-  const admin = createAdminClient();
-  try {
-    const result = await syncLtrsIntoDb(admin);
-    return NextResponse.json(result);
-  } catch (err) {
-    // Include the real error message (DaisySMS error code, JSON parse
-    // failure, etc.) instead of a generic string — this endpoint is only
-    // ever called by an admin or a cron job carrying the shared secret,
-    // never by a customer, so it's safe to be specific here.
-    return NextResponse.json(
-      { error: `Could not reach DaisySMS: ${err.message || err.code || "unknown error"}` },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json({
+    paused: true,
+    total: 0,
+    updated: 0,
+    charged: 0,
+    skipped: 0,
+    message:
+      "LTR auto-sync is paused: DaisySMS has no working list/expiry endpoint for this account. Manage long-term rentals manually for now.",
+  });
 }

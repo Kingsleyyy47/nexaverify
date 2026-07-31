@@ -16,7 +16,6 @@ export default function BuyForm({ services }) {
   const { format } = useCurrency();
   const [serviceId, setServiceId] = useState(services[0]?.id || "");
   const [duration, setDuration] = useState("");
-  const [autoRenew, setAutoRenew] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
@@ -34,7 +33,7 @@ export default function BuyForm({ services }) {
       const res = await fetch("/api/rentals/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId, duration: duration || undefined, autoRenew: isLongTerm && autoRenew }),
+        body: JSON.stringify({ serviceId, duration: duration || undefined }),
       });
       const data = await res.json();
 
@@ -106,18 +105,6 @@ export default function BuyForm({ services }) {
               receive one message within the short-term window to activate the long-term hold.
             </span>
           </div>
-
-          {isLongTerm && (
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-night-400">
-              <input
-                type="checkbox"
-                checked={autoRenew}
-                onChange={(e) => setAutoRenew(e.target.checked)}
-                className="rounded"
-              />
-              Auto-renew (you can confirm/turn this off any time from the Rentals page)
-            </label>
-          )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

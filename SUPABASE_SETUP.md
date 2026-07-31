@@ -33,6 +33,14 @@ Authentication tab will still show each user by email — that's expected, the u
    - Redirect URLs: add both your local and production URLs.
 3. If you don't want a public "Sign up" flow at all (invite-only), turn off "Allow new users to sign up" under **Authentication → Providers → Email**, and create accounts manually from the Supabase dashboard instead.
 
+**"Email rate limit exceeded" during signup:** Supabase's built-in email sender (the one that works with zero setup) is explicitly a testing-only shared service with a very low limit — a small handful of emails per hour, shared across everyone using it. It's not meant to survive repeated signup/testing attempts, let alone real customers. Fix it properly before real users show up:
+
+1. Go to **Authentication → Sign In / Providers → SMTP Settings** (Supabase has moved this between a couple of menu locations across versions — search "SMTP" in the dashboard if you don't see it under Auth settings directly).
+2. Enable **Custom SMTP** and fill in credentials from a real provider — Resend, Postmark, SendGrid, Mailgun, or even Gmail SMTP with an app password all work. This removes Supabase's shared rate limit entirely; your own provider's limits (usually much higher, or pay-as-you-go) apply instead.
+3. Save, then send a fresh test signup to confirm mail actually arrives from your own domain/address.
+
+Until you set that up, you're on the shared limit — if you hit "rate limit exceeded" while testing, wait roughly an hour for it to reset rather than repeatedly retrying signups, since each attempt (even failed ones that still trigger an email send) counts against the shared quota.
+
 ## 4. Get your API keys
 
 Go to **Project Settings → API**. You'll need three values for the app's `.env.local` (copy `.env.example` to `.env.local` and fill these in):
@@ -102,41 +110,45 @@ submit a request from `/topup`, and you approve or reject it from `/admin/topups
    using the same value you put in `DAISYSMS_WEBHOOK_SECRET` in your `.env.local`. This stops random internet traffic from posting fake "code received" events into your database.
 2. This lets incoming SMS codes get pushed to NexaVerify instantly instead of only showing up when a customer's browser happens to poll for status.
 
-## 8. Long-term rentals (LTR) and auto-renew billing
+## 8. Long-term rentals (LTR) and auto-renew billing — PAUSED
 
-Customers can buy a number for a duration (1 day / 7 days / 1 month) instead of the standard
-5-15 minute rental, and can turn auto-renew on so DaisySMS keeps the number alive automatically.
+**Status as of 2026-07-31: automatic renewal billing is paused.** This section originally
+described syncing against DaisySMS's `GET /api/ltrs` to detect renewals and auto-charge wallets.
+Live testing against the real deployed site proved that endpoint doesn't work the way DaisySMS's
+own marketing docs (hosted on `.com`) describe: on `daisysms.io` — the domain this account's API
+key actually belongs to — `/api/ltrs` redirects to the DaisySMS login page instead of returning
+JSON, because it's a web-dashboard route, not a public API endpoint. `.io`'s own published API
+docs (`daisysms.io/docs/api`) confirm this: they document only `getBalance`, `getNumber`,
+`getStatus`, `setStatus`, `getExtraActivation`, `getPrices(Verification)`, and webhooks — there is
+no bulk list, expiry-check, `keep`, or `setAutoRenew` action documented at all for this account.
 
-**How billing stays automatic (no manual balance edits, ever):**
+Because of this, there is currently no real DaisySMS endpoint to sync long-term rentals against,
+so:
 
-Every time `/admin/rentals/sync-ltrs` runs, `lib/ltr-sync.js` compares each rental's stored
-`paid_until` against DaisySMS's current `paid_until` from `GET /api/ltrs`. If it moved forward,
-that means a renewal happened — NexaVerify immediately charges the customer's wallet
-`daily_price × elapsed periods` via `adjust_balance()`, the same atomic function every other charge
-uses. Nobody ever hand-edits a balance to make the books match — and the database itself won't
-let any client call `adjust_balance()` directly (see the `revoke`/`grant` statements right after
-it in `schema.sql`); only your own server-side code, running with the service role key, can.
+- The `nexaverify-sync-ltrs` cron job is commented out in `supabase/cron.sql` — if you already ran
+  the old version of that file, run `select cron.unschedule('nexaverify-sync-ltrs');` once in
+  Supabase's SQL Editor to remove it.
+- `POST /api/admin/rentals/sync-ltrs` now just returns a `{ paused: true }` response instead of
+  attempting (and failing) a sync — safe to leave any old scheduler pointed at it.
+- The "Sync LTRs from DaisySMS" button on `/admin/numbers` has been replaced with a plain notice.
+- Customers can still buy long-term-duration numbers (this uses `getNumber` with `duration=`,
+  which is real and documented) — but nothing currently auto-detects renewals or auto-charges a
+  wallet for them. Track and renew these manually via `/admin/numbers` for now.
+- The customer-facing "auto-renew" toggle and "keep" button call DaisySMS actions
+  (`setAutoRenew`, `keep`) that aren't in `.io`'s documented API either — treat these as unverified
+  until tested against a real long-term rental; they may also fail.
 
-If a customer's wallet can't cover a renewal charge, NexaVerify automatically calls DaisySMS's
-`setAutoRenew` to turn auto-renew back OFF for that number (both on DaisySMS and in our own
-`rentals` row) so it simply expires at the end of its current paid period instead of generating
-repeated failed charges. The customer sees auto-renew flip back off next time they load the page.
-
-This runs on a timer automatically — see section 9 below — you don't need to click anything for
-it to keep happening.
-
-**Before you turn this on for real customers:** the `daily_price` field from `GET /api/ltrs` is
-assumed to be in dollars, matching every other price field in the DaisySMS API. Confirm this with
-a small real long-term rental (buy one, enable auto-renew, watch what actually gets charged)
-before relying on it at volume — the customer-facing auto-renew confirmation dialog's wording
-should match whatever you find.
+`lib/ltr-sync.js` still contains the original reconciliation logic, kept for reference in case
+DaisySMS later confirms a working endpoint for this account (or you switch to a `.com`-based
+account, which does appear to support `/api/ltrs` per the docs, just rejecting this key). Don't
+re-enable the cron job or re-wire the sync route until that's confirmed with a real test.
 
 ## 9. Automatic scheduling (pg_cron + pg_net) — no external cron needed
 
-Four things need to happen on a repeating timer: syncing DaisySMS's service list/prices, syncing
-long-term rentals (which is what makes section 8's billing automatic), refreshing live currency
-rates (section 6), and backing up your data (section 10). All four now run entirely inside
-Supabase, on a schedule, without you clicking anything or paying for a separate cron host.
+Three things run on a repeating timer: syncing DaisySMS's service list/prices, refreshing live
+currency rates (section 6), and backing up your data (section 10). All three run entirely inside
+Supabase, on a schedule, without you clicking anything or paying for a separate cron host. (A
+fourth job, long-term rental sync/billing, is currently commented out — see section 8, paused.)
 
 **Set it up (one time, after you've deployed the site somewhere with a real domain):**
 
@@ -145,9 +157,8 @@ Supabase, on a schedule, without you clicking anything or paying for a separate 
    value you set for `CRON_SECRET` in your hosting provider's environment variables (same variable
    as in `.env.example`).
 3. Paste the whole file into Supabase's **SQL Editor** and run it. This enables the `pg_cron` and
-   `pg_net` extensions and schedules four jobs:
+   `pg_net` extensions and schedules three active jobs:
    - Service list + prices sync — every hour
-   - Long-term rental sync + renewal billing — every 3 hours
    - Live currency rate refresh — every 6 hours (only touches currencies set to "Live")
    - Data backup — once a day
 
@@ -165,9 +176,9 @@ they'll just fail quietly with a connection error, which is harmless but also do
 this up once you've deployed.
 
 If you'd rather not use pg_cron at all, any external scheduler works too — e.g. Vercel Cron hitting
-`POST /api/admin/services/sync`, `POST /api/admin/rentals/sync-ltrs`,
-`POST /api/admin/currency-rates/sync`, and `POST /api/admin/backup/run` with an `x-cron-secret`
-header set to your `CRON_SECRET`. The routes don't care which scheduler calls them.
+`POST /api/admin/services/sync`, `POST /api/admin/currency-rates/sync`, and
+`POST /api/admin/backup/run` with an `x-cron-secret` header set to your `CRON_SECRET`. The routes
+don't care which scheduler calls them.
 
 ## 10. Backups
 

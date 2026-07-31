@@ -45,9 +45,14 @@ function LoginForm() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not create account");
 
-        setNotice("Account created. Check your email to confirm, then sign in with your username.");
-        setMode("signin");
-        setPassword("");
+        // With "Confirm email" turned off in Supabase, signUp() logs the
+        // user in immediately (no confirmation link to click) — go straight
+        // into the app instead of asking them to check their email and sign
+        // in again. If email confirmation is ever turned back on, there's
+        // no active session yet and middleware will simply bounce this back
+        // to /login, which is a harmless fallback.
+        router.push("/dashboard");
+        router.refresh();
       }
     } catch (err) {
       setError(err.message || "Something went wrong");

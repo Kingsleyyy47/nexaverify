@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ToggleSwitch from "./ToggleSwitch";
-import ConfirmDialog from "./ConfirmDialog";
 import { useCurrency } from "./CurrencyProvider";
 
 const STATUS_BADGE = {
@@ -18,7 +16,6 @@ export default function NumberCard({ rental }) {
   const [state, setState] = useState(rental);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [confirmAutoRenew, setConfirmAutoRenew] = useState(null); // null | true | false
 
   useEffect(() => {
     if (state.status !== "waiting") return;
@@ -55,28 +52,12 @@ export default function NumberCard({ rental }) {
     }
   }
 
-  async function confirmAutoRenewChange() {
-    const next = confirmAutoRenew;
-    setConfirmAutoRenew(null);
-    await act("set-auto-renew", { autoRenew: next });
-  }
-
   return (
     <div className="card card-pad">
       <div className="flex items-start justify-between mb-3 gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="font-mono text-base font-bold">{state.phone_number}</div>
-            {state.is_long_term && (
-              <div className="flex items-center gap-1.5" title="Auto-renew">
-                <ToggleSwitch
-                  checked={Boolean(state.auto_renew)}
-                  disabled={busy}
-                  onChange={() => setConfirmAutoRenew(!state.auto_renew)}
-                />
-                <span className="text-xs text-gray-500 dark:text-night-400 font-medium">Auto-renew</span>
-              </div>
-            )}
           </div>
           <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
             {state.service_id} · {format(state.price)}
@@ -124,27 +105,7 @@ export default function NumberCard({ rental }) {
             Request another code
           </button>
         )}
-        {state.is_long_term && state.status === "waiting" && (
-          <button disabled={busy} onClick={() => act("keep")} className="btn-secondary btn-sm">
-            Keep number
-          </button>
-        )}
       </div>
-
-      <ConfirmDialog
-        open={confirmAutoRenew !== null}
-        danger={confirmAutoRenew === true}
-        title={confirmAutoRenew ? "Turn on auto-renew?" : "Turn off auto-renew?"}
-        message={
-          confirmAutoRenew
-            ? "DaisySMS will automatically charge to keep this number active as it approaches expiry, and NexaVerify will deduct the matching renewal fee from your wallet balance each time it renews. If your balance is too low when it renews, auto-renew is turned off automatically and this number may expire. By turning this on, you accept responsibility for any renewal charges made while it stays enabled."
-            : "This number will no longer renew automatically and may expire at the end of its current paid period."
-        }
-        confirmLabel={confirmAutoRenew ? "Yes, turn it on" : "Yes, turn it off"}
-        cancelLabel="Cancel"
-        onConfirm={confirmAutoRenewChange}
-        onCancel={() => setConfirmAutoRenew(null)}
-      />
     </div>
   );
 }
