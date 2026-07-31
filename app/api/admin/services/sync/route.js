@@ -32,8 +32,10 @@ export async function POST(request) {
 
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  let synced = 0;
 
+  // Build the full list of rows to sync from DaisySMS's response first,
+  // entirely in memory — no DB calls yet.
+  const rows = [];
   for (const [serviceId, countries] of Object.entries(data || {})) {
     if (!countries || typeof countries !== "object") continue;
 
@@ -41,32 +43,58 @@ export async function POST(request) {
     const entry = countries["187"] || countries["0"] || Object.values(countries)[0];
     if (!entry) continue;
 
-    const cost = Number(entry.cost ?? entry.price ?? 0);
-    const count = entry.count ?? entry.quantity ?? null;
-
-    const { data: existing } = await admin
-      .from("services")
-      .select("id")
-      .eq("id", serviceId)
-      .maybeSingle();
-
-    if (existing) {
-      await admin
-        .from("services")
-        .update({ last_price: cost, last_count: count, last_synced_at: now })
-        .eq("id", serviceId);
-    } else {
-      await admin.from("services").insert({
-        id: serviceId,
-        name: serviceId,
-        enabled: false,
-        last_price: cost,
-        last_count: count,
-        last_synced_at: now,
-      });
-    }
-    synced += 1;
+    rows.push({
+      id: serviceId,
+      cost: Number(entry.cost ?? entry.price ?? 0),
+      count: entry.count ?? entry.quantity ?? null,
+    });
   }
 
-  return NextResponse.json({ synced });
+  // One query to find out which of these already exist, instead of one
+  // query PER service — this is what made syncing dozens/hundreds of
+  // DaisySMS services slow enough to time out (each service previously cost
+  // up to 2 sequential round trips: a lookup, then an insert or update).
+  const { data: existingRows } = await admin.from("services").select("id");
+  const existingIds = new Set((existingRows || []).map((r) => r.id));
+
+  const toInsert = rows
+    .filter((r) => !existingIds.has(r.id))
+    .map((r) => ({
+      id: r.id,
+      name: r.id,
+      enabled: false,
+      last_price: r.cost,
+      last_count: r.count,
+      last_synced_at: now,
+    }));
+
+  const toUpdate = rows
+    .filter((r) => existingIds.has(r.id))
+    .map((r) => ({
+      id: r.id,
+      last_price: r.cost,
+      last_count: r.count,
+      last_synced_at: now,
+    }));
+
+  // Bulk insert brand-new services (one call for all of them).
+  if (toInsert.length > 0) {
+    const { error } = await admin.from("services").insert(toInsert);
+    if (error) return NextResponse.json({ error: "Could not insert new services" }, { status: 500 });
+  }
+
+  // Bulk-refresh price/count for services that already exist. Deliberately
+  // only sends last_price/last_count/last_synced_at — never `enabled` or
+  // `name` — so this can never silently disable or reprice a service an
+  // admin already turned on. Safe to use upsert() here specifically because
+  // toUpdate is pre-filtered to ids we already confirmed exist, so it always
+  // resolves as an update, never an insert.
+  if (toUpdate.length > 0) {
+    const { error } = await admin
+      .from("services")
+      .upsert(toUpdate, { onConflict: "id" });
+    if (error) return NextResponse.json({ error: "Could not update existing services" }, { status: 500 });
+  }
+
+  return NextResponse.json({ synced: toInsert.length + toUpdate.length });
 }
