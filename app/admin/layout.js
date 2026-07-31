@@ -9,9 +9,9 @@ export default async function AdminLayout({ children }) {
   if (!isAdmin(profile)) redirect("/dashboard");
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col md:flex-row">
       <AdminSidebar profile={profile} />
-      <main className="flex-1 p-6 md:p-9 max-w-6xl w-full">
+      <main className="flex-1 p-4 md:p-9 max-w-6xl w-full">
         <AdminTopBar />
         {children}
       </main>

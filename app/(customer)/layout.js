@@ -12,9 +12,9 @@ export default async function CustomerLayout({ children }) {
 
   return (
     <CurrencyProvider rates={rates}>
-      <div className="min-h-screen flex">
+      <div className="min-h-screen flex flex-col md:flex-row">
         <CustomerSidebar profile={profile} />
-        <main className="flex-1 p-6 md:p-9 max-w-6xl w-full">
+        <main className="flex-1 p-4 md:p-9 max-w-6xl w-full">
           <CustomerTopBar balance={profile?.balance || 0} />
           {children}
         </main>

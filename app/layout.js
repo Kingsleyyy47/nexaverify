@@ -5,6 +5,16 @@ export const metadata = {
   description: "Buy verification phone numbers instantly.",
 };
 
+// Without this, mobile browsers render the page at a wide virtual viewport
+// (~980px, desktop-sized) and zoom the whole thing out to fit the physical
+// screen — which is exactly why "hidden md:flex" sidebars showed up
+// squished-but-visible on real phones instead of actually hiding: the phone
+// never gets below Tailwind's 768px `md` breakpoint in the first place.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 // Sets the `dark` class on <html> before the page paints, based on the
 // visitor's saved preference. Light is always the default — dark only ever
 // turns on if the visitor previously tapped the toggle (we never infer it
