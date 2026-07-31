@@ -13,12 +13,6 @@ export default function WalletBalanceCard({ balance }) {
       <div className="text-4xl font-bold mb-1">
         {formatMoney(convertFromNgn(balance, currency, rateMap), currency)}
       </div>
-      {currency !== "NGN" && (
-        <div className="text-xs text-white/60 mb-5">
-          ({formatMoney(balance, "NGN")} — NexaVerify always settles in Naira)
-        </div>
-      )}
-
       <div className="flex flex-wrap gap-4 mt-5 pt-5 border-t border-white/15">
         {CURRENCIES.map((c) => (
           <div key={c}>

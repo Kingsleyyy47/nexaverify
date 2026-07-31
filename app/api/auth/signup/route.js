@@ -33,7 +33,12 @@ export async function POST(request) {
     email,
     password,
     options: {
-      data: { username },
+      // full_name is purely cosmetic: it's the field Supabase's own Auth
+      // dashboard ("Users" table, "Display name" column) reads — it's
+      // unrelated to how the app itself resolves usernames (that's always
+      // via public.profiles, looked up server-side in /api/auth/login).
+      // Set it so the dashboard is legible without hand-editing anything.
+      data: { username, full_name: username },
       // Point the "confirm your email" link at whichever domain this signup
       // actually happened on (localhost while developing, the .vercel.app
       // preview while testing, nexaverify.org once that's live) instead of
