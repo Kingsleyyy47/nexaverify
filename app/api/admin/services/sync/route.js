@@ -35,17 +35,33 @@ export async function POST(request) {
 
   // Build the full list of rows to sync from DaisySMS's response first,
   // entirely in memory — no DB calls yet.
+  //
+  // Confirmed via live testing: this account's getPricesVerification
+  // response is FLAT — service => {cost, count, multi} — with no
+  // country-level nesting at all (e.g. {"7eleven":{"cost":0.12,"count":272,
+  // "multi":1}, ...}). The docs' "service => country => data" shape doesn't
+  // apply here (DaisySMS is USA-only for this account, so there's nothing
+  // to nest by country). The original code assumed the nested shape, drilled
+  // into a non-existent country key, landed on a bare number instead of an
+  // object, and every service silently synced with cost=0/count=null.
+  // Handle both shapes defensively in case a nested response ever shows up.
   const rows = [];
-  for (const [serviceId, countries] of Object.entries(data || {})) {
-    if (!countries || typeof countries !== "object") continue;
+  for (const [serviceId, entryOrCountries] of Object.entries(data || {})) {
+    if (!entryOrCountries || typeof entryOrCountries !== "object") continue;
 
-    // Prefer USA (187) if present, otherwise take the first country entry.
-    const entry = countries["187"] || countries["0"] || Object.values(countries)[0];
-    if (!entry) continue;
+    const entry =
+      "cost" in entryOrCountries || "price" in entryOrCountries
+        ? entryOrCountries // flat shape — this is the entry itself
+        : entryOrCountries["187"] || entryOrCountries["0"] || Object.values(entryOrCountries)[0];
+
+    if (!entry || typeof entry !== "object") continue;
+
+    const cost = Number(entry.cost ?? entry.price ?? 0);
+    if (!Number.isFinite(cost)) continue; // guard against a bad value silently becoming null in the DB
 
     rows.push({
       id: serviceId,
-      cost: Number(entry.cost ?? entry.price ?? 0),
+      cost,
       count: entry.count ?? entry.quantity ?? null,
     });
   }
