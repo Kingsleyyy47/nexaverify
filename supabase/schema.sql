@@ -1,0 +1,359 @@
+-- NexaVerify — Supabase schema
+-- Run this once in the Supabase SQL Editor (Project -> SQL Editor -> New query).
+-- Safe to re-run: everything is guarded with IF NOT EXISTS / OR REPLACE.
+
+create extension if not exists "pgcrypto"; -- gen_random_uuid()
+
+-- ============================================================================
+-- profiles: one row per auth.users row. Holds role + wallet balance.
+-- ============================================================================
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  username text,                     -- what customers actually log in with (see below)
+  role text not null default 'customer' check (role in ('customer', 'admin')),
+  balance numeric(12,2) not null default 0 check (balance >= 0),
+  created_at timestamptz not null default now()
+);
+
+-- Backfills the username column without touching existing data if you
+-- already ran an earlier version of this file. Existing accounts (created
+-- before this column existed) simply have username = null until you set one
+-- by hand in Table Editor — they won't be able to log in with a username
+-- until then, only with whatever auth method they used to sign up.
+alter table public.profiles add column if not exists username text;
+
+-- Case-insensitive uniqueness ("Alice" and "alice" can't both exist), but
+-- deliberately allows any number of NULLs (old accounts without a username
+-- set yet don't block each other or new signups).
+create unique index if not exists profiles_username_unique_idx
+  on public.profiles (lower(username))
+  where username is not null;
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own" on public.profiles
+  for select using (auth.uid() = id);
+
+-- No client-side insert/update policy on purpose: profile creation happens
+-- via the trigger below, and balance/role changes only happen through
+-- server-side Route Handlers using the service role key (adjust_balance()).
+
+-- Auto-create a profile row whenever someone signs up. The username comes
+-- from the `data: { username }` option passed to supabase.auth.signUp() in
+-- app/api/auth/signup/route.js, which lands in auth.users.raw_user_meta_data.
+-- The API route already checks username uniqueness before calling signUp,
+-- but if a race condition somehow slips a duplicate through, this catches
+-- the unique-index violation and creates the profile WITHOUT a username
+-- rather than failing the whole signup (which would otherwise leave a
+-- broken, unrecoverable auth.users row with no matching profile).
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  begin
+    insert into public.profiles (id, email, username)
+    values (new.id, new.email, new.raw_user_meta_data->>'username')
+    on conflict (id) do nothing;
+  exception when unique_violation then
+    insert into public.profiles (id, email)
+    values (new.id, new.email)
+    on conflict (id) do nothing;
+  end;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- ============================================================================
+-- services: local cache of DaisySMS services + the admin's on/off switch and
+-- resale price. NexaVerify is priced in Naira (NGN) for customers, while
+-- DaisySMS itself bills in USD — so this table tracks BOTH numbers per
+-- service:
+--   last_price      = DaisySMS's own cost, in USD, from getPricesVerification
+--   customer_price  = what NexaVerify actually charges the customer, in NGN,
+--                      set by hand on the admin Products page. Not derived
+--                      from last_price automatically — admin sets the margin.
+-- A service with enabled=true but customer_price still null is NOT
+-- purchasable yet (see app/api/rentals/buy/route.js) — admin has to price it
+-- first.
+-- ============================================================================
+create table if not exists public.services (
+  id text primary key,               -- DaisySMS service shortcode, e.g. "wa", "go", "ds"
+  name text not null,                -- human-readable name shown to customers
+  enabled boolean not null default false, -- admin toggle — OFF by default until reviewed
+  last_price numeric(12,2),          -- DaisySMS's own cost in USD, from getPricesVerification
+  customer_price numeric(12,2),      -- what customers pay, in NGN — set by admin, null = unpriced
+  last_count integer,                -- most recent "numbers available" count
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- If you already ran an earlier version of this file, this backfills the
+-- pricing column without touching existing data.
+alter table public.services add column if not exists customer_price numeric(12,2);
+
+alter table public.services enable row level security;
+
+drop policy if exists "services_select_all" on public.services;
+create policy "services_select_all" on public.services
+  for select using (true);
+
+-- ============================================================================
+-- rentals: every phone number ever purchased through NexaVerify.
+-- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
+-- ============================================================================
+create table if not exists public.rentals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  daisy_id text not null,             -- the $ID from DaisySMS getNumber
+  service_id text not null references public.services(id),
+  phone_number text not null,
+  price numeric(12,2) not null,       -- what the customer was actually charged, in NGN
+  cost_usd numeric(12,2),             -- what DaisySMS actually charged NexaVerify, in USD (margin tracking)
+  status text not null default 'waiting'
+    check (status in ('waiting', 'received', 'cancelled', 'done', 'expired')),
+  is_long_term boolean not null default false,
+  sms_code text,
+  full_text text,
+  expires_at timestamptz,
+  -- LTR-specific fields, kept in sync from DaisySMS's GET /api/ltrs via the
+  -- admin "Sync LTRs" action (see lib/daisy.js getLtrs() and
+  -- app/api/admin/rentals/sync-ltrs/route.js). Null/false until synced.
+  daily_price numeric(12,2),
+  auto_renew boolean not null default false,
+  renewable boolean not null default true,
+  paid_until timestamptz,
+  period_duration integer,
+  period_type text check (period_type in ('H', 'D', 'M')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- If you already ran an earlier version of this file (before LTR/pricing
+-- fields existed), this backfills the new columns without touching existing data.
+alter table public.rentals add column if not exists daily_price numeric(12,2);
+alter table public.rentals add column if not exists auto_renew boolean not null default false;
+alter table public.rentals add column if not exists renewable boolean not null default true;
+alter table public.rentals add column if not exists paid_until timestamptz;
+alter table public.rentals add column if not exists period_duration integer;
+alter table public.rentals add column if not exists period_type text;
+alter table public.rentals add column if not exists cost_usd numeric(12,2);
+
+create index if not exists rentals_user_id_idx on public.rentals(user_id);
+create index if not exists rentals_long_term_idx on public.rentals(is_long_term);
+create index if not exists rentals_daisy_id_idx on public.rentals(daisy_id);
+
+alter table public.rentals enable row level security;
+
+drop policy if exists "rentals_select_own" on public.rentals;
+create policy "rentals_select_own" on public.rentals
+  for select using (auth.uid() = user_id);
+
+-- ============================================================================
+-- transactions: append-only ledger. Every balance change (purchase, refund,
+-- admin top-up/adjustment) gets a row here. Never update balance directly —
+-- always go through adjust_balance() so this ledger and profiles.balance
+-- can never drift apart.
+-- ============================================================================
+create table if not exists public.transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  type text not null check (type in ('deposit', 'purchase', 'refund', 'admin_adjustment', 'payout')),
+  amount numeric(12,2) not null,       -- positive = credit, negative = debit
+  balance_after numeric(12,2) not null,
+  reference_id uuid,                   -- rentals.id when applicable
+  note text,
+  created_by uuid references public.profiles(id), -- admin id, for admin_adjustment rows
+  created_at timestamptz not null default now()
+);
+
+create index if not exists transactions_user_id_idx on public.transactions(user_id);
+
+alter table public.transactions enable row level security;
+
+drop policy if exists "transactions_select_own" on public.transactions;
+create policy "transactions_select_own" on public.transactions
+  for select using (auth.uid() = user_id);
+
+-- ============================================================================
+-- sms_messages: raw log of every code/message the DaisySMS webhook sends us.
+-- A rental can receive more than one message (see "Additional rentals" in
+-- the API docs), so this is one-to-many against rentals.
+-- ============================================================================
+create table if not exists public.sms_messages (
+  id bigserial primary key,
+  rental_id uuid not null references public.rentals(id) on delete cascade,
+  daisy_message_id bigint,
+  code text,
+  text text,
+  received_at timestamptz not null default now()
+);
+
+create index if not exists sms_messages_rental_id_idx on public.sms_messages(rental_id);
+
+alter table public.sms_messages enable row level security;
+
+drop policy if exists "sms_messages_select_own" on public.sms_messages;
+create policy "sms_messages_select_own" on public.sms_messages
+  for select using (
+    exists (
+      select 1 from public.rentals r
+      where r.id = sms_messages.rental_id
+        and r.user_id = auth.uid()
+    )
+  );
+
+-- ============================================================================
+-- currency_rates: exchange rates used ONLY to display NGN prices/balances in
+-- another currency on screen (and to convert DaisySMS's USD LTR renewal fees
+-- into NGN — see lib/ltr-sync.js). NGN is always the real ledger currency —
+-- nothing is ever actually charged in USD/GBP/EUR to a customer.
+--
+-- Two sources feed this, and `ngn_per_unit` always holds whichever one is
+-- currently "in effect":
+--   auto_ngn_per_unit  = last value pulled from the free live exchange-rate
+--                        API (see lib/exchange-rate.js + the "Refresh live
+--                        rates" button / pg_cron job). Read-only from the
+--                        admin's point of view.
+--   manual_override    = if true, an admin has hand-set a fixed rate for
+--                        this currency and the live sync will keep updating
+--                        auto_ngn_per_unit in the background WITHOUT
+--                        touching ngn_per_unit — the admin's number wins
+--                        until they switch back to "live".
+-- Seed values below are just a starting placeholder for ngn_per_unit until
+-- the first live sync runs (or an admin sets a manual rate) — see
+-- /admin/currency.
+-- ============================================================================
+create table if not exists public.currency_rates (
+  currency text primary key check (currency in ('USD', 'GBP', 'EUR')),
+  ngn_per_unit numeric(12,4) not null,      -- the effective rate used everywhere
+  auto_ngn_per_unit numeric(12,4),          -- last value fetched from the live API
+  manual_override boolean not null default false, -- true = admin's number wins over live
+  updated_at timestamptz not null default now()
+);
+
+-- Backfills the new columns without touching existing data if you already
+-- ran an earlier version of this file.
+alter table public.currency_rates add column if not exists auto_ngn_per_unit numeric(12,4);
+alter table public.currency_rates add column if not exists manual_override boolean not null default false;
+
+insert into public.currency_rates (currency, ngn_per_unit) values
+  ('USD', 1500),
+  ('GBP', 1900),
+  ('EUR', 1650)
+on conflict (currency) do nothing;
+
+alter table public.currency_rates enable row level security;
+
+drop policy if exists "currency_rates_select_all" on public.currency_rates;
+create policy "currency_rates_select_all" on public.currency_rates
+  for select using (true); -- everyone needs to read rates to show the currency switcher
+
+-- ============================================================================
+-- topup_requests: a customer asks to add funds; an admin approves or
+-- rejects it. Approving calls adjust_balance() so it lands in the same
+-- transactions ledger as everything else. This is deliberately a manual
+-- review queue (not a payment processor) until real payment funding is
+-- wired up — see BuyForm.js/topup page for the customer-facing side.
+-- ============================================================================
+create table if not exists public.topup_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  amount_ngn numeric(12,2) not null check (amount_ngn > 0),
+  note text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by uuid references public.profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists topup_requests_user_id_idx on public.topup_requests(user_id);
+create index if not exists topup_requests_status_idx on public.topup_requests(status);
+
+alter table public.topup_requests enable row level security;
+
+drop policy if exists "topup_requests_select_own" on public.topup_requests;
+create policy "topup_requests_select_own" on public.topup_requests
+  for select using (auth.uid() = user_id);
+
+-- No client insert/update policy on purpose — customers submit requests via
+-- POST /api/wallet/topup-request and admins review via POST
+-- /api/admin/topups/review, both using the service role key.
+
+-- ============================================================================
+-- Storage bucket for automated backups (see app/api/admin/backup/run/route.js).
+-- Private (public=false) — only the service role can read/write it, same as
+-- every table above. Nightly snapshots of profiles/transactions/rentals land
+-- here as JSON files instead of relying on manual CSV exports.
+-- ============================================================================
+insert into storage.buckets (id, name, public)
+values ('backups', 'backups', false)
+on conflict (id) do nothing;
+
+-- ============================================================================
+-- adjust_balance(): the ONLY way balance should ever change. Locks the
+-- profile row, applies the delta, refuses to go negative, and writes the
+-- matching transactions row atomically. Called from server code with the
+-- service role key (bypasses RLS by design — this function is the gate).
+-- ============================================================================
+create or replace function public.adjust_balance(
+  p_user_id uuid,
+  p_amount numeric,
+  p_type text,
+  p_reference_id uuid default null,
+  p_note text default null,
+  p_created_by uuid default null
+)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_new_balance numeric(12,2);
+begin
+  perform 1 from public.profiles where id = p_user_id for update;
+
+  update public.profiles
+     set balance = balance + p_amount
+   where id = p_user_id
+  returning balance into v_new_balance;
+
+  if v_new_balance < 0 then
+    raise exception 'Insufficient balance: adjustment of % would result in %', p_amount, v_new_balance
+      using errcode = 'P0001';
+  end if;
+
+  insert into public.transactions (user_id, type, amount, balance_after, reference_id, note, created_by)
+  values (p_user_id, p_type, p_amount, v_new_balance, p_reference_id, p_note, p_created_by);
+
+  return v_new_balance;
+end;
+$$;
+
+-- Lock this function down so it can ONLY be called by server-side code using
+-- the service role key (your admin routes, purchase/refund/LTR-renewal
+-- logic) — never directly by a customer's browser session, even though the
+-- function itself is SECURITY DEFINER. Postgres grants EXECUTE on new
+-- functions to PUBLIC by default, which would otherwise let any logged-in
+-- user call this RPC straight from the browser with supabase.rpc(...) and
+-- adjust anyone's balance. This closes that off.
+revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) from public;
+revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) from anon;
+revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) from authenticated;
+grant execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) to service_role;
+
+-- ============================================================================
+-- One-time: promote yourself to admin after your first signup.
+-- Replace the email before running.
+-- ============================================================================
+-- update public.profiles set role = 'admin' where email = 'you@example.com';

@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #128753;
+  --brand-dark: #0e6b43;
+  --brand-light: #eefcf3;
+}
+
+body {
+  @apply bg-[#f6f9f7] text-[#14231b] dark:bg-night-950 dark:text-night-100 transition-colors;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition active:translate-y-px whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-400;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-brand-900 border border-gray-200 hover:border-brand-300 hover:bg-brand-50 dark:bg-night-900 dark:text-night-100 dark:border-night-600 dark:hover:border-brand-400 dark:hover:bg-night-800;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-gray-600 hover:bg-gray-100 dark:text-night-300 dark:hover:bg-night-800;
+  }
+  .btn-danger {
+    @apply btn bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-400 dark:hover:bg-red-900;
+  }
+
+  .card {
+    @apply bg-white border border-gray-200 rounded-xl2 shadow-card dark:bg-night-900 dark:border-night-700;
+  }
+  .card-pad {
+    @apply p-6;
+  }
+
+  .field label {
+    @apply block text-sm font-semibold mb-1.5 text-gray-800 dark:text-night-200;
+  }
+  .field input,
+  .field select {
+    @apply w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 bg-white dark:bg-night-950 dark:border-night-600 dark:text-night-100 dark:focus:ring-brand-900;
+  }
+  .field .hint {
+    @apply block text-xs text-gray-400 mt-1.5 dark:text-night-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .badge-success {
+    @apply bg-brand-50 text-brand-700 dark:bg-brand-900 dark:text-brand-300;
+  }
+  .badge-warning {
+    @apply bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400;
+  }
+  .badge-danger {
+    @apply bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400;
+  }
+  .badge-neutral {
+    @apply bg-gray-100 text-gray-600 dark:bg-night-800 dark:text-night-300;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-night-400 dark:hover:bg-night-800 dark:hover:text-night-100;
+  }
+  .nav-link.active {
+    @apply bg-brand-50 text-brand-700 font-bold dark:bg-brand-900 dark:text-brand-300;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+}
