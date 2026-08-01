@@ -66,8 +66,11 @@ export default function BuyForm({ services }) {
 
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
-      {/* Product grid */}
-      <div>
+      {/* Product grid — shown second on mobile so the purchase panel below
+          (order-1 on mobile) doesn't require scrolling past the whole
+          product list to reach it. Desktop keeps the original left/right
+          order via md:order-none. */}
+      <div className="order-2 md:order-none">
         <div className="relative mb-3">
           <Search
             size={16}
@@ -108,8 +111,8 @@ export default function BuyForm({ services }) {
         )}
       </div>
 
-      {/* Purchase panel */}
-      <div className="card card-pad">
+      {/* Purchase panel — first on mobile (see note above), unchanged position on desktop */}
+      <div className="order-1 md:order-none card card-pad">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">

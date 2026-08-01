@@ -22,7 +22,7 @@ export default async function AdminProductsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-7">
         <div>
           <h1 className="text-2xl font-bold">Products</h1>
           <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
