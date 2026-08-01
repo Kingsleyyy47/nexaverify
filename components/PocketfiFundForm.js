@@ -4,14 +4,11 @@ import { useState } from "react";
 
 // Instant wallet funding via PocketFi (card / bank transfer / mobile
 // wallet) — redirects the browser to PocketFi's hosted checkout page.
-// Distinct from the manual, admin-reviewed top-up request further down
-// this page (TopupForm.js), which stays in place for bank-transfer
-// customers who'd rather not use the hosted checkout.
+// Just asks for an amount; PocketFi's checkout requires a name/phone too,
+// but the server fills those in with placeholder values (see
+// app/api/wallet/fund/route.js) rather than making the customer type them.
 export default function PocketfiFundForm() {
   const [amount, setAmount] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,7 +21,7 @@ export default function PocketfiFundForm() {
       const res = await fetch("/api/wallet/fund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: Number(amount), firstName, lastName, phone }),
+        body: JSON.stringify({ amount: Number(amount) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not start funding session");
@@ -51,43 +48,6 @@ export default function PocketfiFundForm() {
           placeholder="e.g. 5000"
         />
         <span className="hint">Pay by card, bank transfer, or mobile wallet — your balance updates automatically once payment completes.</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="field">
-          <label htmlFor="pf-first-name">First name</label>
-          <input
-            id="pf-first-name"
-            type="text"
-            required
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            placeholder="e.g. Musa"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="pf-last-name">Last name</label>
-          <input
-            id="pf-last-name"
-            type="text"
-            required
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder="e.g. Damilare"
-          />
-        </div>
-      </div>
-
-      <div className="field">
-        <label htmlFor="pf-phone">Phone number</label>
-        <input
-          id="pf-phone"
-          type="tel"
-          required
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="e.g. 09065903789"
-        />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

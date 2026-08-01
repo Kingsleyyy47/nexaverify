@@ -8,24 +8,28 @@ import { initializePayment, PocketfiError } from "@/lib/pocketfi";
 // checkout link the browser should redirect to next. See
 // supabase/schema.sql's payment_transactions comment for the full flow.
 export async function POST(request) {
-  const { user } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { amount, firstName, lastName, phone } = await request.json();
+  const { amount } = await request.json();
   const parsedAmount = Number(amount);
 
   if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
     return NextResponse.json({ error: "Enter a valid amount" }, { status: 400 });
   }
-  if (!firstName?.trim() || !lastName?.trim()) {
-    return NextResponse.json({ error: "First and last name are required" }, { status: 400 });
-  }
-  if (!phone?.trim()) {
-    return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
-  }
   if (!user.email) {
     return NextResponse.json({ error: "Your account has no email on file" }, { status: 400 });
   }
+
+  // PocketFi's checkout requires a first/last name and phone, but NexaVerify
+  // doesn't collect any of those from customers (only username + email) —
+  // per Kingsley's call to drop those fields from the funding form, these
+  // are just placeholders so the API accepts the request. PocketFi never
+  // uses them to contact the customer directly (the customer completes
+  // payment on PocketFi's own hosted page), so this is safe.
+  const firstName = profile?.username || "NexaVerify";
+  const lastName = "Customer";
+  const phone = "08000000000";
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, "");
 
