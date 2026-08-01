@@ -195,17 +195,26 @@ This is on top of, not instead of, Supabase's own automatic daily backups (avail
 plans) — those protect your whole database including things this snapshot doesn't cover; this
 snapshot specifically protects the money/inventory data even on the free plan.
 
-## 11. PocketFi instant wallet funding
+## 11. PocketFi wallet funding
 
-Customers can now fund their wallet instantly (card/bank transfer/mobile wallet) instead of only
-filing a manual top-up request an admin has to approve. This is on top of, not instead of, the
-manual flow — both are shown on `/topup`.
+Customers fund their wallet by transferring to a permanent, dedicated bank account PocketFi issues
+per customer — shown on `/topup` (`VirtualAccountCard`). This replaced the manual, admin-reviewed
+top-up request entirely, and also replaced an earlier hosted-checkout-redirect version of this
+feature; that checkout code (`app/api/wallet/fund/*`, `PocketfiFundForm`) is still in the codebase
+and still works, it's just not linked from the UI anymore.
 
-1. Re-run `schema.sql` (see section 2) — it added `public.payment_transactions` (one row per
-   PocketFi checkout session) and `public.pocketfi_webhook_events` (a raw audit log).
+1. Re-run `schema.sql` (see section 2) — it added `public.payment_transactions`,
+   `public.pocketfi_webhook_events` (a raw audit log), and `public.virtual_accounts` (the
+   one-per-customer bank account mapping).
 2. Sign up at [pocketfi.ng](https://pocketfi.ng), complete business verification, then go to
-   **Settings → API Keys** to get your Secret Key and Business ID.
-3. Add to your `.env.local` (and your Vercel project's env vars):
+   **Settings → API Keys** to get your credentials.
+3. **Important — the dashboard shows two keys, and only one is right for this:** use the one
+   labeled **Secret API Key** (marked CONFIDENTIAL, hidden by default) as `POCKETFI_SECRET_KEY`
+   below — NOT the **Public API Key** (marked LIVE, shown in plaintext). The public key is for
+   client-side use; the secret key is the server-to-server Bearer token this app actually calls
+   PocketFi with. Using the public key by mistake is what caused every request to fail with
+   "Unauthenticated." the first time this was set up.
+4. Add to your `.env.local` (and your Vercel project's env vars):
    ```
    POCKETFI_SECRET_KEY=your-pocketfi-secret-key
    POCKETFI_BUSINESS_ID=your-pocketfi-business-id
@@ -213,21 +222,24 @@ manual flow — both are shown on `/topup`.
    ```
    Use `https://api.pocketfi.ng/api/test` for `POCKETFI_BASE_URL` while testing in sandbox — no
    real card or bank details needed there.
-4. In PocketFi's Dashboard → **Settings → Webhooks**, set the webhook URL to:
+5. In PocketFi's Dashboard → **Settings → Webhooks**, set the webhook URL to:
    ```
    https://YOUR-DOMAIN.com/api/pocketfi/webhook
    ```
-5. How crediting actually works (see the big comment in `lib/pocketfi.js` for the full reasoning):
-   PocketFi's published webhook payload doesn't include enough to reliably identify which pending
-   payment it belongs to, so the webhook is logged for visibility but is **not** what credits the
-   wallet. The reliable path is: NexaVerify generates its own reference before starting checkout,
-   embeds it in the URL PocketFi redirects the customer back to, and confirms the payment
-   server-side (`POST /checkout/confirm`) using PocketFi's own real payment_id when that redirect
-   happens. If a customer closes the tab before the redirect completes, the "Check status" button
-   next to any pending payment on `/topup` re-runs that same confirm-and-credit check safely (it
-   only ever credits a given payment once).
-6. Test it: fund a small amount in sandbox, confirm the wallet balance updates, then check
-   `payment_transactions` in Table Editor — it should show `status = 'completed'`.
+6. **How crediting actually works, and its real limitation:** virtual account transfers have no
+   redirect step to confirm against the way checkout does — the webhook is the *only* signal
+   NexaVerify ever gets that a transfer landed. PocketFi's documented webhook payload
+   (`order` + `transaction.reference`) doesn't show which account received the transfer, so
+   `app/api/pocketfi/webhook` checks several plausible field names for an account number
+   (see the comment there) and matches it against `public.virtual_accounts`. Until a real
+   production webhook is inspected, some transfers may come in as `signature_valid = true` but
+   `matched_user_id = null` in `pocketfi_webhook_events` — check that table periodically at first,
+   and manually credit via `adjust_balance()` in SQL Editor for anything unmatched, then tighten
+   the field-matching once you've seen a real payload.
+7. Test it: on `/topup`, a customer's account number is created automatically on first visit
+   (`POST /api/wallet/virtual-account`). Send a small sandbox transfer to it, then check
+   `pocketfi_webhook_events` for the event and `payment_transactions` for a `pocketfi_virtual_account`
+   row with `status = 'completed'`.
 
 ## What NOT to do
 

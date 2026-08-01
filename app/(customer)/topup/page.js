@@ -1,5 +1,5 @@
 import { getSessionProfile } from "@/lib/auth";
-import PocketfiFundForm from "@/components/PocketfiFundForm";
+import VirtualAccountCard from "@/components/VirtualAccountCard";
 import PocketfiPaymentsList from "@/components/PocketfiPaymentsList";
 
 const FUNDED_BANNER = {
@@ -29,14 +29,14 @@ export default async function TopupPage({ searchParams }) {
   const { data: payments } = await supabase
     .from("payment_transactions")
     .select("*")
-    .eq("provider", "pocketfi")
+    .in("provider", ["pocketfi", "pocketfi_virtual_account"])
     .order("created_at", { ascending: false });
 
   return (
     <div className="space-y-7">
       <div>
         <h1 className="text-2xl font-bold">Top Up</h1>
-        <p className="text-sm text-gray-400 mt-1">Fund your wallet instantly by card, bank transfer, or mobile wallet.</p>
+        <p className="text-sm text-gray-400 mt-1">Fund your wallet by transferring to your dedicated account below.</p>
       </div>
 
       {banner && (
@@ -47,12 +47,12 @@ export default async function TopupPage({ searchParams }) {
 
       <div className="grid md:grid-cols-2 gap-6 items-start">
         <div className="card card-pad">
-          <h3 className="font-bold text-[15px] mb-4">Fund instantly</h3>
-          <PocketfiFundForm />
+          <h3 className="font-bold text-[15px] mb-4">Your funding account</h3>
+          <VirtualAccountCard />
         </div>
 
         <div className="card card-pad">
-          <h3 className="font-bold text-[15px] mb-4">Instant funding history</h3>
+          <h3 className="font-bold text-[15px] mb-4">Funding history</h3>
           <PocketfiPaymentsList payments={payments || []} />
         </div>
       </div>

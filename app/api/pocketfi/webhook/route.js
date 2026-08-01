@@ -1,18 +1,23 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { confirmAndCreditPocketfiPayment } from "@/lib/wallet-funding";
+import { confirmAndCreditPocketfiPayment, creditVirtualAccountFromWebhook } from "@/lib/wallet-funding";
 
 // Receives real-time payment notifications from PocketFi (configured on
 // their Dashboard -> Settings -> Webhooks). Always respond 2xx quickly once
 // the signature checks out, per PocketFi's own retry-policy guidance.
 //
-// NOT the primary crediting mechanism — see the big comment in
-// lib/pocketfi.js and the pocketfi_webhook_events table comment in
-// supabase/schema.sql for why. This route verifies the signature, logs the
-// payload for later debugging, and only attempts to credit a wallet in the
-// (currently undocumented) case the payload includes something we can match
-// back to a payment_transactions row.
+// For checkout payments (provider 'pocketfi'), this is NOT the primary
+// crediting mechanism — see the big comment in lib/pocketfi.js — the
+// redirect callback is. But for virtual account transfers (provider
+// 'pocketfi_virtual_account', now the default /topup funding method), this
+// webhook is the ONLY signal we ever get that money arrived, since there's
+// no redirect step for a bank transfer. Both matching attempts below are
+// best-effort: PocketFi's documented payload (order + transaction.reference)
+// doesn't show a payment_id OR an account number, so this checks several
+// plausible field paths and logs everything to pocketfi_webhook_events so
+// an admin can see what actually came through and refine this once real
+// production payloads are observed.
 export async function POST(request) {
   const secret = process.env.POCKETFI_SECRET_KEY;
   const rawBody = await request.text();
@@ -55,13 +60,16 @@ export async function POST(request) {
     return NextResponse.json({ message: "Invalid signature" }, { status: 400 });
   }
 
-  // Best-effort: PocketFi's documented payload doesn't include payment_id,
-  // only transaction.reference — but check for it anyway in case their real
-  // payload carries more fields than the docs show.
-  const candidatePaymentId =
-    payload?.transaction?.payment_id || payload?.payment_id || payload?.transaction?.reference || null;
+  const reference = payload?.transaction?.reference || null;
+  const amountNgn = payload?.order?.amount != null ? Number(payload.order.amount) : null;
 
   let matched = null;
+  let matchedUserId = null;
+
+  // Attempt 1: checkout payment match. PocketFi's documented payload doesn't
+  // include payment_id, only transaction.reference — check the reference
+  // itself as a fallback in case that's actually what payment_id equals.
+  const candidatePaymentId = payload?.transaction?.payment_id || payload?.payment_id || reference || null;
   if (candidatePaymentId) {
     try {
       const result = await confirmAndCreditPocketfiPayment(candidatePaymentId);
@@ -74,10 +82,43 @@ export async function POST(request) {
     }
   }
 
+  // Attempt 2: virtual account transfer match — only if attempt 1 didn't
+  // already claim this event. None of these field paths are confirmed by
+  // PocketFi's docs; they're educated guesses at where an account number
+  // might live in a real payload.
+  if (!matched) {
+    const candidateAccountNumber =
+      payload?.transaction?.account_number ||
+      payload?.account_number ||
+      payload?.account?.number ||
+      payload?.order?.account_number ||
+      payload?.virtual_account?.account_number ||
+      null;
+
+    if (candidateAccountNumber && amountNgn) {
+      try {
+        const result = await creditVirtualAccountFromWebhook({
+          accountNumber: candidateAccountNumber,
+          reference,
+          amountNgn,
+        });
+        if (result.outcome === "credited") {
+          matched = reference || candidateAccountNumber;
+          matchedUserId = result.userId;
+        } else if (result.outcome === "already_processed") {
+          matched = reference || candidateAccountNumber;
+        }
+      } catch {
+        // Same reasoning as above — logged, not thrown, to avoid a retry storm.
+      }
+    }
+  }
+
   await admin.from("pocketfi_webhook_events").insert({
     payload,
     signature_valid: true,
     matched_payment_id: matched,
+    matched_user_id: matchedUserId,
   });
 
   return NextResponse.json({ message: "success" });
