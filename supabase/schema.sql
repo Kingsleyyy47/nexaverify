@@ -94,12 +94,20 @@ create table if not exists public.services (
   customer_price numeric(12,2),      -- what customers pay, in NGN — set by admin, null = unpriced
   last_count integer,                -- most recent "numbers available" count
   last_synced_at timestamptz,
+  auto_markup boolean not null default false, -- if true, every services/sync recomputes
+                                               -- customer_price as cost(NGN) + markup_amount
+  markup_amount numeric(12,2),       -- the NGN margin to keep applying on top of DaisySMS's
+                                      -- cost when auto_markup is on (or was last used manually)
+  favorite boolean not null default false,    -- pinned to the top of /admin/products
   created_at timestamptz not null default now()
 );
 
--- If you already ran an earlier version of this file, this backfills the
--- pricing column without touching existing data.
+-- If you already ran an earlier version of this file, these backfill the
+-- newer columns without touching existing data.
 alter table public.services add column if not exists customer_price numeric(12,2);
+alter table public.services add column if not exists auto_markup boolean not null default false;
+alter table public.services add column if not exists markup_amount numeric(12,2);
+alter table public.services add column if not exists favorite boolean not null default false;
 
 alter table public.services enable row level security;
 

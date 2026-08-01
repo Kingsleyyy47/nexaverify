@@ -10,13 +10,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // price from cost every time it's run — it does NOT add to whatever
 // customer_price happened to be before, so running it twice with the same
 // margin is idempotent rather than compounding.
+//
+// Always saves `markup_amount` on each affected service, regardless of
+// `auto` — that's what lets a product's per-row "Auto" toggle be flipped on
+// later without having to re-enter the margin. If `auto: true` is passed,
+// this ALSO turns auto_markup on for the same batch, so every future sync
+// (manual button or the hourly cron) keeps re-applying this same margin on
+// top of DaisySMS's latest cost automatically — see services/sync/route.js.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceIds, amount } = await request.json();
+  const { serviceIds, amount, auto } = await request.json();
   const margin = Number(amount);
 
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
@@ -60,6 +67,8 @@ export async function POST(request) {
       // the same gotcha explained in more detail).
       name: r.name,
       customer_price: Math.max(0, Math.round((costNgn + margin) * 100) / 100),
+      markup_amount: margin,
+      ...(auto ? { auto_markup: true } : {}),
     };
   });
 
