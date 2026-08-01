@@ -18,7 +18,7 @@ export default async function RentalsPage() {
       <div>
         <h1 className="text-2xl font-bold">Rentals</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
-          Codes appear here automatically once DaisySMS delivers them.
+          Codes appear here automatically once they're delivered.
         </p>
       </div>
 

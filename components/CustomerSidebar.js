@@ -73,9 +73,10 @@ export default function CustomerSidebar({ profile }) {
           </div>
         </div>
 
-        {/* Floats over the page content instead of pushing it down */}
+        {/* Floats over the page content instead of pushing it down — a
+            half-width drawer anchored to the right, not a full-width strip */}
         {mobileOpen && (
-          <nav className="absolute top-full left-0 right-0 bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700 shadow-modal p-3 space-y-0.5">
+          <nav className="absolute top-full right-0 w-1/2 bg-white dark:bg-night-900 border-l border-b border-gray-200 dark:border-night-700 shadow-modal p-3 space-y-0.5">
             {navLinks}
             <div className="pt-2 mt-2 border-t border-gray-200 dark:border-night-700">
               <SignOutButton className="nav-link w-full" />

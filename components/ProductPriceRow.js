@@ -65,10 +65,7 @@ export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
   return (
     <div className="grid grid-cols-[1.4fr_1fr_1.2fr_auto] items-center gap-4 py-4 border-b border-gray-50 dark:border-night-700 last:border-0">
       <div>
-        <div className="font-semibold text-sm flex items-center gap-2">
-          {service.name}
-          <span className="text-xs text-gray-400 dark:text-night-400 font-normal">({service.id})</span>
-        </div>
+        <div className="font-semibold text-sm">{service.name}</div>
         <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
           {service.last_count != null ? `${service.last_count} available` : "Not synced yet"}
         </div>

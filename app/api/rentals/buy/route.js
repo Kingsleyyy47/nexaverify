@@ -68,7 +68,7 @@ export async function POST(request) {
         { status: 502 }
       );
     }
-    return NextResponse.json({ error: "Unexpected error contacting DaisySMS" }, { status: 502 });
+    return NextResponse.json({ error: "Could not rent a number right now. Please try again." }, { status: 502 });
   }
 
   const { data: rental, error: insertError } = await admin
