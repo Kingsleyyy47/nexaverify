@@ -298,6 +298,83 @@ create policy "topup_requests_select_own" on public.topup_requests
 -- /api/admin/topups/review, both using the service role key.
 
 -- ============================================================================
+-- payment_transactions: real, instant wallet funding via PocketFi (see
+-- lib/pocketfi.js) — this is the "real payment funding" the topup_requests
+-- comment above refers to. One row per PocketFi checkout session:
+--   1. POST /api/wallet/fund creates this row with status='pending' right
+--      after calling PocketFi's Initialize Payment, using the payment_id it
+--      returns.
+--   2. The customer is redirected to PocketFi's hosted checkout, then back
+--      to our own /api/wallet/fund/callback?payment_id=... (we built that
+--      redirect_link ourselves, so we already know which row it is).
+--   3. The callback (or the manual "Check status" retry, or the webhook —
+--      see app/api/pocketfi/webhook) calls PocketFi's Confirm Payment API
+--      and, only if still 'pending', atomically flips this row to
+--      'completed' and calls adjust_balance() — the WHERE status='pending'
+--      guard on that update is what stops the same payment being credited
+--      twice if the callback and a manual retry (or webhook) race each
+--      other. See lib/wallet-funding.js for the shared claim-and-credit
+--      logic all three entry points use.
+-- ============================================================================
+create table if not exists public.payment_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  provider text not null default 'pocketfi',
+  payment_id text not null,
+  -- A UUID WE generate before ever calling PocketFi, embedded in the
+  -- redirect_link query string we submit with Initialize Payment (as
+  -- ?ref=<client_ref>). PocketFi's payment_id doesn't exist yet at the
+  -- moment redirect_link has to be decided (both are part of the same
+  -- request), so this is what the callback route actually looks the row up
+  -- by when PocketFi sends the browser back — not payment_id.
+  client_ref text not null,
+  amount_ngn numeric(12,2) not null check (amount_ngn > 0),
+  status text not null default 'pending' check (status in ('pending', 'completed', 'failed')),
+  confirmed_amount_ngn numeric(12,2),
+  note text,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create unique index if not exists payment_transactions_payment_id_idx
+  on public.payment_transactions (provider, payment_id);
+create unique index if not exists payment_transactions_client_ref_idx
+  on public.payment_transactions (client_ref);
+create index if not exists payment_transactions_user_id_idx on public.payment_transactions(user_id);
+create index if not exists payment_transactions_status_idx on public.payment_transactions(status);
+
+alter table public.payment_transactions enable row level security;
+
+drop policy if exists "payment_transactions_select_own" on public.payment_transactions;
+create policy "payment_transactions_select_own" on public.payment_transactions
+  for select using (auth.uid() = user_id);
+
+-- No client insert/update policy on purpose — every write goes through
+-- /api/wallet/fund, /api/wallet/fund/callback, /api/wallet/fund/verify, or
+-- /api/pocketfi/webhook, all using the service role key.
+
+-- ============================================================================
+-- pocketfi_webhook_events: raw audit log of every webhook PocketFi sends us
+-- (app/api/pocketfi/webhook). PocketFi's documented webhook payload
+-- (order + transaction.reference) doesn't include the payment_id we need to
+-- reliably credit a specific pending payment_transactions row — see the big
+-- comment in lib/pocketfi.js — so the webhook is NOT the primary crediting
+-- path (the redirect callback is). This table exists so an admin can look at
+-- what PocketFi actually sent in production and tighten the matching logic
+-- later once the real payload shape is confirmed. No RLS select policy on
+-- purpose — nobody needs to see this from the browser, service role only.
+-- ============================================================================
+create table if not exists public.pocketfi_webhook_events (
+  id bigserial primary key,
+  payload jsonb,
+  signature_valid boolean not null default false,
+  matched_payment_id text,
+  received_at timestamptz not null default now()
+);
+
+alter table public.pocketfi_webhook_events enable row level security;
+
+-- ============================================================================
 -- Storage bucket for automated backups (see app/api/admin/backup/run/route.js).
 -- Private (public=false) — only the service role can read/write it, same as
 -- every table above. Nightly snapshots of profiles/transactions/rentals land

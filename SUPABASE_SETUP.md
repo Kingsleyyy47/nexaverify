@@ -195,7 +195,41 @@ This is on top of, not instead of, Supabase's own automatic daily backups (avail
 plans) — those protect your whole database including things this snapshot doesn't cover; this
 snapshot specifically protects the money/inventory data even on the free plan.
 
+## 11. PocketFi instant wallet funding
+
+Customers can now fund their wallet instantly (card/bank transfer/mobile wallet) instead of only
+filing a manual top-up request an admin has to approve. This is on top of, not instead of, the
+manual flow — both are shown on `/topup`.
+
+1. Re-run `schema.sql` (see section 2) — it added `public.payment_transactions` (one row per
+   PocketFi checkout session) and `public.pocketfi_webhook_events` (a raw audit log).
+2. Sign up at [pocketfi.ng](https://pocketfi.ng), complete business verification, then go to
+   **Settings → API Keys** to get your Secret Key and Business ID.
+3. Add to your `.env.local` (and your Vercel project's env vars):
+   ```
+   POCKETFI_SECRET_KEY=your-pocketfi-secret-key
+   POCKETFI_BUSINESS_ID=your-pocketfi-business-id
+   POCKETFI_BASE_URL=https://api.pocketfi.ng/api/v1
+   ```
+   Use `https://api.pocketfi.ng/api/test` for `POCKETFI_BASE_URL` while testing in sandbox — no
+   real card or bank details needed there.
+4. In PocketFi's Dashboard → **Settings → Webhooks**, set the webhook URL to:
+   ```
+   https://YOUR-DOMAIN.com/api/pocketfi/webhook
+   ```
+5. How crediting actually works (see the big comment in `lib/pocketfi.js` for the full reasoning):
+   PocketFi's published webhook payload doesn't include enough to reliably identify which pending
+   payment it belongs to, so the webhook is logged for visibility but is **not** what credits the
+   wallet. The reliable path is: NexaVerify generates its own reference before starting checkout,
+   embeds it in the URL PocketFi redirects the customer back to, and confirms the payment
+   server-side (`POST /checkout/confirm`) using PocketFi's own real payment_id when that redirect
+   happens. If a customer closes the tab before the redirect completes, the "Check status" button
+   next to any pending payment on `/topup` re-runs that same confirm-and-credit check safely (it
+   only ever credits a given payment once).
+6. Test it: fund a small amount in sandbox, confirm the wallet balance updates, then check
+   `payment_transactions` in Table Editor — it should show `status = 'completed'`.
+
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY` or `DAISYSMS_API_KEY` in any client-side code, screenshots, or support tickets.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets.
