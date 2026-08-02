@@ -426,6 +426,13 @@ create table if not exists public.pocketfi_webhook_events (
 
 -- Backfill for installs that ran an earlier version of this file.
 alter table public.pocketfi_webhook_events add column if not exists matched_user_id uuid;
+-- Raw incoming request headers — added while diagnosing the first real
+-- webhook coming back with signature_valid = false. PocketFi's docs don't
+-- pin down the exact header name their signature travels under (their own
+-- Node.js example even reads a non-standard 'http_pocketfi_signature'
+-- header), so this captures everything sent until the real header name and
+-- POCKETFI_SECRET_KEY match-up is confirmed from a live event.
+alter table public.pocketfi_webhook_events add column if not exists headers jsonb;
 
 alter table public.pocketfi_webhook_events enable row level security;
 

@@ -22,6 +22,13 @@ export async function POST(request) {
   const secret = process.env.POCKETFI_SECRET_KEY;
   const rawBody = await request.text();
 
+  // Capture every incoming header so we can see, from a real delivery,
+  // exactly which one actually carries PocketFi's signature — added after
+  // the first live webhook came back signature_valid=false with none of our
+  // guessed header names matching. Nothing sensitive comes in on an inbound
+  // webhook request, so logging all of them is safe.
+  const headers = Object.fromEntries(request.headers.entries());
+
   // PHP's $_SERVER['HTTP_POCKETFI_SIGNATURE'] convention maps to an incoming
   // header PocketFi's own docs don't spell out consistently (their Node.js
   // example even reads a literal 'http_pocketfi_signature' header, which
@@ -29,7 +36,9 @@ export async function POST(request) {
   const signature =
     request.headers.get("pocketfi-signature") ||
     request.headers.get("x-pocketfi-signature") ||
-    request.headers.get("http_pocketfi_signature");
+    request.headers.get("http_pocketfi_signature") ||
+    request.headers.get("x-signature") ||
+    request.headers.get("signature");
 
   let signatureValid = false;
   if (secret && signature) {
@@ -55,6 +64,7 @@ export async function POST(request) {
   if (!signatureValid) {
     await admin.from("pocketfi_webhook_events").insert({
       payload,
+      headers,
       signature_valid: false,
     });
     return NextResponse.json({ message: "Invalid signature" }, { status: 400 });
@@ -116,6 +126,7 @@ export async function POST(request) {
 
   await admin.from("pocketfi_webhook_events").insert({
     payload,
+    headers,
     signature_valid: true,
     matched_payment_id: matched,
     matched_user_id: matchedUserId,
