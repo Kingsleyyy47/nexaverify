@@ -1,8 +1,30 @@
 import "./globals.css";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexaverify.vercel.app";
+
 export const metadata = {
-  title: "NexaVerify",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "NexaVerify",
+    template: "%s · NexaVerify",
+  },
   description: "Buy verification phone numbers instantly.",
+  // Favicon/apple touch icon are picked up automatically from app/icon.png
+  // and app/apple-icon.png via Next.js's file-based icon convention — no
+  // metadata.icons entry needed. Same for the social preview image, via
+  // app/opengraph-image.png (used for both openGraph and twitter cards).
+  openGraph: {
+    title: "NexaVerify",
+    description: "Buy verification phone numbers instantly.",
+    url: SITE_URL,
+    siteName: "NexaVerify",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NexaVerify",
+    description: "Buy verification phone numbers instantly.",
+  },
 };
 
 // Without this, mobile browsers render the page at a wide virtual viewport

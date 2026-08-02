@@ -17,8 +17,9 @@ export default function MarketingHeader() {
   return (
     <header className="sticky top-0 z-40 bg-white/90 dark:bg-night-950/90 backdrop-blur border-b border-gray-100 dark:border-night-800">
       <div className="max-w-6xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 font-extrabold text-lg text-brand-900 dark:text-night-100">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+        <Link href="/" className="flex items-center gap-2 font-extrabold text-lg text-brand-900 dark:text-night-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-8 w-auto" />
           NexaVerify
         </Link>
 

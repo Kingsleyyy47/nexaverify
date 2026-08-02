@@ -50,8 +50,9 @@ export default function AdminSidebar({ profile }) {
       {/* Mobile top bar — replaces the sidebar below the md breakpoint */}
       <div className="md:hidden relative z-40">
         <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-night-900 border-b border-gray-200 dark:border-night-700">
-          <div className="flex items-center gap-2.5 font-extrabold text-base dark:text-night-100">
-            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+          <div className="flex items-center gap-2 font-extrabold text-base dark:text-night-100">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-7 w-auto" />
             NexaVerify <span className="badge badge-neutral">Admin</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -88,8 +89,9 @@ export default function AdminSidebar({ profile }) {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 bg-white dark:bg-night-900 border-r border-gray-200 dark:border-night-700 p-4">
-        <div className="flex items-center gap-2.5 font-extrabold text-base px-2 pb-6 dark:text-night-100">
-          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+        <div className="flex items-center gap-2 font-extrabold text-base px-2 pb-6 dark:text-night-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-7 w-auto" />
           NexaVerify <span className="badge badge-neutral">Admin</span>
         </div>
 

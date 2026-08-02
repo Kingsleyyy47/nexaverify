@@ -43,8 +43,9 @@ export default function SetUsernamePage() {
       </div>
 
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2.5 mb-8 font-extrabold text-lg text-brand-900 dark:text-night-100">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+        <div className="flex items-center gap-2 mb-8 font-extrabold text-lg text-brand-900 dark:text-night-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-8 w-auto" />
           NexaVerify
         </div>
 

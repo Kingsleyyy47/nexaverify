@@ -172,6 +172,8 @@ export default async function HomePage() {
         {/* Final CTA */}
         <section className="bg-gradient-to-br from-brand-800 to-brand-500 dark:from-night-900 dark:to-brand-800 text-white">
           <div className="max-w-4xl mx-auto px-5 md:px-8 py-16 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo/nexaverify-mark.png" alt="" className="h-12 w-auto mx-auto mb-5" />
             <h2 className="text-3xl font-bold mb-3">Ready to get verified?</h2>
             <p className="text-white/80 max-w-lg mx-auto mb-8">
               Create an account, fund your wallet, and rent your first number in under a minute.

@@ -76,8 +76,9 @@ function LoginForm() {
 
         <div className="flex-1 flex items-center justify-center -mt-8">
           <div className="w-full max-w-sm">
-            <div className="flex items-center gap-2.5 mb-10 font-extrabold text-lg text-brand-900 dark:text-night-100">
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700" />
+            <div className="flex items-center gap-2 mb-10 font-extrabold text-lg text-brand-900 dark:text-night-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-8 w-auto" />
               NexaVerify
             </div>
 
@@ -168,14 +169,23 @@ function LoginForm() {
         </div>
       </div>
 
-      <div className="hidden md:flex items-center justify-center bg-gradient-to-br from-brand-800 to-brand-500 text-white p-16">
+      <div className="hidden md:flex flex-col items-center justify-center bg-gradient-to-br from-brand-800 to-brand-500 text-white p-16">
+        {/* Full logo lockup — safe here since this panel's background matches
+            the gradient the logo asset was designed against (its wordmark is
+            plain white, which only reads on a colored/dark surface like this
+            one, not on the plain white surface the rest of the page uses). */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo/nexaverify-lockup.png"
+          alt="NexaVerify"
+          className="w-40 md:w-48 lg:w-56 mb-10"
+        />
         <div className="max-w-md">
           <div className="text-5xl opacity-50 mb-3 leading-none">&ldquo;</div>
           <p className="text-xl leading-relaxed mb-5">
             Instant, disposable phone numbers for SMS verification — no contracts, pay only for
             what you use.
           </p>
-          <div className="text-sm opacity-75">NexaVerify</div>
         </div>
       </div>
     </div>

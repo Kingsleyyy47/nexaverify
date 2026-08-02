@@ -8,7 +8,13 @@ export default function WalletBalanceCard({ balance }) {
   const { currency, rateMap } = useCurrency();
 
   return (
-    <div className="card card-pad bg-gradient-to-br from-brand-800 to-brand-500 text-white border-0">
+    <div className="relative card card-pad bg-gradient-to-br from-brand-800 to-brand-500 text-white border-0 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo/nexaverify-mark.png"
+        alt=""
+        className="absolute -top-4 -right-4 h-28 w-auto opacity-15 pointer-events-none select-none"
+      />
       <div className="text-sm text-white/70 font-semibold mb-2">Wallet balance</div>
       <div className="text-4xl font-bold mb-1">
         {formatMoney(convertFromNgn(balance, currency, rateMap), currency)}
