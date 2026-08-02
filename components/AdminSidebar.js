@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/admin/currency", label: "Currency rates" },
   { href: "/admin/numbers", label: "Long-term numbers" },
   { href: "/admin/international", label: "International (DaisySim)" },
+  { href: "/admin/pocketfi", label: "PocketFi funding" },
 ];
 
 export default function AdminSidebar({ profile }) {

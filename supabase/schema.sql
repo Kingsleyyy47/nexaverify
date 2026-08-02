@@ -449,6 +449,43 @@ create policy "virtual_accounts_select_own" on public.virtual_accounts
 -- POST /api/wallet/virtual-account (service role key) creates these.
 
 -- ============================================================================
+-- pocketfi_config: admin-controlled settings for PocketFi funding, so these
+-- can change without a redeploy. Singleton table (id always true), same
+-- pattern as daisysim_config — see app/admin/pocketfi.
+--   virtual_account_enabled: on/off switch for the whole "permanent dedicated
+--     account number" funding flow shown on /topup (VirtualAccountCard).
+--     Turning this off does NOT delete/deactivate accounts already issued to
+--     customers (see public.virtual_accounts) — it only stops /topup from
+--     offering the flow and stops new accounts being created.
+--   virtual_account_bank: which bank PocketFi issues NEW virtual accounts
+--     against (see lib/pocketfi.js createVirtualAccount). Changing this only
+--     affects customers who don't have an account yet — existing customers
+--     keep the account number/bank they were already issued, since PocketFi
+--     has no "move this account to a different bank" operation. kuda /
+--     safehaven / paga / 9psb all work without collecting NIN/BVN; palmpay
+--     requires both, which NexaVerify doesn't collect, so accounts may fail
+--     to create for some customers if palmpay is selected.
+-- ============================================================================
+create table if not exists public.pocketfi_config (
+  id boolean primary key default true check (id),
+  virtual_account_enabled boolean not null default true,
+  virtual_account_bank text not null default 'kuda'
+    check (virtual_account_bank in ('kuda', 'safehaven', 'paga', '9psb', 'palmpay')),
+  updated_at timestamptz not null default now()
+);
+
+insert into public.pocketfi_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.pocketfi_config enable row level security;
+
+drop policy if exists "pocketfi_config_select_all" on public.pocketfi_config;
+create policy "pocketfi_config_select_all" on public.pocketfi_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/pocketfi/config (service role key) writes this.
+
+-- ============================================================================
 -- pocketfi_webhook_events: raw audit log of every webhook PocketFi sends us
 -- (app/api/pocketfi/webhook). PocketFi's documented webhook payload
 -- (order + transaction.reference) doesn't include the payment_id/account

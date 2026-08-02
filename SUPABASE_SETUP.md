@@ -240,6 +240,13 @@ and still works, it's just not linked from the UI anymore.
    (`POST /api/wallet/virtual-account`). Send a small sandbox transfer to it, then check
    `pocketfi_webhook_events` for the event and `payment_transactions` for a `pocketfi_virtual_account`
    row with `status = 'completed'`.
+8. **Switching bank / turning the flow off:** go to `/admin/pocketfi` — pick which bank issues new
+   accounts (kuda, safehaven, paga, 9psb, or palmpay) and flip the whole flow on/off. Both are
+   stored in `public.pocketfi_config`, not an env var, so they take effect immediately with no
+   redeploy. Two things worth knowing: switching banks only changes which bank *new* customers get
+   — PocketFi has no way to move an already-issued account to a different bank, so existing
+   customers keep what they have; and turning the flow off doesn't deactivate accounts already
+   issued, it just stops `/topup` from offering new ones.
 
 ## 12. DaisySim — second numbers provider ("International Numbers")
 

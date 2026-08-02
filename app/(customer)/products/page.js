@@ -6,11 +6,15 @@ export default async function ProductsPage() {
 
   // Only show products that are both switched on AND have a customer price
   // set by the admin — an enabled-but-unpriced product isn't purchasable yet.
+  // Favorited products (toggled in /admin/products) sort to the top of this
+  // same list — not a separate section — everything else stays alphabetical
+  // after them.
   const { data: services } = await supabase
     .from("services")
     .select("*")
     .eq("enabled", true)
     .not("customer_price", "is", null)
+    .order("favorite", { ascending: false })
     .order("name", { ascending: true });
 
   return (

@@ -3,11 +3,6 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createVirtualAccount, PocketfiError } from "@/lib/pocketfi";
 
-// Bank provider for new virtual accounts. kuda/saveheaven/paga/9psb all work
-// without NIN/BVN; palmpay requires both, which NexaVerify doesn't collect —
-// Kingsley picked kuda.
-const VIRTUAL_ACCOUNT_BANK = process.env.POCKETFI_VIRTUAL_ACCOUNT_BANK || "kuda";
-
 // Get-or-create: returns the customer's existing dedicated account if one's
 // already on file, otherwise asks PocketFi for a new one and stores it.
 // POST (not GET) since creating a real bank account is a side effect, even
@@ -31,6 +26,25 @@ export async function POST() {
   if (existing) {
     return NextResponse.json({ account: existing });
   }
+
+  // Admin-controlled at /admin/pocketfi (see public.pocketfi_config) instead
+  // of a fixed env var, so the bank/on-off switch can change without a
+  // redeploy. Falls back to a sane default if the config row is somehow
+  // missing (e.g. schema.sql not yet re-run).
+  const { data: config } = await admin
+    .from("pocketfi_config")
+    .select("*")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (config && !config.virtual_account_enabled) {
+    return NextResponse.json(
+      { error: "Wallet top-up by bank account is temporarily unavailable." },
+      { status: 403 }
+    );
+  }
+
+  const VIRTUAL_ACCOUNT_BANK = config?.virtual_account_bank || "kuda";
 
   // Same placeholder approach as /api/wallet/fund — Kingsley's explicit call
   // to keep using these rather than collect real name/phone, accepting the

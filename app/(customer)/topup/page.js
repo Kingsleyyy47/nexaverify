@@ -26,11 +26,16 @@ export default async function TopupPage({ searchParams }) {
   const funded = searchParams?.funded;
   const banner = funded ? FUNDED_BANNER[funded] : null;
 
-  const { data: payments } = await supabase
-    .from("payment_transactions")
-    .select("*")
-    .in("provider", ["pocketfi", "pocketfi_virtual_account"])
-    .order("created_at", { ascending: false });
+  const [{ data: payments }, { data: pocketfiConfig }] = await Promise.all([
+    supabase
+      .from("payment_transactions")
+      .select("*")
+      .in("provider", ["pocketfi", "pocketfi_virtual_account"])
+      .order("created_at", { ascending: false }),
+    supabase.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
+  ]);
+
+  const virtualAccountEnabled = pocketfiConfig?.virtual_account_enabled ?? true;
 
   return (
     <div className="space-y-7">
@@ -48,7 +53,13 @@ export default async function TopupPage({ searchParams }) {
       <div className="grid md:grid-cols-2 gap-6 items-start">
         <div className="card card-pad">
           <h3 className="font-bold text-[15px] mb-4">Your funding account</h3>
-          <VirtualAccountCard />
+          {virtualAccountEnabled ? (
+            <VirtualAccountCard />
+          ) : (
+            <p className="text-sm text-gray-400 dark:text-night-400">
+              Wallet top-up by bank account is temporarily unavailable — check back soon.
+            </p>
+          )}
         </div>
 
         <div className="card card-pad">

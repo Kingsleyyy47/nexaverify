@@ -13,6 +13,10 @@ export default async function DashboardPage() {
       .select("*")
       .eq("enabled", true)
       .not("customer_price", "is", null)
+      // Favorited products (toggled in /admin/products) sort to the top of
+      // this same list — not a separate section — everything else stays
+      // alphabetical after them.
+      .order("favorite", { ascending: false })
       .order("name", { ascending: true }),
     supabase
       .from("rentals")
