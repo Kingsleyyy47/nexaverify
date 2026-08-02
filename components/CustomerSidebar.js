@@ -10,7 +10,8 @@ import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "Products" },
+  { href: "/products", label: "USA and Canada" },
+  { href: "/products/international", label: "All countries" },
   { href: "/wallet", label: "Wallet" },
   { href: "/topup", label: "Top Up" },
   { href: "/rentals", label: "Rentals" },

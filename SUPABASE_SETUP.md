@@ -241,7 +241,41 @@ and still works, it's just not linked from the UI anymore.
    `pocketfi_webhook_events` for the event and `payment_transactions` for a `pocketfi_virtual_account`
    row with `status = 'completed'`.
 
+## 12. DaisySim — second numbers provider ("International Numbers")
+
+DaisySim is a second, optional numbers provider added alongside DaisySMS, not a replacement —
+DaisySMS keeps working exactly as before. DaisySim is country+service scoped (you pick a country,
+then a service, then a live price tier) rather than DaisySMS's flat service list, so it's shown to
+customers as its own product at `/products/international`, never under the DaisySMS brand name.
+Customer-facing UI never says "DaisySim" — only the admin panel does.
+
+1. Re-run `schema.sql` (see section 2) — it added `provider`, `daisysim_activation_id`,
+   `country_name`, `service_code`, `service_name` columns to `public.rentals`, and a new
+   `public.daisysim_config` singleton table (one row, `enabled` + `markup_amount_ngn`).
+2. Sign up at [daisysim.com](https://daisysim.com) and get your API key from their dashboard.
+3. Add to your `.env.local` (and your Vercel project's env vars):
+   ```
+   DAISYSIM_API_KEY=your-daisysim-api-key
+   DAISYSIM_BASE_URL=https://daisysim.com/api/v1/virtual
+   DAISYSIM_WEBHOOK_SECRET=pick-a-random-string
+   ```
+4. In DaisySim's dashboard, set the webhook URL to:
+   ```
+   https://YOUR-DOMAIN.com/api/daisysim/webhook?secret=THE_SAME_RANDOM_STRING
+   ```
+   DaisySim's docs don't describe a request-signing scheme, so this shared-secret query param is
+   the only thing stopping random internet traffic from posting fake "code received" events —
+   same convention already used for the DaisySMS webhook.
+5. Go to `/admin/international` and turn it on, with whatever ₦ markup you want added on top of
+   the USD→NGN converted price DaisySim returns (uses the same `currency_rates` USD rate as
+   DaisySMS's long-term rentals). It's off by default — customers see a "not available" card on
+   `/products/international` until you flip this.
+6. Test it: buy a number on `/products/international`, confirm a `rentals` row appears with
+   `provider = 'daisysim'`, and that cancelling/receiving a code behaves the same as a normal
+   DaisySMS number from the customer's point of view.
+
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets.
+- Don't refer to "DaisySim" anywhere in customer-facing UI — only `/products/international` and admin pages may name it.

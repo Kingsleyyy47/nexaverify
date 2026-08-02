@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/topups", label: "Top-up requests" },
   { href: "/admin/currency", label: "Currency rates" },
   { href: "/admin/numbers", label: "Long-term numbers" },
+  { href: "/admin/international", label: "International (DaisySim)" },
 ];
 
 export default function AdminSidebar({ profile }) {

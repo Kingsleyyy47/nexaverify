@@ -60,7 +60,8 @@ export default function NumberCard({ rental }) {
             <div className="font-mono text-base font-bold">{state.phone_number}</div>
           </div>
           <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
-            {state.service_id} · {format(state.price)}
+            {state.service_name || state.service_id} · {format(state.price)}
+            {state.country_name ? ` · ${state.country_name}` : ""}
             {state.is_long_term ? " · Long-term" : ""}
           </div>
         </div>

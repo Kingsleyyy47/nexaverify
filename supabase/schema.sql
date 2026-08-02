@@ -116,17 +116,45 @@ create policy "services_select_all" on public.services
   for select using (true);
 
 -- ============================================================================
+-- daisysim_config: site-wide settings for the DaisySim provider (see
+-- lib/daisysim.js). Unlike DaisySMS's public.services catalog — where an
+-- admin pre-syncs and prices each service individually — DaisySim is
+-- country+service scoped with live, 5-minute-expiring price tiers, so there's
+-- nothing to pre-price per product. Instead there's one global flat-NGN
+-- markup applied on top of the live USD tier price at purchase time, and one
+-- on/off switch for the whole flow. Deliberately a single-row table (id
+-- always true) rather than per-service rows — see app/admin/international.
+-- ============================================================================
+create table if not exists public.daisysim_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default false,
+  markup_amount_ngn numeric(12,2) not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.daisysim_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.daisysim_config enable row level security;
+
+drop policy if exists "daisysim_config_select_all" on public.daisysim_config;
+create policy "daisysim_config_select_all" on public.daisysim_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/international/config (service role key) writes this.
+
+-- ============================================================================
 -- rentals: every phone number ever purchased through NexaVerify.
 -- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
 -- ============================================================================
 create table if not exists public.rentals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  daisy_id text not null,             -- the $ID from DaisySMS getNumber
-  service_id text not null references public.services(id),
+  daisy_id text,                      -- the $ID from DaisySMS getNumber — null for provider='daisysim'
+  service_id text references public.services(id), -- DaisySMS catalog row — null for provider='daisysim'
   phone_number text not null,
   price numeric(12,2) not null,       -- what the customer was actually charged, in NGN
-  cost_usd numeric(12,2),             -- what DaisySMS actually charged NexaVerify, in USD (margin tracking)
+  cost_usd numeric(12,2),             -- what the provider actually charged NexaVerify, in USD (margin tracking)
   status text not null default 'waiting'
     check (status in ('waiting', 'received', 'cancelled', 'done', 'expired')),
   is_long_term boolean not null default false,
@@ -136,6 +164,7 @@ create table if not exists public.rentals (
   -- LTR-specific fields, kept in sync from DaisySMS's GET /api/ltrs via the
   -- admin "Sync LTRs" action (see lib/daisy.js getLtrs() and
   -- app/api/admin/rentals/sync-ltrs/route.js). Null/false until synced.
+  -- DaisySim has no long-term-rental concept, so these stay null there.
   daily_price numeric(12,2),
   auto_renew boolean not null default false,
   renewable boolean not null default true,
@@ -156,9 +185,27 @@ alter table public.rentals add column if not exists period_duration integer;
 alter table public.rentals add column if not exists period_type text;
 alter table public.rentals add column if not exists cost_usd numeric(12,2);
 
+-- ----------------------------------------------------------------------------
+-- DaisySim support (second phone-number provider, added alongside DaisySMS —
+-- see lib/daisysim.js). DaisySim is country+service scoped with live,
+-- expiring price tiers rather than a pre-synced catalog like public.services,
+-- so its rentals carry their own denormalized country/service labels instead
+-- of an FK into services. daisy_id/service_id above had to become nullable
+-- since a DaisySim rental has neither.
+-- ----------------------------------------------------------------------------
+alter table public.rentals alter column daisy_id drop not null;
+alter table public.rentals alter column service_id drop not null;
+alter table public.rentals add column if not exists provider text not null default 'daisysms'
+  check (provider in ('daisysms', 'daisysim'));
+alter table public.rentals add column if not exists daisysim_activation_id text;
+alter table public.rentals add column if not exists country_name text;
+alter table public.rentals add column if not exists service_code text;
+alter table public.rentals add column if not exists service_name text;
+
 create index if not exists rentals_user_id_idx on public.rentals(user_id);
 create index if not exists rentals_long_term_idx on public.rentals(is_long_term);
 create index if not exists rentals_daisy_id_idx on public.rentals(daisy_id);
+create index if not exists rentals_daisysim_activation_id_idx on public.rentals(daisysim_activation_id);
 
 alter table public.rentals enable row level security;
 

@@ -1,21 +1,23 @@
 import Link from "next/link";
 import { getSessionProfile } from "@/lib/auth";
-import TransactionsTable from "@/components/TransactionsTable";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
+import QuickBuyList from "@/components/QuickBuyList";
+import NumberCard from "@/components/NumberCard";
 
 export default async function DashboardPage() {
   const { profile, supabase } = await getSessionProfile();
 
-  const [{ data: transactions }, { data: activeRentals }] = await Promise.all([
+  const [{ data: services }, { data: activeRentals }] = await Promise.all([
     supabase
-      .from("transactions")
+      .from("services")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5),
+      .eq("enabled", true)
+      .not("customer_price", "is", null)
+      .order("name", { ascending: true }),
     supabase
       .from("rentals")
       .select("*")
-      .eq("status", "waiting")
+      .in("status", ["waiting", "received"])
       .order("created_at", { ascending: false }),
   ]);
 
@@ -31,10 +33,8 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-5 mb-7 items-stretch">
-        <div className="md:col-span-1">
-          <WalletBalanceCard balance={profile?.balance || 0} />
-        </div>
+      <div className="grid sm:grid-cols-2 gap-5 mb-7 items-stretch">
+        <WalletBalanceCard balance={profile?.balance || 0} />
 
         <div className="card card-pad">
           <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
@@ -48,31 +48,25 @@ export default async function DashboardPage() {
             View rentals →
           </Link>
         </div>
-
-        <div className="card card-pad">
-          <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
-            Browse products
-          </div>
-          <p className="text-xs text-gray-400 dark:text-night-400 mb-2">
-            See what services are available and their prices in Naira.
-          </p>
-          <Link
-            href="/products"
-            className="text-xs font-semibold text-brand-700 dark:text-brand-400 mt-2 inline-block"
-          >
-            Go to Products →
-          </Link>
-        </div>
       </div>
 
-      <div className="card card-pad">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-[15px]">Recent transactions</h3>
-          <Link href="/history" className="text-xs font-semibold text-brand-700 dark:text-brand-400">
-            View all →
-          </Link>
-        </div>
-        <TransactionsTable transactions={transactions} />
+      <div className="mb-7">
+        <QuickBuyList services={services || []} />
+      </div>
+
+      <div>
+        <h3 className="font-bold text-[15px] mb-3">Your numbers</h3>
+        {(activeRentals || []).length === 0 ? (
+          <div className="card card-pad text-sm text-gray-400 dark:text-night-400">
+            No active numbers yet — buy one above and it&apos;ll show up here with its code.
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {activeRentals.map((r) => (
+              <NumberCard key={r.id} rental={r} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
