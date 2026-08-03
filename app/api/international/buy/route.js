@@ -33,6 +33,21 @@ export async function POST(request) {
     return NextResponse.json({ error: "International numbers aren't available right now" }, { status: 403 });
   }
 
+  // Re-check the admin's per-combo block list server-side (see
+  // /admin/international -> InternationalOverridesManager,
+  // public.daisysim_overrides) — never trust that the client only ever
+  // showed services that weren't disabled, same principle as re-validating
+  // price/balance below rather than trusting whatever the client sent.
+  const { data: override } = await admin
+    .from("daisysim_overrides")
+    .select("disabled")
+    .eq("country_id", countryId)
+    .eq("service_code", serviceCode)
+    .maybeSingle();
+  if (override?.disabled) {
+    return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
+  }
+
   const { data: usdRateRow } = await admin
     .from("currency_rates")
     .select("ngn_per_unit")

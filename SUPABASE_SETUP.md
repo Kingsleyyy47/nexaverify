@@ -280,6 +280,13 @@ Customer-facing UI never says "DaisySim" — only the admin panel does.
 6. Test it: buy a number on `/products/international`, confirm a `rentals` row appears with
    `provider = 'daisysim'`, and that cancelling/receiving a code behaves the same as a normal
    DaisySMS number from the customer's point of view.
+7. **Favorites and blocks per country+service:** re-run `schema.sql` again if you haven't since
+   this was added — it created `public.daisysim_overrides`. On `/admin/international`, the
+   "Catalog — favorites & blocks" section lets you pick a country, browse its live service list,
+   and toggle a star (pins that service to the top of that country's list for customers) or
+   Enabled/Disabled (hides it from customers and blocks purchase entirely) per combo. There's no
+   per-service pricing here — DaisySim's prices are live/expiring tiers, not something you can set
+   like DaisySMS's Products page — only favorite and disabled.
 
 ## What NOT to do
 

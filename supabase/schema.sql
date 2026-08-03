@@ -144,6 +144,47 @@ create policy "daisysim_config_select_all" on public.daisysim_config
 -- /api/admin/international/config (service role key) writes this.
 
 -- ============================================================================
+-- daisysim_overrides: per country+service admin overrides for the
+-- International Numbers catalog (see app/admin/international ->
+-- InternationalOverridesManager). Unlike public.services (DaisySMS's
+-- pre-synced, individually-priced catalog), DaisySim has no local catalog at
+-- all — countries/services are fetched live from their API every time (see
+-- lib/daisysim.js getCountries/getServicesForCountry) and prices are
+-- live/expiring tiers that can't be manually overridden. What CAN be
+-- overridden per country+service combo, mirroring the favorite/enabled
+-- controls on DaisySMS's Products page:
+--   favorite: pins this combo to the top of the customer's service list for
+--     that country (see app/api/international/services).
+--   disabled: hides this combo entirely from customers and blocks purchase
+--     server-side (see app/api/international/buy), without touching the
+--     global on/off switch in daisysim_config.
+-- Rows are created lazily — only combos an admin has actually touched exist
+-- here at all; everything else defaults to "not favorited, not disabled".
+-- ============================================================================
+create table if not exists public.daisysim_overrides (
+  id uuid primary key default gen_random_uuid(),
+  country_id text not null,
+  country_name text not null,
+  service_code text not null,
+  service_name text not null,
+  favorite boolean not null default false,
+  disabled boolean not null default false,
+  updated_at timestamptz not null default now(),
+  unique (country_id, service_code)
+);
+
+create index if not exists daisysim_overrides_country_idx on public.daisysim_overrides(country_id);
+
+alter table public.daisysim_overrides enable row level security;
+
+drop policy if exists "daisysim_overrides_select_all" on public.daisysim_overrides;
+create policy "daisysim_overrides_select_all" on public.daisysim_overrides
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/international/overrides (service role key) writes this.
+
+-- ============================================================================
 -- rentals: every phone number ever purchased through NexaVerify.
 -- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
 -- ============================================================================
