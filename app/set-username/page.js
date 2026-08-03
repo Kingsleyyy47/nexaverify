@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import NavLogo from "@/components/NavLogo";
 
 // Middleware redirects any logged-in visitor with no profiles.username here
 // — normally only hit by the rare signup race condition described in
 // schema.sql's handle_new_user(). One field, no way out except setting one.
 export default function SetUsernamePage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,8 +26,11 @@ export default function SetUsernamePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save username");
 
-      router.push("/dashboard");
-      router.refresh();
+      // Hard navigation, not router.push()+refresh() — see the same fix
+      // and comment on app/login/page.js (stale Router Cache can bounce a
+      // soft push back to /login or /set-username on the first click).
+      window.location.href = "/dashboard";
+      return;
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,10 +45,8 @@ export default function SetUsernamePage() {
       </div>
 
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 mb-8 font-extrabold text-lg text-brand-900 dark:text-night-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-8 w-auto" />
-          NexaVerify
+        <div className="mb-8">
+          <NavLogo />
         </div>
 
         <h1 className="text-2xl font-bold mb-1 dark:text-night-100">Choose a username</h1>

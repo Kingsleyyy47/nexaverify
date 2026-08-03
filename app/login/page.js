@@ -1,13 +1,13 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import NavLogo from "@/components/NavLogo";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [mode, setMode] = useState(searchParams.get("mode") === "signup" ? "signup" : "signin");
@@ -34,8 +34,17 @@ function LoginForm() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not sign in");
 
-        router.push("/dashboard");
-        router.refresh();
+        // A hard navigation, not router.push()+refresh(). The App Router's
+        // client-side Router Cache can hold onto an RSC payload for
+        // /dashboard from before this cookie existed (e.g. prefetched while
+        // signed out), so a soft push can bounce straight back to /login on
+        // the first click — the loading state reverts to "Sign in" and it
+        // only works on the second click because by then the earlier
+        // request already set the cookie. window.location.href forces a
+        // real request that always sees the fresh session (same class of
+        // stale-cache bug as the /products fix — see task #67).
+        window.location.href = "/dashboard";
+        return;
       } else {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
@@ -51,8 +60,10 @@ function LoginForm() {
         // in again. If email confirmation is ever turned back on, there's
         // no active session yet and middleware will simply bounce this back
         // to /login, which is a harmless fallback.
-        router.push("/dashboard");
-        router.refresh();
+        // Hard navigation for the same reason as the signin branch above —
+        // avoids the stale Router Cache bounce.
+        window.location.href = "/dashboard";
+        return;
       }
     } catch (err) {
       setError(err.message || "Something went wrong");
@@ -76,10 +87,8 @@ function LoginForm() {
 
         <div className="flex-1 flex items-center justify-center -mt-8">
           <div className="w-full max-w-sm">
-            <div className="flex items-center gap-2 mb-10 font-extrabold text-lg text-brand-900 dark:text-night-100">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo/nexaverify-mark.png" alt="NexaVerify" className="h-8 w-auto" />
-              NexaVerify
+            <div className="mb-10">
+              <NavLogo />
             </div>
 
             <h1 className="text-2xl font-bold mb-1 dark:text-night-100">
