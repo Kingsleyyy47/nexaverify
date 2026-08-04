@@ -17,6 +17,7 @@ const LINKS = [
   { href: "/topup", label: "Top Up" },
   { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
+  { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
 export default function CustomerSidebar({ profile }) {
@@ -25,16 +26,29 @@ export default function CustomerSidebar({ profile }) {
 
   const navLinks = (
     <>
-      {LINKS.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          onClick={() => setMobileOpen(false)}
-          className={`nav-link ${pathname.startsWith(link.href) ? "active" : ""}`}
-        >
-          {link.label}
-        </Link>
-      ))}
+      {LINKS.map((link) =>
+        link.external ? (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileOpen(false)}
+            className="nav-link"
+          >
+            {link.label}
+          </a>
+        ) : (
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={() => setMobileOpen(false)}
+            className={`nav-link ${pathname.startsWith(link.href) ? "active" : ""}`}
+          >
+            {link.label}
+          </Link>
+        )
+      )}
 
       {profile?.role === "admin" && (
         <>

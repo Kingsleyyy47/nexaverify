@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AdjustBalanceForm from "@/components/AdjustBalanceForm";
 import SetUsernameForm from "@/components/SetUsernameForm";
+import ResetPasswordForm from "@/components/ResetPasswordForm";
 
 export default async function AdminUserDetailPage({ params }) {
   const admin = createAdminClient();
@@ -58,6 +59,15 @@ export default async function AdminUserDetailPage({ params }) {
           </div>
           <SetUsernameForm userId={user.id} currentUsername={user.username} />
         </div>
+      </div>
+
+      <div className="card card-pad max-w-sm">
+        <h3 className="font-bold text-[15px] mb-1">Reset password</h3>
+        <p className="text-xs text-gray-400 dark:text-night-400 mb-4">
+          Sets a new password immediately, no email link — for when a customer can't get to their
+          inbox. Share the new password with them directly afterward.
+        </p>
+        <ResetPasswordForm userId={user.id} />
       </div>
 
       <div className="card card-pad">

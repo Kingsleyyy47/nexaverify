@@ -288,6 +288,26 @@ Customer-facing UI never says "DaisySim" — only the admin panel does.
    per-service pricing here — DaisySim's prices are live/expiring tiers, not something you can set
    like DaisySMS's Products page — only favorite and disabled.
 
+## 13. Forgot password / reset password
+
+Customers who forget their password use `/forgot-password` (linked from the sign-in form) — they
+enter their username or email, `/api/auth/forgot-password` looks up the account the same way
+login does and calls Supabase's `resetPasswordForEmail`, which emails a link to `/reset-password`
+where they set a new one. Admins can also bypass all of this and set a password directly for a
+user from `/admin/users/[id]` (no email involved) for support cases.
+
+1. In Supabase Dashboard → **Authentication → URL Configuration**, add your reset-password page
+   to **Redirect URLs** — e.g. `https://www.nexaverify.org/reset-password` (and
+   `http://localhost:3000/reset-password` if you test locally). Supabase silently ignores
+   `redirectTo` if it isn't on this allowlist, which looks like the email never arrives when it
+   actually just redirected nowhere useful.
+2. Under **Authentication → Email Templates → Reset Password**, this uses Supabase's default
+   template as-is — no changes needed unless you want to customize the wording/branding of the
+   email itself.
+3. Test it: go to `/forgot-password`, enter a real test account's username or email, and follow
+   the emailed link — it should land on `/reset-password` and let you set a new password, then
+   sign you straight in.
+
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.

@@ -3,6 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickBuyList from "@/components/QuickBuyList";
 import NumberCard from "@/components/NumberCard";
+import BuyNumberMenu from "@/components/BuyNumberMenu";
 
 export default async function DashboardPage() {
   const { profile, supabase } = await getSessionProfile();
@@ -32,9 +33,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">Your wallet and recent activity.</p>
         </div>
-        <Link href="/products" className="btn-primary">
-          + Buy a number
-        </Link>
+        <BuyNumberMenu />
       </div>
 
       <div className="grid sm:grid-cols-2 gap-5 mb-7 items-stretch">

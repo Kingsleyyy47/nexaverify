@@ -147,6 +147,14 @@ function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                 />
+                {mode === "signin" && (
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs font-semibold text-brand-700 dark:text-brand-400 mt-1.5 inline-block"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
               </div>
 
               {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

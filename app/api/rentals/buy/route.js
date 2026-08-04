@@ -63,11 +63,21 @@ export async function POST(request) {
         TOO_MANY_ACTIVE_RENTALS: "You've reached the limit of active rentals. Finish or cancel one first.",
         NO_MONEY: "This service is temporarily unavailable. Please contact support.",
       };
+      // Log the RAW DaisySMS response for anything not in the friendly-message
+      // map above (e.g. BAD_KEY, UNKNOWN_RESPONSE, TIMEOUT, NETWORK_ERROR) —
+      // those all currently show the same generic customer-facing message, so
+      // this is the only place the actual cause is visible. Check Vercel's
+      // deployment -> Functions -> Logs for this line if purchases start
+      // failing with "Could not rent a number right now."
+      if (!messages[err.code]) {
+        console.error(`[rentals/buy] DaisySMS getNumber failed for service "${serviceId}":`, err.code, err.message);
+      }
       return NextResponse.json(
         { error: messages[err.code] || "Could not rent a number right now." },
         { status: 502 }
       );
     }
+    console.error(`[rentals/buy] Unexpected (non-DaisyError) failure for service "${serviceId}":`, err);
     return NextResponse.json({ error: "Could not rent a number right now. Please try again." }, { status: 502 });
   }
 
