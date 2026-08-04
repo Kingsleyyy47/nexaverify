@@ -208,14 +208,18 @@ and still works, it's just not linked from the UI anymore.
    one-per-customer bank account mapping).
 2. Sign up at [pocketfi.ng](https://pocketfi.ng), complete business verification, then go to
    **Settings → API Keys** to get your credentials.
-3. **Important — the dashboard shows two keys, and only one is right for this:** use the one
-   labeled **Secret API Key** (marked CONFIDENTIAL, hidden by default) as `POCKETFI_SECRET_KEY`
-   below — NOT the **Public API Key** (marked LIVE, shown in plaintext). The public key is for
-   client-side use; the secret key is the server-to-server Bearer token this app actually calls
-   PocketFi with. Using the public key by mistake is what caused every request to fail with
-   "Unauthenticated." the first time this was set up.
+3. **Important — the dashboard shows two keys, named backwards from what you'd expect:** use the
+   one labeled **Public API Key** (marked LIVE, an `id|token` credential) as `POCKETFI_PUBLIC_KEY`
+   below — that's the actual server-to-server Bearer token this app calls PocketFi with, despite
+   the "public" name. The **Secret API Key** (marked CONFIDENTIAL, a plain hex string) is NOT a
+   valid bearer token at all — it's only used to verify the HMAC-SHA512 signature on inbound
+   webhooks (still needed, just for a different purpose — see step 5). This integration had these
+   two swapped for a while (Secret key used as the Bearer token), which is what caused
+   intermittent "Unauthenticated." rejections — if you see that error, this is the first thing to
+   check.
 4. Add to your `.env.local` (and your Vercel project's env vars):
    ```
+   POCKETFI_PUBLIC_KEY=your-pocketfi-public-key
    POCKETFI_SECRET_KEY=your-pocketfi-secret-key
    POCKETFI_BUSINESS_ID=your-pocketfi-business-id
    POCKETFI_BASE_URL=https://api.pocketfi.ng/api/v1
@@ -311,5 +315,5 @@ user from `/admin/users/[id]` (no email involved) for support cases.
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
 - Don't refer to "DaisySim" anywhere in customer-facing UI — only `/products/international` and admin pages may name it.
