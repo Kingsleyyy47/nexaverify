@@ -1,14 +1,24 @@
 import Link from "next/link";
 import { getSessionProfile } from "@/lib/auth";
+import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickBuyList from "@/components/QuickBuyList";
+import UsOnlyBuyList from "@/components/UsOnlyBuyList";
 import NumberCard from "@/components/NumberCard";
 import BuyNumberMenu from "@/components/BuyNumberMenu";
+import WelcomeModal from "@/components/WelcomeModal";
 
 export default async function DashboardPage() {
   const { profile, supabase } = await getSessionProfile();
 
-  const [{ data: services }, { data: activeRentals }] = await Promise.all([
+  const [
+    { data: services },
+    { data: activeRentals },
+    { data: onboardingConfig },
+    { data: daisysmsConfig },
+    { data: daisysimConfig },
+    usOnlyCatalog,
+  ] = await Promise.all([
     supabase
       .from("services")
       .select("*")
@@ -24,16 +34,30 @@ export default async function DashboardPage() {
       .select("*")
       .in("status", ["waiting", "received"])
       .order("created_at", { ascending: false }),
+    supabase.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
+    supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
+    supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
+    getUsOnlyCatalog(supabase),
   ]);
+
+  // All fail open/closed to their respective defaults — see /admin/providers.
+  const daisysmsEnabled = daisysmsConfig?.enabled ?? true;
+  const daisysimEnabled = daisysimConfig?.enabled ?? false;
+  const usOnlyEnabled = usOnlyCatalog.enabled;
 
   return (
     <div>
+      <WelcomeModal config={onboardingConfig} alreadySeen={Boolean(profile?.onboarding_seen_at)} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-7">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">Your wallet and recent activity.</p>
         </div>
-        <BuyNumberMenu />
+        <BuyNumberMenu
+          daisysmsEnabled={daisysmsEnabled}
+          daisysimEnabled={daisysimEnabled}
+          usOnlyEnabled={usOnlyEnabled}
+        />
       </div>
 
       <div className="grid sm:grid-cols-2 gap-5 mb-7 items-stretch">
@@ -53,9 +77,17 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="mb-7">
-        <QuickBuyList services={services || []} />
-      </div>
+      {usOnlyEnabled && !usOnlyCatalog.error && (
+        <div className="mb-7">
+          <UsOnlyBuyList services={usOnlyCatalog.services} title="US Only" compact />
+        </div>
+      )}
+
+      {daisysmsEnabled && (
+        <div className="mb-7">
+          <QuickBuyList services={services || []} />
+        </div>
+      )}
 
       <div>
         <h3 className="font-bold text-[15px] mb-3">Your numbers</h3>

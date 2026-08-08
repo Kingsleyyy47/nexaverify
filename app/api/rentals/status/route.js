@@ -3,6 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStatus, DaisyError } from "@/lib/daisy";
 import { checkSms, DaisySimError } from "@/lib/daisysim";
+import { checkSms as checkSmsUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
 
 export async function GET(request) {
   const { user, supabase } = await getSessionProfile();
@@ -51,6 +52,42 @@ export async function GET(request) {
       return NextResponse.json({ rental }); // still waiting
     } catch (err) {
       if (err instanceof DaisySimError && err.code === "NOT_FOUND") {
+        return NextResponse.json({ rental }); // transient — just report current state
+      }
+      return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });
+    }
+  }
+
+  if (rental.provider === "daisysim_usa") {
+    try {
+      const result = await checkSmsUsa(rental.daisysim_usa_activation_id);
+
+      if (result.status === "received") {
+        const { data: updated } = await admin
+          .from("rentals")
+          .update({ status: "received", sms_code: result.code, updated_at: new Date().toISOString() })
+          .eq("id", rental.id)
+          .select()
+          .single();
+
+        await admin.from("sms_messages").insert({ rental_id: rental.id, code: result.code, text: result.code });
+
+        return NextResponse.json({ rental: updated });
+      }
+
+      if (result.status === "cancelled") {
+        const { data: updated } = await admin
+          .from("rentals")
+          .update({ status: "cancelled", updated_at: new Date().toISOString() })
+          .eq("id", rental.id)
+          .select()
+          .single();
+        return NextResponse.json({ rental: updated });
+      }
+
+      return NextResponse.json({ rental }); // still waiting
+    } catch (err) {
+      if (err instanceof DaisySimUsaError && err.code === "NOT_FOUND") {
         return NextResponse.json({ rental }); // transient — just report current state
       }
       return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });

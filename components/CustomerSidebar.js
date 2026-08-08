@@ -9,10 +9,11 @@ import CurrencySwitcher from "./CurrencySwitcher";
 import ThemeToggle from "./ThemeToggle";
 import NavLogo from "./NavLogo";
 
-const LINKS = [
+const BASE_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "USA and Canada" },
-  { href: "/products/international", label: "All countries" },
+  { href: "/products/us-only", label: "US Only", provider: "daisysim_usa" },
+  { href: "/products", label: "USA and Canada", provider: "daisysms" },
+  { href: "/products/international", label: "All countries", provider: "daisysim" },
   { href: "/wallet", label: "Wallet" },
   { href: "/topup", label: "Top Up" },
   { href: "/rentals", label: "Rentals" },
@@ -20,9 +21,24 @@ const LINKS = [
   { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
-export default function CustomerSidebar({ profile }) {
+export default function CustomerSidebar({
+  profile,
+  daisysmsEnabled = true,
+  daisysimEnabled = false,
+  usOnlyEnabled = false,
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Whichever provider is switched off at /admin/providers drops out of the
+  // nav entirely — not just greyed out — same as the section disappearing
+  // from the dashboard/products pages themselves.
+  const LINKS = BASE_LINKS.filter((link) => {
+    if (link.provider === "daisysms") return daisysmsEnabled;
+    if (link.provider === "daisysim") return daisysimEnabled;
+    if (link.provider === "daisysim_usa") return usOnlyEnabled;
+    return true;
+  });
 
   const navLinks = (
     <>

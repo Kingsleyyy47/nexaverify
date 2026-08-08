@@ -40,8 +40,12 @@ body {
     @apply block text-sm font-semibold mb-1.5 text-gray-800 dark:text-night-200;
   }
   .field input,
-  .field select {
+  .field select,
+  .field textarea {
     @apply w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 bg-white dark:bg-night-950 dark:border-night-600 dark:text-night-100 dark:focus:ring-brand-900;
+  }
+  .field textarea {
+    @apply resize-y;
   }
   .field .hint {
     @apply block text-xs text-gray-400 mt-1.5 dark:text-night-400;

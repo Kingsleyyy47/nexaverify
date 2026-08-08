@@ -10,13 +10,16 @@ import NavLogo from "./NavLogo";
 
 const LINKS = [
   { href: "/admin", label: "Overview", exact: true },
+  { href: "/admin/providers", label: "APIs & Providers" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/topups", label: "Top-up requests" },
   { href: "/admin/currency", label: "Currency rates" },
   { href: "/admin/numbers", label: "Long-term numbers" },
   { href: "/admin/international", label: "International (DaisySim)" },
+  { href: "/admin/us-only", label: "US Only" },
   { href: "/admin/pocketfi", label: "PocketFi funding" },
+  { href: "/admin/onboarding", label: "Welcome popup" },
 ];
 
 export default function AdminSidebar({ profile }) {

@@ -8,12 +8,30 @@ export default async function CustomerLayout({ children }) {
   const { user, profile, supabase } = await getSessionProfile();
   if (!user) redirect("/login");
 
-  const { data: rates } = await supabase.from("currency_rates").select("*");
+  const [{ data: rates }, { data: daisysmsConfig }, { data: daisysimConfig }, { data: usOnlyConfig }] =
+    await Promise.all([
+      supabase.from("currency_rates").select("*"),
+      supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
+      supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
+      supabase.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle(),
+    ]);
+
+  // All fail open/closed to their respective defaults (see /admin/providers)
+  // — missing row (schema.sql not yet re-run) shouldn't silently hide or
+  // wrongly show a provider's nav link.
+  const daisysmsEnabled = daisysmsConfig?.enabled ?? true;
+  const daisysimEnabled = daisysimConfig?.enabled ?? false;
+  const usOnlyEnabled = usOnlyConfig?.enabled ?? false;
 
   return (
     <CurrencyProvider rates={rates}>
       <div className="min-h-screen flex flex-col md:flex-row">
-        <CustomerSidebar profile={profile} />
+        <CustomerSidebar
+          profile={profile}
+          daisysmsEnabled={daisysmsEnabled}
+          daisysimEnabled={daisysimEnabled}
+          usOnlyEnabled={usOnlyEnabled}
+        />
         <main className="flex-1 p-4 md:p-9 max-w-6xl w-full">
           <CustomerTopBar balance={profile?.balance || 0} />
           {children}

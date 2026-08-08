@@ -81,6 +81,21 @@ select cron.schedule(
   $$
 );
 
+-- 5. Cancel + refund any short-term rental (either provider) that's gone 3
+--    minutes with no code — see app/api/admin/rentals/sweep-timeouts. Runs
+--    every minute so the worst-case delay past the 3-minute mark is ~1
+--    minute. Long-term rentals are excluded by the route itself.
+select cron.schedule(
+  'nexaverify-sweep-timeouts',
+  '* * * * *', -- every minute
+  $$
+  select net.http_post(
+    url := 'https://YOUR-DOMAIN.com/api/admin/rentals/sweep-timeouts',
+    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+  );
+  $$
+);
+
 -- Useful later, run any of these in the SQL Editor:
 --   select * from cron.job;                                                -- list scheduled jobs
 --   select * from cron.job_run_details order by start_time desc limit 20;  -- check recent runs / failures
@@ -88,3 +103,4 @@ select cron.schedule(
 --   select cron.unschedule('nexaverify-sync-ltrs');
 --   select cron.unschedule('nexaverify-backup');
 --   select cron.unschedule('nexaverify-sync-currency');
+--   select cron.unschedule('nexaverify-sweep-timeouts');

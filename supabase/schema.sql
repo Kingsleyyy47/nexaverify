@@ -23,6 +23,12 @@ create table if not exists public.profiles (
 -- until then, only with whatever auth method they used to sign up.
 alter table public.profiles add column if not exists username text;
 
+-- Set the first time a customer dismisses the welcome/onboarding popup (see
+-- public.onboarding_config, components/WelcomeModal.js) — null means they
+-- haven't seen it yet. Per-user and permanent once set; there's no
+-- "show again" reset built in, matching how most onboarding modals behave.
+alter table public.profiles add column if not exists onboarding_seen_at timestamptz;
+
 -- Case-insensitive uniqueness ("Alice" and "alice" can't both exist), but
 -- deliberately allows any number of NULLs (old accounts without a username
 -- set yet don't block each other or new signups).
@@ -116,6 +122,34 @@ create policy "services_select_all" on public.services
   for select using (true);
 
 -- ============================================================================
+-- daisysms_config: master on/off switch for the whole DaisySMS provider (the
+-- "USA & Canada" catalog — public.services). Unlike DaisySim, DaisySMS has
+-- no other site-wide setting to store (pricing is per-service on
+-- public.services itself), so this is deliberately a single boolean rather
+-- than folded into another table — see app/admin/providers and
+-- app/api/rentals/buy. Off by default is NOT the default here (unlike
+-- daisysim_config) since DaisySMS is the original, already-live provider —
+-- defaults to enabled=true so existing installs aren't silently broken by
+-- re-running this file.
+-- ============================================================================
+create table if not exists public.daisysms_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.daisysms_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.daisysms_config enable row level security;
+
+drop policy if exists "daisysms_config_select_all" on public.daisysms_config;
+create policy "daisysms_config_select_all" on public.daisysms_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/providers/config (service role key) writes this.
+
+-- ============================================================================
 -- daisysim_config: site-wide settings for the DaisySim provider (see
 -- lib/daisysim.js). Unlike DaisySMS's public.services catalog — where an
 -- admin pre-syncs and prices each service individually — DaisySim is
@@ -185,6 +219,67 @@ create policy "daisysim_overrides_select_all" on public.daisysim_overrides
 -- /api/admin/international/overrides (service role key) writes this.
 
 -- ============================================================================
+-- daisysim_usa_config: site-wide settings for the "US Only" provider (see
+-- lib/daisysimUsa.js) — a THIRD, separate phone-number provider alongside
+-- DaisySMS (USA & Canada) and the "All countries" DaisySim product above.
+-- Despite the similar name this is a different API/product line on
+-- DaisySim's side (their "server7" base path, USA-only, flat catalog with
+-- prices already attached — no country picker, no price tiers). Same
+-- singleton-row pattern as daisysim_config: one on/off switch, one flat-NGN
+-- markup applied on top of the live USD price at purchase time. Off by
+-- default — new opt-in provider, see app/admin/us-only.
+-- ============================================================================
+create table if not exists public.daisysim_usa_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default false,
+  markup_amount_ngn numeric(12,2) not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.daisysim_usa_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.daisysim_usa_config enable row level security;
+
+drop policy if exists "daisysim_usa_config_select_all" on public.daisysim_usa_config;
+create policy "daisysim_usa_config_select_all" on public.daisysim_usa_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/us-only/config (service role key) writes this.
+
+-- ============================================================================
+-- daisysim_usa_overrides: per-service admin overrides for the "US Only"
+-- catalog (see app/admin/us-only -> UsOnlyOverridesManager). No country
+-- dimension needed here (unlike daisysim_overrides) since this provider is
+-- USA-only — one row per service code. Same favorite/disabled semantics as
+-- every other catalog override table in this schema:
+--   favorite: pins this service to the top of the customer's list (see
+--     app/api/us-only/services or lib/usOnlyCatalog.js).
+--   disabled: hides this service entirely from customers and blocks
+--     purchase server-side (see app/api/us-only/buy), without touching the
+--     global on/off switch in daisysim_usa_config.
+-- Rows are created lazily — only services an admin has actually touched
+-- exist here at all.
+-- ============================================================================
+create table if not exists public.daisysim_usa_overrides (
+  id uuid primary key default gen_random_uuid(),
+  service_code text not null unique,
+  service_name text not null,
+  favorite boolean not null default false,
+  disabled boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.daisysim_usa_overrides enable row level security;
+
+drop policy if exists "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrides;
+create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrides
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/us-only/overrides (service role key) writes this.
+
+-- ============================================================================
 -- rentals: every phone number ever purchased through NexaVerify.
 -- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
 -- ============================================================================
@@ -243,10 +338,46 @@ alter table public.rentals add column if not exists country_name text;
 alter table public.rentals add column if not exists service_code text;
 alter table public.rentals add column if not exists service_name text;
 
+-- ----------------------------------------------------------------------------
+-- "US Only" support (third phone-number provider — see lib/daisysimUsa.js).
+-- Widens the provider check constraint to allow 'daisysim_usa' alongside the
+-- existing two, and gives it its own activation-id column so it never
+-- collides with daisysim_activation_id above (the two are different APIs
+-- with their own ID namespaces on DaisySim's side).
+-- ----------------------------------------------------------------------------
+alter table public.rentals drop constraint if exists rentals_provider_check;
+alter table public.rentals add constraint rentals_provider_check
+  check (provider in ('daisysms', 'daisysim', 'daisysim_usa'));
+alter table public.rentals add column if not exists daisysim_usa_activation_id text;
+
+-- ----------------------------------------------------------------------------
+-- 3-minute no-code timeout (both providers) — see
+-- app/api/admin/rentals/sweep-timeouts and app/api/rentals/cancel.
+--   refunded_at: set the instant a refund is actually issued for this
+--     rental, and used as an atomic claim guard (UPDATE ... WHERE
+--     refunded_at IS NULL) so a manual cancel racing the timeout sweep can
+--     NEVER both refund the same rental — whichever request's UPDATE
+--     actually matches a row is the only one that calls adjust_balance().
+--   cancel_error: last provider-cancel error, for admin visibility only, when
+--     the sweep couldn't cancel on the provider (network hiccup, etc.) and
+--     left the rental as 'waiting' for the next run to retry. Cleared once a
+--     retry succeeds.
+-- ----------------------------------------------------------------------------
+alter table public.rentals add column if not exists refunded_at timestamptz;
+alter table public.rentals add column if not exists cancel_error text;
+
+-- Backfill: every rental already sitting at status='cancelled' before this
+-- feature existed was refunded synchronously in the same request by the
+-- pre-existing manual cancel route — mark them refunded now so the new
+-- idempotency guard doesn't try to refund any of them again.
+update public.rentals set refunded_at = updated_at where status = 'cancelled' and refunded_at is null;
+
 create index if not exists rentals_user_id_idx on public.rentals(user_id);
 create index if not exists rentals_long_term_idx on public.rentals(is_long_term);
 create index if not exists rentals_daisy_id_idx on public.rentals(daisy_id);
 create index if not exists rentals_daisysim_activation_id_idx on public.rentals(daisysim_activation_id);
+create index if not exists rentals_daisysim_usa_activation_id_idx on public.rentals(daisysim_usa_activation_id);
+create index if not exists rentals_waiting_created_at_idx on public.rentals(created_at) where status = 'waiting';
 
 alter table public.rentals enable row level security;
 
@@ -623,6 +754,40 @@ revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text
 revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) from anon;
 revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) from authenticated;
 grant execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) to service_role;
+
+-- ============================================================================
+-- onboarding_config: content for the first-visit welcome popup (see
+-- components/WelcomeModal.js, app/admin/onboarding). Singleton table (id
+-- always true), same pattern as daisysim_config/pocketfi_config — lets an
+-- admin edit the Telegram link, support link, and copy without a redeploy.
+-- Shown once per customer (see profiles.onboarding_seen_at above) while
+-- enabled=true.
+-- ============================================================================
+create table if not exists public.onboarding_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default true,
+  telegram_url text,
+  support_url text,
+  welcome_title text not null default 'Welcome to NexaVerify!',
+  welcome_intro text not null default
+    'You''re all set — here''s a quick rundown before you get started.',
+  buy_instructions text not null default
+    'Go to USA & Canada or All Countries in the menu, pick a service, and buy — your number and the SMS code both show up right on your Dashboard.',
+  sms_costs_text text not null default
+    'You''re only charged once a code actually arrives on your number. Every price is shown in Naira up front, before you buy.',
+  updated_at timestamptz not null default now()
+);
+
+insert into public.onboarding_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.onboarding_config enable row level security;
+
+drop policy if exists "onboarding_config_select_all" on public.onboarding_config;
+create policy "onboarding_config_select_all" on public.onboarding_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/onboarding/config (service role key) writes this.
 
 -- ============================================================================
 -- One-time: promote yourself to admin after your first signup.

@@ -22,6 +22,16 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
+  // Master on/off switch (see /admin/providers, public.daisysms_config) —
+  // checked here server-side so a stale link or a direct API call can't
+  // buy while DaisySMS is switched off, even if the customer-facing UI is
+  // hidden. Fails OPEN (missing row = still enabled) so a schema.sql that
+  // hasn't been re-run yet doesn't silently break every purchase.
+  const { data: providerConfig } = await admin.from("daisysms_config").select("enabled").eq("id", true).maybeSingle();
+  if (providerConfig && !providerConfig.enabled) {
+    return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
+  }
+
   const { data: service } = await admin.from("services").select("*").eq("id", serviceId).single();
   if (!service || !service.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });

@@ -11,10 +11,11 @@ export async function POST(request) {
   const { data: rental } = await supabase.from("rentals").select("*").eq("id", rentalId).single();
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
-  // DaisySim has no "mark done" equivalent (no setStatus-style endpoint) —
-  // once a code arrives there's nothing further to tell the provider, so
-  // this is purely a local status change for daisysim rentals.
-  if (rental.provider !== "daisysim") {
+  // DaisySim (both "All countries" and "US Only") has no "mark done"
+  // equivalent (no setStatus-style endpoint) — once a code arrives there's
+  // nothing further to tell the provider, so this is purely a local status
+  // change for those rentals.
+  if (rental.provider !== "daisysim" && rental.provider !== "daisysim_usa") {
     try {
       await markDone(rental.daisy_id);
     } catch (err) {

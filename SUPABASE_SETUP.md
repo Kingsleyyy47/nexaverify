@@ -312,8 +312,142 @@ user from `/admin/users/[id]` (no email involved) for support cases.
    the emailed link — it should land on `/reset-password` and let you set a new password, then
    sign you straight in.
 
+## 14. Welcome popup (onboarding)
+
+A one-time popup shown to each customer the first time they reach `/dashboard` — Telegram/support
+links, "how to buy" and "SMS costs" blurbs, a "Get Started" button. All content is admin-editable
+at `/admin/onboarding`, backed by `public.onboarding_config` — no code changes needed to update the
+links or wording.
+
+1. Re-run `schema.sql` if you haven't since this was added — it added `profiles.onboarding_seen_at`
+   and the `public.onboarding_config` singleton table (defaults are pre-filled, so the popup works
+   out of the box even before you touch the admin page).
+2. Go to `/admin/onboarding` and set your real Telegram channel link and support link — both are
+   optional; leaving either blank just hides that button. Edit the title/copy fields too if you
+   want different wording than the defaults.
+3. Dismissal (the X or "Get Started") is permanent per customer — it sets
+   `profiles.onboarding_seen_at` and never shows again for that account, even if you edit the
+   content afterward. There's no "reset for everyone" button; if you ever need that, it's a single
+   SQL statement: `update public.profiles set onboarding_seen_at = null;`.
+
+## 15. 3-minute no-code timeout (auto-cancel + refund)
+
+Any short-term rental (DaisySMS or DaisySim, not long-term ones) that sits 3 minutes with no code
+gets cancelled on the provider, cancelled in NexaVerify, and fully refunded to the customer's
+wallet — automatically, even if they've closed the tab. This runs server-side on a timer, not in
+the browser.
+
+1. Re-run `schema.sql` — it added `rentals.refunded_at` (the idempotency guard so a manual cancel
+   and the timeout sweep can never both refund the same rental) and `rentals.cancel_error` (last
+   provider-cancel failure, for your visibility only — check it in Table Editor if a customer
+   reports a stuck rental). It also backfills `refunded_at` for every rental already cancelled
+   before this existed, so nothing gets double-refunded on first run.
+2. Run `cron.sql` again (or just the new `nexaverify-sweep-timeouts` job at the bottom if you've
+   already run the rest) — same `YOUR-DOMAIN.com` / `YOUR_CRON_SECRET` placeholders as the other
+   jobs. It calls `/api/admin/rentals/sweep-timeouts` every minute.
+3. **What it actually does, and the ordering that makes it safe:**
+   - Finds every `status = 'waiting'`, non-long-term rental older than 3 minutes.
+   - Calls the provider's cancel endpoint FIRST, before touching anything locally.
+   - If a code arrived at the exact moment of cancelling (both providers can reject a cancel this
+     way), the rental is marked `received` with the code instead — no cancellation, no refund. This
+     is rare but real, so don't be surprised if an occasional "timed out" rental actually got a code.
+   - Only after a successful provider cancel (or the provider saying there was nothing left to
+     cancel) does it touch the rental row — and it claims the cancellation and the refund together
+     in one atomic update (`WHERE status = 'waiting' AND refunded_at IS NULL`). If a customer
+     manually cancels that exact rental in the same instant, whichever request's update actually
+     matches a row is the only one that refunds; the other sees nothing to do.
+   - If the provider call itself fails (network hiccup, timeout) the rental is left exactly as
+     `waiting` — no special retry bookkeeping needed, it's simply still past the cutoff on the next
+     run, a minute later, and gets tried again automatically. The error is logged to
+     `rentals.cancel_error` so you can see it without digging through function logs.
+   - In the much rarer case the provider cancel succeeds but crediting the wallet fails, the sweep
+     retries just the refund on the next run (it won't try to cancel on the provider a second time).
+4. Test it: buy a short-term number, don't request/receive a code, and either wait 3-4 minutes or
+   trigger the route manually (`curl -X POST https://YOUR-DOMAIN.com/api/admin/rentals/sweep-timeouts -H "x-cron-secret: YOUR_CRON_SECRET"`) once you've backdated a test rental's `created_at` in Table
+   Editor. Confirm the rental flips to `cancelled`, `transactions` gets a `refund` row, and the
+   wallet balance goes back up by the full price.
+
+## 16. Provider on/off toggles (APIs & Providers)
+
+One master switch per provider, controlled from `/admin/providers`. Off means gone: the section
+disappears from the customer-facing site (nav link, product list, dashboard widget) AND the
+purchase endpoint refuses new orders server-side, so a stale bookmark or direct API call can't get
+through while it's off. On means everything comes back instantly — no redeploy.
+
+1. What's new:
+   - `public.daisysms_config` — a new singleton settings table (same pattern as `daisysim_config`
+     and `pocketfi_config`), with a single `enabled` column. This is the missing piece — DaisySim
+     and PocketFi already had their own config tables from earlier features; DaisySMS didn't.
+   - `/admin/providers` — a new admin page with three toggles: USA & Canada (DaisySMS), All
+     countries (DaisySim), and Wallet top-up (PocketFi virtual accounts). Each toggle writes to the
+     same config table/column its own detailed settings page (`/admin/products`, `/admin/international`,
+     `/admin/pocketfi`) already reads from — this is just a faster single place to flip them, not a
+     second source of truth.
+   - Server-side gates in `/api/rentals/buy` (DaisySMS) check `daisysms_config.enabled` before
+     renting; the DaisySim buy route already had this pattern from the international-catalog feature
+     and now reads the same toggle. A disabled provider returns a clean `403` with `"This service
+     isn't available right now"` rather than a stack trace.
+   - `/products` and the dashboard's quick-buy list check the toggle too, and show a plain "not
+     available" card instead of the product list when off.
+   - The sidebar (`CustomerSidebar.js`) drops the "USA and Canada" or "All countries" link entirely
+     when its provider is off — not greyed out, just not there.
+2. What to run: re-run `supabase/schema.sql` in the SQL Editor (idempotent — safe to run in full
+   even though most of it already exists). This creates the one new table, `daisysms_config`, seeded
+   with `enabled = true` so nothing changes for you until you actually flip it.
+3. Defaults if you skip the re-run or on any row that's somehow missing: DaisySMS fails **open**
+   (`enabled ?? true`) since it's your original, already-live provider — an un-migrated install
+   keeps working exactly as before. DaisySim fails **closed** (`enabled ?? false`), matching its
+   existing opt-in default from the international-catalog feature. PocketFi virtual accounts fail
+   **open** (`?? true`), matching its existing default.
+4. Test it: go to `/admin/providers`, flip "All countries" off, save, then check `/products/international`
+   as a customer (or logged out) — should show "not available" and the sidebar link should be gone.
+   Flip it back on and confirm it returns immediately, no redeploy.
+
+## 17. "US Only" — a third phone-number provider
+
+A brand new, fully separate provider alongside DaisySMS (USA & Canada) and DaisySim "All
+countries". It uses a different API/product line on DaisySim's side (their "server7" base path,
+`https://daisysim.com/api/v1/server7`) — USA-only, flat catalog where `GET /apps/USA` already
+returns every service with its live, final price attached (no country picker, no price tiers, and
+no webhook — codes only arrive by polling `GET /check/{id}`, same as how NexaVerify already polls
+DaisySMS).
+
+1. What's new:
+   - `lib/daisysimUsa.js` — new provider wrapper, reads `DAISYSIM_USA_API_KEY` /
+     `DAISYSIM_USA_BASE_URL`.
+   - `public.daisysim_usa_config` (singleton, `enabled` off by default, `markup_amount_ngn`) and
+     `public.daisysim_usa_overrides` (per-service favorite/disabled, no country dimension since
+     it's USA-only) — same shape as the equivalent DaisySim "All countries" tables.
+   - `rentals.provider` now also accepts `'daisysim_usa'`, with its own
+     `rentals.daisysim_usa_activation_id` column (kept separate from `daisysim_activation_id` since
+     they're different APIs with their own ID namespaces).
+   - Customer: `/products/us-only` (a flat tap-to-buy list, no country/tier drill-down), a matching
+     dashboard quick-buy section (shown above the USA & Canada section, per your ordering), and a
+     "US Only" sidebar link — positioned above "USA and Canada".
+   - Admin: `/admin/us-only` (enable + markup + favorites/blocks), and a fourth toggle on
+     `/admin/providers` ("US Only (DaisySim USA)").
+   - The same billing-safety pattern as "All countries": the customer is billed off DaisySim's real
+     `amount_charged` returned at purchase time, not the price they last saw on screen.
+   - The existing 3-minute no-code timeout sweep (`/api/admin/rentals/sweep-timeouts`) now handles
+     this provider too — no separate cron job needed, it's the same route, same schedule.
+2. What to run:
+   - Re-run `supabase/schema.sql` (idempotent, safe in full) — creates the two new tables, widens
+     the `rentals.provider` check constraint, and adds the new activation-id column.
+   - Add to `.env.local` and your Vercel project's env vars — same key as `DAISYSIM_API_KEY`
+     (Kingsley confirmed it's the same account/key, just a different base URL for this product
+     line):
+     ```
+     DAISYSIM_USA_API_KEY=DA_TJwMBMIudbkH0HXzIRKFJEppkwhq03XzP5ES7e2j
+     DAISYSIM_USA_BASE_URL=https://daisysim.com/api/v1/server7
+     ```
+   - No webhook to register — this API is poll-only.
+3. Test it: go to `/admin/us-only`, turn it on, set a markup, save. Check `/products/us-only` as a
+   customer — a flat priced list should show. Buy a test number and confirm the sidebar/dashboard
+   sections both reflect it, and that `/admin/providers` toggling "US Only" off hides all of it
+   immediately.
+
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `DAISYSIM_USA_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
 - Don't refer to "DaisySim" anywhere in customer-facing UI — only `/products/international` and admin pages may name it.
