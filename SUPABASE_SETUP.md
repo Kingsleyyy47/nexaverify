@@ -440,7 +440,13 @@ DaisySMS).
      DAISYSIM_USA_API_KEY=DA_TJwMBMIudbkH0HXzIRKFJEppkwhq03XzP5ES7e2j
      DAISYSIM_USA_BASE_URL=https://daisysim.com/api/v1/server7
      ```
-   - No webhook to register — this API is poll-only.
+   - No separate webhook to register. The server7 docs only document polling, but since
+     `DAISYSIM_API_KEY` and `DAISYSIM_USA_API_KEY` are the same account, the ONE webhook already
+     configured for "All countries" (Settings -> Webhook URL in DaisySim's dashboard, pointed at
+     `/api/daisysim/webhook`) is account-wide and may push "US Only" codes through it too.
+     `app/api/daisysim/webhook/route.js` now checks both providers' activation-id columns, so this
+     is handled automatically either way — polling is still the primary path for this provider,
+     the webhook is just a free bonus if DaisySim happens to send it.
 3. Test it: go to `/admin/us-only`, turn it on, set a markup, save. Check `/products/us-only` as a
    customer — a flat priced list should show. Buy a test number and confirm the sidebar/dashboard
    sections both reflect it, and that `/admin/providers` toggling "US Only" off hides all of it

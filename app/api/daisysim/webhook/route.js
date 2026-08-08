@@ -8,6 +8,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // query-string convention as the DaisySMS webhook (see
 // DAISYSIM_WEBHOOK_SECRET in .env.example) to stop random internet traffic
 // from posting fake events. Must respond 2xx within 10s per their docs.
+//
+// This webhook is configured once per DaisySim ACCOUNT, not per product —
+// DAISYSIM_API_KEY ("All countries") and DAISYSIM_USA_API_KEY ("US Only")
+// are the same account/key, so an activation from either product can land
+// here. Activation IDs are checked against both provider's ID columns below
+// (daisysim_activation_id, then daisysim_usa_activation_id) so a "US Only"
+// code arriving through this same shared webhook still gets matched — even
+// though NexaVerify doesn't rely on it for that product (it's poll-only per
+// the server7 docs), this is a free, faster path when it does fire.
 export async function POST(request) {
   const secret = request.nextUrl.searchParams.get("secret");
   if (!process.env.DAISYSIM_WEBHOOK_SECRET || secret !== process.env.DAISYSIM_WEBHOOK_SECRET) {
@@ -29,14 +38,31 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  const { data: rental } = await admin
-    .from("rentals")
-    .select("*")
-    .eq("provider", "daisysim")
-    .eq("daisysim_activation_id", String(activationId))
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let rental = null;
+
+  {
+    const { data } = await admin
+      .from("rentals")
+      .select("*")
+      .eq("provider", "daisysim")
+      .eq("daisysim_activation_id", String(activationId))
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    rental = data;
+  }
+
+  if (!rental) {
+    const { data } = await admin
+      .from("rentals")
+      .select("*")
+      .eq("provider", "daisysim_usa")
+      .eq("daisysim_usa_activation_id", String(activationId))
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    rental = data;
+  }
 
   if (!rental) {
     return NextResponse.json({ ok: true, matched: false });
