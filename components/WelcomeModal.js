@@ -1,26 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { X, Send, MessageCircle, ListChecks, Wallet } from "lucide-react";
+import { X, Send, MessageCircle, ListChecks, Wallet, BellOff } from "lucide-react";
 
-// First-visit welcome popup — content comes entirely from public.onboarding_config
-// (edited at /admin/onboarding), not hardcoded here, so an admin can change the
-// Telegram/support links or copy without touching code. Shown once per
-// customer: dismissing (X or "Get Started") marks profiles.onboarding_seen_at
-// permanently via /api/onboarding/dismiss.
-export default function WelcomeModal({ config, alreadySeen }) {
-  const [open, setOpen] = useState(Boolean(config?.enabled) && !alreadySeen);
-  const [dismissing, setDismissing] = useState(false);
+// Welcome popup — content comes entirely from public.onboarding_config
+// (edited at /admin/onboarding), not hardcoded here, so an admin can change
+// the Telegram/support links or copy without touching code.
+//
+// Kingsley's rule: this now shows on EVERY dashboard visit by default — it's
+// no longer a one-time thing. The X and "Get Started" both just close it for
+// THIS visit (no network call, nothing persisted) — it'll be back next time.
+// The separate "Mute for 24h" button is the only action that persists
+// anything: it calls /api/onboarding/mute to set
+// profiles.onboarding_muted_until, and the popup stays hidden until that
+// passes. `mutedUntil` is passed in from the dashboard server component.
+export default function WelcomeModal({ config, mutedUntil }) {
+  const isMuted = mutedUntil && new Date(mutedUntil) > new Date();
+  const [open, setOpen] = useState(Boolean(config?.enabled) && !isMuted);
+  const [muting, setMuting] = useState(false);
 
-  async function handleDismiss() {
-    if (dismissing) return;
-    setDismissing(true);
+  function handleClose() {
+    setOpen(false);
+  }
+
+  async function handleMute() {
+    if (muting) return;
+    setMuting(true);
     setOpen(false);
     try {
-      await fetch("/api/onboarding/dismiss", { method: "POST" });
+      await fetch("/api/onboarding/mute", { method: "POST" });
     } catch {
       // Best-effort — don't trap the user behind a failed network call. Worst
-      // case it shows again next visit, which is harmless.
+      // case it just shows again next visit instead of staying muted, which
+      // is harmless.
     }
   }
 
@@ -29,7 +41,7 @@ export default function WelcomeModal({ config, alreadySeen }) {
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
-      onClick={handleDismiss}
+      onClick={handleClose}
     >
       <div
         className="bg-white dark:bg-night-900 rounded-xl2 shadow-modal w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
@@ -37,8 +49,9 @@ export default function WelcomeModal({ config, alreadySeen }) {
       >
         <div className="relative bg-gradient-to-br from-brand-800 to-brand-500 px-6 pt-7 pb-8 text-white shrink-0">
           <button
-            onClick={handleDismiss}
-            aria-label="Close"
+            onClick={handleClose}
+            aria-label="Close — shows again next visit"
+            title="Close — shows again next visit"
             className="absolute top-3 right-3 p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
           >
             <X size={20} />
@@ -98,9 +111,18 @@ export default function WelcomeModal({ config, alreadySeen }) {
           </div>
         </div>
 
-        <div className="px-6 pb-6 pt-1 shrink-0">
-          <button onClick={handleDismiss} className="btn-primary w-full">
+        <div className="px-6 pb-6 pt-1 shrink-0 space-y-2.5">
+          <button onClick={handleClose} className="btn-primary w-full">
             Get Started
+          </button>
+          <button
+            onClick={handleMute}
+            disabled={muting}
+            title="Hides this popup for 24 hours — it'll come back after that"
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-night-400 hover:text-gray-600 dark:hover:text-night-200 transition disabled:opacity-50"
+          >
+            <BellOff size={13} />
+            {muting ? "Muting…" : "Don't show for 24 hours"}
           </button>
         </div>
       </div>

@@ -47,7 +47,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <WelcomeModal config={onboardingConfig} alreadySeen={Boolean(profile?.onboarding_seen_at)} />
+      <WelcomeModal config={onboardingConfig} mutedUntil={profile?.onboarding_muted_until} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-7">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>

@@ -23,11 +23,20 @@ create table if not exists public.profiles (
 -- until then, only with whatever auth method they used to sign up.
 alter table public.profiles add column if not exists username text;
 
--- Set the first time a customer dismisses the welcome/onboarding popup (see
--- public.onboarding_config, components/WelcomeModal.js) — null means they
--- haven't seen it yet. Per-user and permanent once set; there's no
--- "show again" reset built in, matching how most onboarding modals behave.
+-- Legacy: used to permanently suppress the welcome/onboarding popup after
+-- the first dismissal. No longer read by the app (see onboarding_muted_until
+-- below for the current behavior) — left in place rather than dropped so no
+-- destructive migration is needed. Safe to ignore.
 alter table public.profiles add column if not exists onboarding_seen_at timestamptz;
+
+-- Current onboarding-popup suppression (see public.onboarding_config,
+-- components/WelcomeModal.js): the popup now shows on EVERY dashboard visit
+-- by default. The one way to suppress it is the popup's own "Mute for 24h"
+-- button (see app/api/onboarding/mute), which sets this to now + 24h. Null,
+-- or any timestamp in the past, means "show it." A plain X/"Get Started"
+-- close is intentionally NOT persisted anywhere — it only dismisses for that
+-- page load, so it shows again on the next dashboard visit.
+alter table public.profiles add column if not exists onboarding_muted_until timestamptz;
 
 -- Case-insensitive uniqueness ("Alice" and "alice" can't both exist), but
 -- deliberately allows any number of NULLs (old accounts without a username
@@ -756,12 +765,13 @@ revoke execute on function public.adjust_balance(uuid, numeric, text, uuid, text
 grant execute on function public.adjust_balance(uuid, numeric, text, uuid, text, uuid) to service_role;
 
 -- ============================================================================
--- onboarding_config: content for the first-visit welcome popup (see
+-- onboarding_config: content for the welcome popup (see
 -- components/WelcomeModal.js, app/admin/onboarding). Singleton table (id
 -- always true), same pattern as daisysim_config/pocketfi_config — lets an
 -- admin edit the Telegram link, support link, and copy without a redeploy.
--- Shown once per customer (see profiles.onboarding_seen_at above) while
--- enabled=true.
+-- Shown on every dashboard visit while enabled=true, unless the customer has
+-- muted it for 24h (see profiles.onboarding_muted_until above). Turning this
+-- off here hides it for everyone regardless of anyone's mute state.
 -- ============================================================================
 create table if not exists public.onboarding_config (
   id boolean primary key default true check (id),

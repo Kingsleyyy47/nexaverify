@@ -314,21 +314,29 @@ user from `/admin/users/[id]` (no email involved) for support cases.
 
 ## 14. Welcome popup (onboarding)
 
-A one-time popup shown to each customer the first time they reach `/dashboard` — Telegram/support
-links, "how to buy" and "SMS costs" blurbs, a "Get Started" button. All content is admin-editable
-at `/admin/onboarding`, backed by `public.onboarding_config` — no code changes needed to update the
-links or wording.
+Shown to every customer on every `/dashboard` visit — Telegram/support links, "how to buy" and
+"SMS costs" blurbs, a "Get Started" button. All content is admin-editable at `/admin/onboarding`,
+backed by `public.onboarding_config` — no code changes needed to update the links or wording.
 
-1. Re-run `schema.sql` if you haven't since this was added — it added `profiles.onboarding_seen_at`
-   and the `public.onboarding_config` singleton table (defaults are pre-filled, so the popup works
-   out of the box even before you touch the admin page).
+1. Re-run `schema.sql` if you haven't since this was added — it added
+   `profiles.onboarding_muted_until` and the `public.onboarding_config` singleton table (defaults
+   are pre-filled, so the popup works out of the box even before you touch the admin page).
 2. Go to `/admin/onboarding` and set your real Telegram channel link and support link — both are
    optional; leaving either blank just hides that button. Edit the title/copy fields too if you
    want different wording than the defaults.
-3. Dismissal (the X or "Get Started") is permanent per customer — it sets
-   `profiles.onboarding_seen_at` and never shows again for that account, even if you edit the
-   content afterward. There's no "reset for everyone" button; if you ever need that, it's a single
-   SQL statement: `update public.profiles set onboarding_seen_at = null;`.
+3. Two different closes, on purpose (Kingsley's rule):
+   - The X or "Get Started" only dismiss it for that page load — nothing is saved, so it's back on
+     the customer's next dashboard visit.
+   - The separate "Don't show for 24 hours" button is the only thing that persists anything: it
+     sets `profiles.onboarding_muted_until` to now + 24h via `/api/onboarding/mute`, and the popup
+     stays hidden for that customer until that timestamp passes.
+   - Turning the popup off entirely at `/admin/onboarding` (the enabled toggle) hides it for
+     everyone regardless of anyone's mute state.
+   - There's no "reset for everyone" button since there's nothing permanent to reset; to force it
+     to show for all customers right now regardless of an active 24h mute, it's a single SQL
+     statement: `update public.profiles set onboarding_muted_until = null;`.
+   - `profiles.onboarding_seen_at` is a leftover column from the old one-time-dismissal behavior —
+     no longer read anywhere, safe to ignore.
 
 ## 15. 3-minute no-code timeout (auto-cancel + refund)
 

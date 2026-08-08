@@ -20,9 +20,10 @@ export default async function AdminOnboardingPage() {
       <div className="mb-7">
         <h1 className="text-2xl font-bold">Welcome popup</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1 max-w-lg">
-          Shown once to each customer the first time they land on the dashboard. Edit the links and
-          copy here any time — changes apply immediately, no redeploy needed. Customers who already
-          dismissed it won't see edits unless they're a brand-new signup.
+          Shown to every customer on every dashboard visit, unless they've tapped "Don't show for
+          24 hours" recently. Edit the links and copy here any time — changes apply immediately, no
+          redeploy needed. Turning this off hides it for everyone, regardless of anyone's 24-hour
+          mute.
         </p>
       </div>
 
