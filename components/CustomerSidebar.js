@@ -18,6 +18,7 @@ const BASE_LINKS = [
   { href: "/topup", label: "Top Up" },
   { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
+  { href: "/get-a-website", label: "Website" },
   { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 

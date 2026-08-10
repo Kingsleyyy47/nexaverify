@@ -2,9 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
 // Route protection:
-// - /login, /, /faq are public
-// - /dashboard, /products, /wallet, /topup, /rentals, /history require any
-//   logged-in user (plus the old /buy, /numbers redirect stubs)
+// - /login, /, /faq, /website (public "we also build websites" page) are public
+// - /dashboard, /products, /wallet, /topup, /rentals, /history, /get-a-website
+//   require any logged-in user (plus the old /buy, /numbers redirect stubs)
 // - /admin/* requires role='admin' on the profiles row
 // - /set-username requires login but nothing else — it's where anyone with
 //   no profiles.username gets sent (see the race-condition note in
@@ -51,6 +51,7 @@ export async function middleware(request) {
     "/topup",
     "/rentals",
     "/history",
+    "/get-a-website",
     "/buy", // old route, redirects to /products
     "/numbers", // old route, redirects to /rentals
   ].some((prefix) => pathname.startsWith(prefix));

@@ -9,6 +9,7 @@ import NavLogo from "./NavLogo";
 const NAV = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#features", label: "Features" },
+  { href: "/website", label: "Website" },
   { href: "/faq", label: "FAQ" },
 ];
 
