@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/products", label: "Products" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/topups", label: "Top-up requests" },
+  { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/currency", label: "Currency rates" },
   { href: "/admin/numbers", label: "Long-term numbers" },
   { href: "/admin/international", label: "International (DaisySim)" },
