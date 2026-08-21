@@ -6,7 +6,7 @@ import { RefreshCw } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 
 const MONTH_OPTIONS = [3, 6, 12];
-const STAR_PRESETS = [50, 100, 500, 1000, 2500];
+const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
 
 // Shared buy flow for both the admin test view and the real customer view
 // (see app/(customer)/products/telegram-premium/page.js) — same two tabs,
@@ -171,7 +171,7 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
         {mode === "star" ? (
           <div>
             <label className="font-bold text-sm block mb-2">Quantity</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {STAR_PRESETS.map((preset) => (
                 <button
                   key={preset}
@@ -180,30 +180,29 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
                     setCustomQuantity(false);
                     setQuantity(preset);
                   }}
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-semibold text-center transition ${
                     !customQuantity && qty === preset
                       ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
                       : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
                   }`}
                 >
                   {preset}
-                  {pricePerStar > 0 && (
-                    <span className="block text-[11px] font-normal opacity-80">
-                      {format(preset * pricePerStar)}
-                    </span>
-                  )}
+                  <span className="block text-[11px] font-normal opacity-80">
+                    {pricePerStar > 0 ? format(preset * pricePerStar) : "—"}
+                  </span>
                 </button>
               ))}
               <button
                 type="button"
                 onClick={() => setCustomQuantity(true)}
-                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold text-center transition ${
                   customQuantity
                     ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
                     : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
                 }`}
               >
                 Custom
+                <span className="block text-[11px] font-normal opacity-80">Enter amount</span>
               </button>
             </div>
             {customQuantity && (

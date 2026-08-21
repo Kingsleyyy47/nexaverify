@@ -5,9 +5,18 @@ import TelegramPremiumConfigForm from "@/components/TelegramPremiumConfigForm";
 export default async function AdminTelegramPremiumPage() {
   const admin = createAdminClient();
 
-  const [{ data: row }, { data: usdRateRow }] = await Promise.all([
+  const [{ data: row }, { data: usdRateRow }, { data: lastStarOrder }] = await Promise.all([
     admin.from("istar_config").select("*").eq("id", true).maybeSingle(),
     admin.from("currency_rates").select("ngn_per_unit").eq("currency", "USD").maybeSingle(),
+    admin
+      .from("telegram_gift_orders")
+      .select("quantity, provider_amount, wallet_type, created_at")
+      .eq("order_type", "star")
+      .eq("status", "completed")
+      .not("provider_amount", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const config = {
@@ -21,13 +30,22 @@ export default async function AdminTelegramPremiumPage() {
   };
 
   // Best-effort — a missing/invalid ISTAR_API_KEY shouldn't take down the
-  // whole settings page, just the wallet balance display.
-  let wallet = null;
-  let walletError = "";
+  // whole settings page, just the wallet balance display. Both currencies
+  // are separate balances on iStar's side (see lib/istar.js#getWalletBalance),
+  // so fetch and show both rather than assuming TON is the one in use.
+  let tonWallet = null;
+  let tonWalletError = "";
+  let usdtWallet = null;
+  let usdtWalletError = "";
   try {
-    wallet = await getWalletBalance("TON");
+    tonWallet = await getWalletBalance("TON");
   } catch (err) {
-    walletError = err instanceof IStarError ? err.message : "Could not load wallet balance.";
+    tonWalletError = err instanceof IStarError ? err.message : "Could not load TON balance.";
+  }
+  try {
+    usdtWallet = await getWalletBalance("USDT");
+  } catch (err) {
+    usdtWalletError = err instanceof IStarError ? err.message : "Could not load USDT balance.";
   }
 
   // Live cost per duration, fetched fresh every page load, so the admin
@@ -47,6 +65,21 @@ export default async function AdminTelegramPremiumPage() {
     pricingError = err instanceof IStarError ? err.message : "Could not load live package pricing.";
   }
 
+  // iStar has no live pre-purchase price endpoint for star gifting (unlike
+  // premium's /premium/packages) — the real `amount` only appears in their
+  // OWN order-creation response, after the fact. So there's no honest way to
+  // show a genuine "cost now" for stars. The closest real reference point is
+  // what your own last completed star order actually cost, per star, in
+  // whatever wallet currency it was paid from.
+  const lastStarCost =
+    lastStarOrder && lastStarOrder.quantity > 0
+      ? {
+          perStar: Number(lastStarOrder.provider_amount) / Number(lastStarOrder.quantity),
+          walletType: lastStarOrder.wallet_type,
+          at: lastStarOrder.created_at,
+        }
+      : null;
+
   return (
     <div className="space-y-7">
       <div>
@@ -63,26 +96,37 @@ export default async function AdminTelegramPremiumPage() {
       </div>
 
       <div className="card card-pad">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-[15px]">iStar wallet balance</h3>
-        </div>
-        {walletError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{walletError}</p>
-        ) : (
-          <p className="text-sm text-gray-500 dark:text-night-300">
-            {wallet ? (
-              <>
-                <span className="font-bold text-gray-900 dark:text-night-50">
-                  {wallet.balance} {wallet.currency || "TON"}
-                </span>{" "}
-                — this is what funds every star/premium order placed below. Top it up directly in
-                the iStar dashboard; NexaVerify has no way to fund it from here.
-              </>
+        <h3 className="font-bold text-[15px] mb-4">iStar wallet balance</h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
+              TON
+            </div>
+            {tonWalletError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{tonWalletError}</p>
             ) : (
-              "No balance data returned."
+              <p className="text-lg font-bold text-gray-900 dark:text-night-50">
+                {tonWallet ? `${tonWallet.balance} ${tonWallet.currency || "TON"}` : "—"}
+              </p>
             )}
-          </p>
-        )}
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
+              USDT
+            </div>
+            {usdtWalletError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{usdtWalletError}</p>
+            ) : (
+              <p className="text-lg font-bold text-gray-900 dark:text-night-50">
+                {usdtWallet ? `${usdtWallet.balance} ${usdtWallet.currency || "USDT"}` : "—"}
+              </p>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-night-300 mt-3">
+          Whichever of these funds an order depends on which wallet is picked at purchase time. Top
+          either up directly in the iStar dashboard; NexaVerify has no way to fund them from here.
+        </p>
       </div>
 
       <div className="card card-pad">
@@ -131,7 +175,7 @@ export default async function AdminTelegramPremiumPage() {
 
       <div className="card card-pad">
         <h3 className="font-bold text-[15px] mb-4">Settings</h3>
-        <TelegramPremiumConfigForm config={config} livePricing={premiumPricing} />
+        <TelegramPremiumConfigForm config={config} livePricing={premiumPricing} lastStarCost={lastStarCost} />
       </div>
     </div>
   );

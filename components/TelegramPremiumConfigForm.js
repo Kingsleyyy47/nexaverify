@@ -10,7 +10,7 @@ const MONTH_OPTIONS = [3, 6, 12];
 // `livePricing` is { 3: {costNgn, markupNgn, priceNgn} | null, 6: ..., 12: ... } —
 // fetched fresh from iStar on every page load, so the admin sees exactly
 // what's being charged right now before deciding on a markup.
-export default function TelegramPremiumConfigForm({ config, livePricing = {} }) {
+export default function TelegramPremiumConfigForm({ config, livePricing = {}, lastStarCost = null }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(Boolean(config.enabled));
   const [customerVisible, setCustomerVisible] = useState(Boolean(config.customerVisible));
@@ -129,7 +129,16 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
       </div>
 
       <div>
-        <label className="font-bold text-sm block mb-2">Price per Star (₦)</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="font-bold text-sm">Price per Star (₦)</label>
+          <span className="text-xs text-gray-400 dark:text-night-400">
+            {lastStarCost
+              ? `Last actual cost: ${lastStarCost.perStar.toFixed(4)} ${lastStarCost.walletType} per star (${new Date(
+                  lastStarCost.at
+                ).toLocaleDateString()})`
+              : "Cost now: unavailable — no live price for star gifting"}
+          </span>
+        </div>
         <input
           type="number"
           min="0"
