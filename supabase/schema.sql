@@ -289,6 +289,89 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 -- /api/admin/us-only/overrides (service role key) writes this.
 
 -- ============================================================================
+-- istar_config: site-wide settings for Telegram Stars/Premium gifting (see
+-- lib/istar.js). Not a phone-number provider at all — genuinely different
+-- shape: it spends TON/USDT from your OWN iStar developer wallet to gift
+-- Telegram Stars or Telegram Premium to a username. Deliberately kept
+-- admin-only for now regardless of `enabled` — see app/(customer)/products
+-- /telegram-premium/page.js, which shows every customer a plain "Coming
+-- soon" placeholder no matter what this flag says, and only lets an actual
+-- admin through to the real buy flow. `enabled` here just gates whether an
+-- admin can place a (real, wallet-charging) test order yet — flip it once
+-- ISTAR_API_KEY is set up and you're ready to start testing.
+--   ngn_per_star: iStar has no live pre-purchase price lookup for star
+--     gifting (unlike premium, which has /premium/packages) — the `amount`
+--     for a star order only appears in iStar's OWN order-creation response,
+--     after the fact. So star pricing is admin-set manually here instead of
+--     converted from a live rate.
+--   markup_amount_ngn: flat NGN margin added on top of premium's live
+--     usd_value (from getPremiumPackages()) x your currency_rates USD rate
+--     — same pattern as daisysim_config/daisysim_usa_config.
+-- ============================================================================
+create table if not exists public.istar_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default false,
+  ngn_per_star numeric(12,4) not null default 0,
+  markup_amount_ngn numeric(12,2) not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.istar_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.istar_config enable row level security;
+
+drop policy if exists "istar_config_select_all" on public.istar_config;
+create policy "istar_config_select_all" on public.istar_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/telegram-premium/config (service role key) writes this.
+
+-- ============================================================================
+-- telegram_gift_orders: every Telegram Stars/Premium order ever placed via
+-- iStar (see lib/istar.js, app/api/telegram/*). Admin-only for now (see
+-- istar_config above), so user_id will only ever be an admin's own profile
+-- until this is opened up to customers — kept as a real per-user FK from day
+-- one so no migration is needed when that happens.
+--   refunded_at: same idempotent-refund-claim pattern as rentals.refunded_at
+--     — set the instant a failed order's charge is refunded, and used as an
+--     atomic UPDATE...WHERE refunded_at IS NULL guard so the webhook and a
+--     manual status poll can never both refund the same order.
+-- ============================================================================
+create table if not exists public.telegram_gift_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  order_type text not null check (order_type in ('star', 'premium')),
+  istar_order_id text unique,
+  recipient_username text not null,
+  recipient_hash text,
+  quantity integer,                   -- stars only
+  months integer,                     -- premium only (3, 6, or 12)
+  price numeric(12,2) not null,       -- what the buyer was actually charged, in NGN
+  provider_amount numeric(14,4),      -- iStar's own `amount` — in wallet_type's currency
+  wallet_type text not null default 'TON' check (wallet_type in ('TON', 'USDT')),
+  status text not null default 'pending' check (status in ('pending', 'processing', 'completed', 'failed')),
+  tx_hash text,
+  error_message text,
+  refunded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists telegram_gift_orders_user_id_idx on public.telegram_gift_orders(user_id);
+create index if not exists telegram_gift_orders_istar_order_id_idx on public.telegram_gift_orders(istar_order_id);
+create index if not exists telegram_gift_orders_pending_idx on public.telegram_gift_orders(created_at) where status in ('pending', 'processing');
+
+alter table public.telegram_gift_orders enable row level security;
+
+drop policy if exists "telegram_gift_orders_select_own" on public.telegram_gift_orders;
+create policy "telegram_gift_orders_select_own" on public.telegram_gift_orders
+  for select using (auth.uid() = user_id);
+
+-- No client insert/update policy on purpose — only the service-role admin
+-- routes under app/api/telegram/* and the webhook write this.
+
+-- ============================================================================
 -- rentals: every phone number ever purchased through NexaVerify.
 -- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
 -- ============================================================================

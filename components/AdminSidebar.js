@@ -16,10 +16,12 @@ const LINKS = [
   { href: "/admin/topups", label: "Top-up requests" },
   { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/number-history", label: "Number history" },
+  { href: "/admin/telegram-history", label: "Telegram history" },
   { href: "/admin/currency", label: "Currency rates" },
   { href: "/admin/numbers", label: "Long-term numbers" },
   { href: "/admin/international", label: "International (DaisySim)" },
   { href: "/admin/us-only", label: "US Only" },
+  { href: "/admin/telegram-premium", label: "Telegram Premium" },
   { href: "/admin/pocketfi", label: "PocketFi funding" },
   { href: "/admin/onboarding", label: "Welcome popup" },
 ];

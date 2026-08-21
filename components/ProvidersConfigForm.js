@@ -57,6 +57,7 @@ export default function ProvidersConfigForm({ config }) {
   const [pocketfiVirtualAccountEnabled, setPocketfiVirtualAccountEnabled] = useState(
     config.pocketfiVirtualAccountEnabled
   );
+  const [istarEnabled, setIstarEnabled] = useState(config.istarEnabled);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -71,7 +72,13 @@ export default function ProvidersConfigForm({ config }) {
       const res = await fetch("/api/admin/providers/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ daisysmsEnabled, daisysimEnabled, usOnlyEnabled, pocketfiVirtualAccountEnabled }),
+        body: JSON.stringify({
+          daisysmsEnabled,
+          daisysimEnabled,
+          usOnlyEnabled,
+          pocketfiVirtualAccountEnabled,
+          istarEnabled,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save settings");
@@ -118,6 +125,14 @@ export default function ProvidersConfigForm({ config }) {
         detailLabel="Manage bank & settings"
         checked={pocketfiVirtualAccountEnabled}
         onChange={setPocketfiVirtualAccountEnabled}
+      />
+      <ToggleRow
+        title="Telegram Premium & Stars (iStar)"
+        description="Unlike the other toggles, this one does not control customer visibility — customers always see 'Coming soon' on /products/telegram-premium either way. This only controls whether an admin can place a real test order."
+        detailHref="/admin/telegram-premium"
+        detailLabel="Manage price & wallet"
+        checked={istarEnabled}
+        onChange={setIstarEnabled}
       />
 
       {error && <p className="text-sm text-red-600 dark:text-red-400 mt-4">{error}</p>}

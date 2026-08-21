@@ -19,6 +19,7 @@ const BASE_LINKS = [
   { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
   { href: "/get-a-website", label: "Website" },
+  { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: true },
   { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
@@ -60,9 +61,14 @@ export default function CustomerSidebar({
             key={link.href}
             href={link.href}
             onClick={() => setMobileOpen(false)}
-            className={`nav-link ${pathname.startsWith(link.href) ? "active" : ""}`}
+            className={`nav-link flex items-center justify-between gap-2 ${
+              pathname.startsWith(link.href) ? "active" : ""
+            }`}
           >
             {link.label}
+            {link.soonForNonAdmin && profile?.role !== "admin" && (
+              <span className="badge badge-neutral text-[10px] px-1.5 py-0.5">Soon</span>
+            )}
           </Link>
         )
       )}

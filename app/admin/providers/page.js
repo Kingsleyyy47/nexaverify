@@ -4,18 +4,21 @@ import ProvidersConfigForm from "@/components/ProvidersConfigForm";
 export default async function AdminProvidersPage() {
   const admin = createAdminClient();
 
-  const [{ data: daisysms }, { data: daisysim }, { data: usOnly }, { data: pocketfi }] = await Promise.all([
-    admin.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
-    admin.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
-    admin.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle(),
-    admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
-  ]);
+  const [{ data: daisysms }, { data: daisysim }, { data: usOnly }, { data: pocketfi }, { data: istar }] =
+    await Promise.all([
+      admin.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
+      admin.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
+      admin.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle(),
+      admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
+      admin.from("istar_config").select("enabled").eq("id", true).maybeSingle(),
+    ]);
 
   const config = {
     daisysmsEnabled: daisysms?.enabled ?? true,
     daisysimEnabled: daisysim?.enabled ?? false,
     usOnlyEnabled: usOnly?.enabled ?? false,
     pocketfiVirtualAccountEnabled: pocketfi?.virtual_account_enabled ?? true,
+    istarEnabled: istar?.enabled ?? false,
   };
 
   return (

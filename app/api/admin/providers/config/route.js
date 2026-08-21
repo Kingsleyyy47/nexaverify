@@ -2,26 +2,30 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Single route for the /admin/providers overview page's four master
+// Single route for the /admin/providers overview page's five master
 // switches. Each one writes to the SAME config table/column its own
 // dedicated settings page already uses (public.daisysms_config.enabled,
 // public.daisysim_config.enabled, public.daisysim_usa_config.enabled,
-// public.pocketfi_config.virtual_account_enabled) — this is just a second,
-// faster place to flip them, not a separate source of truth.
-// /admin/international, /admin/us-only, and /admin/pocketfi still work
-// exactly as before for the detailed settings (markup, bank).
+// public.pocketfi_config.virtual_account_enabled, public.istar_config.enabled)
+// — this is just a second, faster place to flip them, not a separate source
+// of truth. /admin/international, /admin/us-only, /admin/pocketfi, and
+// /admin/telegram-premium still work exactly as before for the detailed
+// settings (markup, bank, price). Note istarEnabled does NOT control
+// customer visibility the way the other four do — see istar_config in
+// schema.sql.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { daisysmsEnabled, daisysimEnabled, usOnlyEnabled, pocketfiVirtualAccountEnabled } = await request.json();
+  const { daisysmsEnabled, daisysimEnabled, usOnlyEnabled, pocketfiVirtualAccountEnabled, istarEnabled } =
+    await request.json();
 
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
-  const [daisysms, daisysim, usOnly, pocketfi] = await Promise.all([
+  const [daisysms, daisysim, usOnly, pocketfi, istar] = await Promise.all([
     admin
       .from("daisysms_config")
       .update({ enabled: Boolean(daisysmsEnabled), updated_at: now })
@@ -46,9 +50,15 @@ export async function POST(request) {
       .eq("id", true)
       .select()
       .single(),
+    admin
+      .from("istar_config")
+      .update({ enabled: Boolean(istarEnabled), updated_at: now })
+      .eq("id", true)
+      .select()
+      .single(),
   ]);
 
-  if (daisysms.error || daisysim.error || usOnly.error || pocketfi.error) {
+  if (daisysms.error || daisysim.error || usOnly.error || pocketfi.error || istar.error) {
     return NextResponse.json({ error: "Could not save settings" }, { status: 500 });
   }
 
@@ -57,5 +67,6 @@ export async function POST(request) {
     daisysim: daisysim.data,
     usOnly: usOnly.data,
     pocketfi: pocketfi.data,
+    istar: istar.data,
   });
 }
