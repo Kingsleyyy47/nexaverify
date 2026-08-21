@@ -1,5 +1,5 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
-import { getPremiumPackages, buildPremiumPricing } from "@/lib/istar";
+import { getPremiumPackages, buildPremiumPricing, computeStarPricePerUnit } from "@/lib/istar";
 import TelegramGiftBuyForm from "@/components/TelegramGiftBuyForm";
 
 // Admins always see the real buy flow here (to test it end-to-end with their
@@ -14,7 +14,9 @@ export default async function TelegramPremiumPage() {
 
   const { data: config } = await supabase
     .from("istar_config")
-    .select("customer_visible, ngn_per_star, premium_markup_3, premium_markup_6, premium_markup_12")
+    .select(
+      "customer_visible, ngn_per_star, star_markup_ngn, star_last_cost_ngn, premium_markup_3, premium_markup_6, premium_markup_12"
+    )
     .eq("id", true)
     .maybeSingle();
 
@@ -70,7 +72,11 @@ export default async function TelegramPremiumPage() {
       </div>
       <TelegramGiftBuyForm
         isAdminView={admin}
-        pricePerStar={Number(config?.ngn_per_star || 0)}
+        pricePerStar={computeStarPricePerUnit({
+          ngnPerStar: config?.ngn_per_star,
+          starMarkupNgn: config?.star_markup_ngn,
+          starLastCostNgn: config?.star_last_cost_ngn,
+        })}
         premiumPricing={premiumPricing}
       />
     </div>

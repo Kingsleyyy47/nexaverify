@@ -489,10 +489,19 @@ then a webhook or a manual poll tells you it completed or failed later).
    - `app/api/telegram/star/buy` and `app/api/telegram/premium/buy` — debits the calling user's own
      wallet, whether that's you testing as admin or a real customer.
 2. **Pricing, redone:**
-   - Stars: `istar_config.ngn_per_star` is a flat price for ONE star. Total charged = quantity x
-     that value — deliberately simple math. The buy page shows preset quantities
-     (50/100/500/1,000/2,500) plus a "Custom" option; the server accepts any quantity 50–1,000,000
-     either way.
+   - Stars: iStar has NO pre-purchase price lookup at all for star gifting (unlike premium's
+     `/premium/packages`) — the real charge only appears after a real order completes. So pricing
+     self-learns: `istar_config.ngn_per_star` is a flat starting-price guess, used only until the
+     first star order actually completes paid from the USDT wallet (USDT is pegged ~1:1 to USD, so
+     `(amount / quantity) x currency_rates.USD` converts to NGN reliably — TON orders are skipped,
+     since there's no TON->NGN rate anywhere in this app). That learned figure is stored in
+     `istar_config.star_last_cost_ngn` (see `lib/istar.js#learnStarCostFromOrder`, called from both
+     `app/api/telegram/webhook` and `.../orders/[id]/status` whenever a star order completes). Once
+     it exists, EVERY subsequent star purchase — by anyone — prices at
+     `star_last_cost_ngn + star_markup_ngn` per star instead of the static guess
+     (`lib/istar.js#computeStarPricePerUnit`). Total charged = quantity x per-star price either way.
+     The buy page shows preset quantities (50/100/500/1,000/2,500) plus a "Custom" option; the
+     server accepts any quantity 50–1,000,000 regardless.
    - Premium: three separate markups — `premium_markup_3`, `premium_markup_6`, `premium_markup_12` —
      one per duration, since iStar's own cost per month isn't linear. `lib/istar.js#buildPremiumPricing`
      fetches iStar's live `getPremiumPackages()` fresh, converts that duration's `usd_value` at the

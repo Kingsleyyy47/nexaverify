@@ -6,15 +6,18 @@ import { useRouter } from "next/navigation";
 const MONTH_OPTIONS = [3, 6, 12];
 
 // `config` comes from admin/telegram-premium/page.js as:
-// { enabled, customerVisible, ngnPerStar, premiumMarkup3, premiumMarkup6, premiumMarkup12, updatedAt }
+// { enabled, customerVisible, ngnPerStar, starMarkupNgn, starLastCostNgn,
+//   starLastCostWalletType, starLastCostUpdatedAt, premiumMarkup3,
+//   premiumMarkup6, premiumMarkup12, updatedAt }
 // `livePricing` is { 3: {costNgn, markupNgn, priceNgn} | null, 6: ..., 12: ... } —
 // fetched fresh from iStar on every page load, so the admin sees exactly
 // what's being charged right now before deciding on a markup.
-export default function TelegramPremiumConfigForm({ config, livePricing = {}, lastStarCost = null }) {
+export default function TelegramPremiumConfigForm({ config, livePricing = {} }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(Boolean(config.enabled));
   const [customerVisible, setCustomerVisible] = useState(Boolean(config.customerVisible));
   const [ngnPerStar, setNgnPerStar] = useState(config.ngnPerStar ?? "");
+  const [starMarkupNgn, setStarMarkupNgn] = useState(config.starMarkupNgn ?? "");
   const [markups, setMarkups] = useState({
     3: config.premiumMarkup3 ?? "",
     6: config.premiumMarkup6 ?? "",
@@ -38,6 +41,7 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {}, la
           enabled,
           customerVisible,
           ngnPerStar: Number(ngnPerStar),
+          starMarkupNgn: Number(starMarkupNgn),
           premiumMarkup3: Number(markups[3]),
           premiumMarkup6: Number(markups[6]),
           premiumMarkup12: Number(markups[12]),
@@ -129,16 +133,7 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {}, la
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="font-bold text-sm">Price per Star (₦)</label>
-          <span className="text-xs text-gray-400 dark:text-night-400">
-            {lastStarCost
-              ? `Last actual cost: ${lastStarCost.perStar.toFixed(4)} ${lastStarCost.walletType} per star (${new Date(
-                  lastStarCost.at
-                ).toLocaleDateString()})`
-              : "Cost now: unavailable — no live price for star gifting"}
-          </span>
-        </div>
+        <label className="font-bold text-sm block mb-2">Starting price per star (₦)</label>
         <input
           type="number"
           min="0"
@@ -149,10 +144,27 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {}, la
           className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
         />
         <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
-          This is what's charged for a SINGLE star — iStar has no live pre-purchase price for star
-          gifting, so it's set manually. A buyer's total is always{" "}
-          <span className="font-mono">quantity × this amount</span>, kept deliberately simple so the
-          math stays easy even when a custom quantity is entered.
+          A guess, used only until "What you're charged (Stars)" above has real data. A buyer's
+          total is always <span className="font-mono">quantity × per-star price</span>, kept
+          deliberately simple.
+        </p>
+      </div>
+
+      <div>
+        <label className="font-bold text-sm block mb-2">Per-star markup (₦)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          value={starMarkupNgn}
+          onChange={(e) => setStarMarkupNgn(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+        />
+        <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
+          Added on top of the learned cost once it exists —{" "}
+          <span className="font-mono">learned cost + this amount = price per star</span>. Has no
+          effect until the first real cost is learned; see the table above for the current numbers.
         </p>
       </div>
 

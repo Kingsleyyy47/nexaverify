@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { learnStarCostFromOrder } from "@/lib/istar";
 
 // Receives order.completed / order.failed events from iStar (configured in
 // their Developer Dashboard -> Webhooks). Unlike DaisySim/DaisySMS's
@@ -58,7 +59,7 @@ export async function POST(request) {
   const now = new Date().toISOString();
 
   if (eventType === "order.completed") {
-    await admin
+    const { data: updated } = await admin
       .from("telegram_gift_orders")
       .update({
         status: "completed",
@@ -66,7 +67,26 @@ export async function POST(request) {
         updated_at: now,
       })
       .eq("id", existing.id)
-      .eq("status", "pending"); // don't clobber a status a status-poll already resolved
+      .eq("status", "pending") // don't clobber a status a status-poll already resolved
+      .select()
+      .maybeSingle();
+
+    // Self-learning star pricing — see lib/istar.js#learnStarCostFromOrder.
+    // `order.amount` is the real, final charged amount for this order (the
+    // same field iStar's own docs show in the webhook payload example),
+    // more authoritative than whatever was estimated at order-creation time.
+    if (updated && updated.order_type === "star") {
+      try {
+        await learnStarCostFromOrder(admin, {
+          quantity: updated.quantity,
+          amount: order.amount ?? updated.provider_amount,
+          walletType: updated.wallet_type,
+        });
+      } catch (err) {
+        console.error(`[telegram/webhook] star cost learning failed for order ${updated.id}:`, err.message);
+      }
+    }
+
     return NextResponse.json({ ok: true, matched: true });
   }
 

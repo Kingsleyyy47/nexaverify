@@ -8,15 +8,26 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { enabled, customerVisible, ngnPerStar, premiumMarkup3, premiumMarkup6, premiumMarkup12 } =
-    await request.json();
+  const {
+    enabled,
+    customerVisible,
+    ngnPerStar,
+    starMarkupNgn,
+    premiumMarkup3,
+    premiumMarkup6,
+    premiumMarkup12,
+  } = await request.json();
   const perStar = Number(ngnPerStar);
+  const starMarkup = Number(starMarkupNgn);
   const markup3 = Number(premiumMarkup3);
   const markup6 = Number(premiumMarkup6);
   const markup12 = Number(premiumMarkup12);
 
   if (!Number.isFinite(perStar) || perStar < 0) {
-    return NextResponse.json({ error: "Enter a valid price per star" }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid starting price per star" }, { status: 400 });
+  }
+  if (!Number.isFinite(starMarkup) || starMarkup < 0) {
+    return NextResponse.json({ error: "Enter a valid per-star markup" }, { status: 400 });
   }
   for (const [label, value] of [
     ["3-month", markup3],
@@ -35,6 +46,7 @@ export async function POST(request) {
       enabled: Boolean(enabled),
       customer_visible: Boolean(customerVisible),
       ngn_per_star: perStar,
+      star_markup_ngn: starMarkup,
       premium_markup_3: markup3,
       premium_markup_6: markup6,
       premium_markup_12: markup12,

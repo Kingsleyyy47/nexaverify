@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createStarOrder, IStarError } from "@/lib/istar";
+import { createStarOrder, computeStarPricePerUnit, IStarError } from "@/lib/istar";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled` below). Everyone else additionally needs
@@ -9,12 +9,14 @@ import { createStarOrder, IStarError } from "@/lib/istar";
 // `enabled` (see that column's comment in schema.sql). Debits the CALLING
 // user's own NGN wallet either way.
 //
-// Price is admin-set (public.istar_config.ngn_per_star) — a flat price PER
-// SINGLE STAR — rather than converted from a live rate, because iStar has no
-// pre-purchase price lookup for star gifting. Total charged = quantity x
-// ngn_per_star; the real `amount` iStar reports only comes back in the order
-// creation response itself, stored as `provider_amount` for reference but
-// does NOT change what the buyer is charged.
+// Pricing self-learns over time (see lib/istar.js#computeStarPricePerUnit /
+// #learnStarCostFromOrder): once at least one USDT-paid star order has
+// actually completed, price = star_last_cost_ngn + star_markup_ngn per star.
+// Until then, it falls back to the static ngn_per_star guess. Either way,
+// total charged = quantity x per-unit price; the real `amount` iStar reports
+// only comes back in the order creation response itself, stored as
+// `provider_amount` for reference (and as learning input once it completes)
+// but does NOT change what the buyer is charged for THIS order.
 function customerSafeMessage(err, admin) {
   return admin ? err.message : "Something went wrong placing this order — try again shortly.";
 }
@@ -39,7 +41,7 @@ export async function POST(request) {
 
   const { data: config } = await admin
     .from("istar_config")
-    .select("enabled, customer_visible, ngn_per_star")
+    .select("enabled, customer_visible, ngn_per_star, star_markup_ngn, star_last_cost_ngn")
     .eq("id", true)
     .maybeSingle();
   if (!config?.enabled) {
@@ -49,7 +51,12 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const price = Math.max(0, Math.round(qty * Number(config.ngn_per_star || 0) * 100) / 100);
+  const perStar = computeStarPricePerUnit({
+    ngnPerStar: config.ngn_per_star,
+    starMarkupNgn: config.star_markup_ngn,
+    starLastCostNgn: config.star_last_cost_ngn,
+  });
+  const price = Math.max(0, Math.round(qty * perStar * 100) / 100);
   if (!price || price <= 0) {
     return NextResponse.json({ error: "Set a price-per-star in admin settings before testing a purchase." }, { status: 400 });
   }

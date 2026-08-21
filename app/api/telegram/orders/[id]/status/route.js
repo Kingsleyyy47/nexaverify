@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getOrderStatus, IStarError } from "@/lib/istar";
+import { getOrderStatus, learnStarCostFromOrder, IStarError } from "@/lib/istar";
 
 // Manual poll fallback for when the webhook hasn't landed yet (or at all —
 // e.g. local dev with no public URL registered in the iStar dashboard). Open
@@ -61,6 +61,22 @@ export async function GET(request, { params }) {
       .eq("status", "pending")
       .select()
       .maybeSingle();
+
+    // Self-learning star pricing — see lib/istar.js#learnStarCostFromOrder.
+    // `remote.amount` is the real, final charged amount reported directly by
+    // iStar's own status endpoint.
+    if (updated && updated.order_type === "star") {
+      try {
+        await learnStarCostFromOrder(admin, {
+          quantity: updated.quantity,
+          amount: remote.amount ?? updated.provider_amount,
+          walletType: updated.wallet_type,
+        });
+      } catch (err) {
+        console.error(`[telegram/orders/status] star cost learning failed for order ${updated.id}:`, err.message);
+      }
+    }
+
     return NextResponse.json({ order: updated || orderRow });
   }
 

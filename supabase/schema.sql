@@ -306,18 +306,30 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 --   ngn_per_star: iStar has no live pre-purchase price lookup for star
 --     gifting (unlike premium, which has /premium/packages) — the `amount`
 --     for a star order only appears in iStar's OWN order-creation response,
---     after the fact. So star pricing is admin-set manually here as a flat
---     price PER SINGLE STAR — total charged = quantity x this value, kept
---     deliberately simple so the math is obvious even when a customer types
---     a custom quantity.
+--     after the fact. This is the FALLBACK flat price PER SINGLE STAR, used
+--     only until the system has learned a real cost (see star_last_cost_ngn
+--     below) — total charged = quantity x this value.
+--   star_markup_ngn: once a real cost HAS been learned, pricing switches to
+--     star_last_cost_ngn + this flat NGN margin per star, instead of the
+--     ngn_per_star fallback above. Lets the price track reality instead of a
+--     one-time guess.
+--   star_last_cost_ngn / star_last_cost_wallet_type / star_last_cost_updated_at:
+--     self-learning cost tracking. Every time a star order actually
+--     completes AND was paid from the USDT-on-TON wallet (USDT is pegged
+--     ~1:1 to USD, so it converts to NGN reliably via currency_rates — TON
+--     orders are skipped here since there's no TON->NGN rate anywhere in
+--     this app), app/api/telegram/webhook and .../orders/[id]/status compute
+--     (amount charged / quantity) x currency_rates.USD and store it here.
+--     The NEXT star purchase (by anyone — admin or customer) then prices off
+--     THIS learned number + star_markup_ngn instead of the static fallback.
 --   premium_markup_3 / premium_markup_6 / premium_markup_12: flat NGN margin
 --     added on top of THAT specific duration's live usd_value (from
 --     getPremiumPackages()) x your currency_rates USD rate — set separately
 --     per duration since iStar's own cost per month isn't linear. Re-fetched
 --     live at purchase time every time (see app/api/telegram/premium/buy),
 --     so raising iStar's own price never silently eats your markup.
---   markup_amount_ngn: superseded by the three columns above — no longer
---     written to, kept only so an old row doesn't break on read.
+--   markup_amount_ngn: superseded by the columns above — no longer written
+--     to, kept only so an old row doesn't break on read.
 -- ============================================================================
 create table if not exists public.istar_config (
   id boolean primary key default true check (id),
@@ -325,6 +337,10 @@ create table if not exists public.istar_config (
   customer_visible boolean not null default false,
   ngn_per_star numeric(12,4) not null default 0,
   markup_amount_ngn numeric(12,2) not null default 0,
+  star_markup_ngn numeric(12,4) not null default 0,
+  star_last_cost_ngn numeric(12,4),
+  star_last_cost_wallet_type text,
+  star_last_cost_updated_at timestamptz,
   premium_markup_3 numeric(12,2) not null default 0,
   premium_markup_6 numeric(12,2) not null default 0,
   premium_markup_12 numeric(12,2) not null default 0,
@@ -335,6 +351,10 @@ alter table public.istar_config add column if not exists customer_visible boolea
 alter table public.istar_config add column if not exists premium_markup_3 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists premium_markup_6 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists premium_markup_12 numeric(12,2) not null default 0;
+alter table public.istar_config add column if not exists star_markup_ngn numeric(12,4) not null default 0;
+alter table public.istar_config add column if not exists star_last_cost_ngn numeric(12,4);
+alter table public.istar_config add column if not exists star_last_cost_wallet_type text;
+alter table public.istar_config add column if not exists star_last_cost_updated_at timestamptz;
 
 insert into public.istar_config (id) values (true) on conflict (id) do nothing;
 

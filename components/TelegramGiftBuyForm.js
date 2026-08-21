@@ -15,11 +15,13 @@ const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
 // wallet either way.
 //
 // `isAdminView` controls what's shown, not what's callable — the API routes
-// are the real gate (istar_config.enabled / customer_visible). Customers
-// never see the TON/USDT wallet picker (that's which of the site's own
-// backend wallets funds the order, not something a customer chooses — always
-// sent as "TON" for them) or the raw provider order id, matching the
-// white-labeling rule used everywhere else in this app.
+// are the real gate (istar_config.enabled / customer_visible). Every order
+// is paid from the USDT wallet — the only currency self-learning star
+// pricing can actually convert to Naira (see lib/istar.js#learnStarCostFromOrder)
+// — so there's no wallet picker at all; customers never saw one anyway
+// (that was always an internal detail, not their choice), and admin testing
+// now matches. Customers also never see the raw provider order id, matching
+// the white-labeling rule used everywhere else in this app.
 //
 // `pricePerStar` (₦ per single star) and `premiumPricing` (per-duration
 // {costNgn, markupNgn, priceNgn} from lib/istar.js#buildPremiumPricing) are
@@ -71,7 +73,7 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
   const [quantity, setQuantity] = useState(STAR_PRESETS[0]);
   const [customQuantity, setCustomQuantity] = useState(false);
   const [months, setMonths] = useState(3);
-  const [walletType, setWalletType] = useState("TON"); // customers never choose this — see header comment
+  const walletType = "USDT"; // always USDT — see header comment
 
   const [recipient, setRecipient] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -241,31 +243,6 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {isAdminView && (
-          <div>
-            <label className="font-bold text-sm block mb-2">Wallet</label>
-            <div className="flex gap-2">
-              {["TON", "USDT"].map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setWalletType(w)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                    walletType === w
-                      ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
-                      : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
-                  }`}
-                >
-                  {w}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
-              Admin-only setting — customers never see or choose this.
-            </p>
           </div>
         )}
 
