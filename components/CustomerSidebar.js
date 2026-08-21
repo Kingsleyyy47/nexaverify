@@ -28,6 +28,7 @@ export default function CustomerSidebar({
   daisysmsEnabled = true,
   daisysimEnabled = false,
   usOnlyEnabled = false,
+  istarCustomerVisible = false,
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -66,7 +67,7 @@ export default function CustomerSidebar({
             }`}
           >
             {link.label}
-            {link.soonForNonAdmin && profile?.role !== "admin" && (
+            {link.soonForNonAdmin && !istarCustomerVisible && profile?.role !== "admin" && (
               <span className="badge badge-neutral text-[10px] px-1.5 py-0.5">Soon</span>
             )}
           </Link>

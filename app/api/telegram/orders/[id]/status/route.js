@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderStatus, IStarError } from "@/lib/istar";
 
 // Manual poll fallback for when the webhook hasn't landed yet (or at all —
-// e.g. local dev with no public URL registered in the iStar dashboard).
-// Admin-only, consistent with the rest of this integration. Applies the same
-// completed/failed handling and refund idempotency as the webhook, keyed off
-// the same refunded_at guard, so a webhook firing later can never
-// double-refund an order this route already resolved (and vice versa).
+// e.g. local dev with no public URL registered in the iStar dashboard). Open
+// to any logged-in customer, scoped to their own order (see the ownership
+// check below). Applies the same completed/failed handling and refund
+// idempotency as the webhook, keyed off the same refunded_at guard, so a
+// webhook firing later can never double-refund an order this route already
+// resolved (and vice versa).
 export async function GET(request, { params }) {
-  const { user, profile } = await getSessionProfile();
-  if (!user || !isAdmin(profile)) {
+  const { user } = await getSessionProfile();
+  if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

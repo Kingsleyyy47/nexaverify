@@ -292,13 +292,17 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 -- istar_config: site-wide settings for Telegram Stars/Premium gifting (see
 -- lib/istar.js). Not a phone-number provider at all — genuinely different
 -- shape: it spends TON/USDT from your OWN iStar developer wallet to gift
--- Telegram Stars or Telegram Premium to a username. Deliberately kept
--- admin-only for now regardless of `enabled` — see app/(customer)/products
--- /telegram-premium/page.js, which shows every customer a plain "Coming
--- soon" placeholder no matter what this flag says, and only lets an actual
--- admin through to the real buy flow. `enabled` here just gates whether an
--- admin can place a (real, wallet-charging) test order yet — flip it once
--- ISTAR_API_KEY is set up and you're ready to start testing.
+-- Telegram Stars or Telegram Premium to a username. Two separate flags,
+-- deliberately not one:
+--   enabled: gates whether an admin can place a (real, wallet-charging) test
+--     order at all — flip it once ISTAR_API_KEY is set up and you're ready
+--     to start testing. An admin can always reach the real buy flow at
+--     /products/telegram-premium regardless of customer_visible below.
+--   customer_visible: a SECOND, separate switch — off by default — for
+--     whether regular customers see the real buy flow too (billed from
+--     their own wallet) instead of a plain "Coming soon" placeholder. Meant
+--     to be flipped on only once you've tested the flow yourself with
+--     `enabled`. See app/(customer)/products/telegram-premium/page.js.
 --   ngn_per_star: iStar has no live pre-purchase price lookup for star
 --     gifting (unlike premium, which has /premium/packages) — the `amount`
 --     for a star order only appears in iStar's OWN order-creation response,
@@ -311,10 +315,13 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 create table if not exists public.istar_config (
   id boolean primary key default true check (id),
   enabled boolean not null default false,
+  customer_visible boolean not null default false,
   ngn_per_star numeric(12,4) not null default 0,
   markup_amount_ngn numeric(12,2) not null default 0,
   updated_at timestamptz not null default now()
 );
+
+alter table public.istar_config add column if not exists customer_visible boolean not null default false;
 
 insert into public.istar_config (id) values (true) on conflict (id) do nothing;
 
@@ -329,10 +336,9 @@ create policy "istar_config_select_all" on public.istar_config
 
 -- ============================================================================
 -- telegram_gift_orders: every Telegram Stars/Premium order ever placed via
--- iStar (see lib/istar.js, app/api/telegram/*). Admin-only for now (see
--- istar_config above), so user_id will only ever be an admin's own profile
--- until this is opened up to customers — kept as a real per-user FK from day
--- one so no migration is needed when that happens.
+-- iStar (see lib/istar.js, app/api/telegram/*). user_id is whoever placed
+-- it — an admin testing, or (once istar_config.customer_visible is on) a
+-- real customer, same table either way.
 --   refunded_at: same idempotent-refund-claim pattern as rentals.refunded_at
 --     — set the instant a failed order's charge is refunded, and used as an
 --     atomic UPDATE...WHERE refunded_at IS NULL guard so the webhook and a

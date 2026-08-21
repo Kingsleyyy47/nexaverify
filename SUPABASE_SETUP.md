@@ -460,7 +460,7 @@ DaisySMS).
    sections both reflect it, and that `/admin/providers` toggling "US Only" off hides all of it
    immediately.
 
-## 18. Telegram Premium & Stars — a FOURTH provider (iStar), admin-only for now
+## 18. Telegram Premium & Stars — a FOURTH provider (iStar), opt-in customer visibility
 
 A completely different kind of provider from the three phone-number ones above: this doesn't rent
 numbers, it spends TON or USDT from **your own iStar developer wallet** to gift Telegram Stars or
@@ -471,28 +471,33 @@ then a webhook or a manual poll tells you it completed or failed later).
    - `lib/istar.js` — new provider wrapper, reads `ISTAR_API_KEY` / `ISTAR_BASE_URL`. Auth is a
      plain `API-Key` header, **not** `Authorization: Bearer` like every other provider in this
      project — a likely copy-paste mistake if you ever touch this file.
-   - `public.istar_config` (singleton — `enabled`, `ngn_per_star`, `markup_amount_ngn`) and
-     `public.telegram_gift_orders` (one row per star/premium order, with the same `refunded_at`
-     idempotency-guard pattern used on `rentals` for atomic, retry-safe refunds).
-   - Admin: `/admin/telegram-premium` (enable + price-per-star + premium markup + live iStar wallet
-     balance), and a fifth toggle on `/admin/providers` ("Telegram Premium & Stars (iStar)").
+   - `public.istar_config` (singleton — `enabled`, `customer_visible`, `ngn_per_star`,
+     `markup_amount_ngn`) and `public.telegram_gift_orders` (one row per star/premium order, with
+     the same `refunded_at` idempotency-guard pattern used on `rentals` for atomic, retry-safe
+     refunds).
+   - Admin: `/admin/telegram-premium` (two separate toggles — see point 2 below — plus
+     price-per-star + premium markup + live iStar wallet balance), and a fifth toggle on
+     `/admin/providers` ("Telegram Premium & Stars (iStar)") that maps to `enabled` only.
    - Customer: `/products/telegram-premium` and a "Telegram Premium" sidebar link (with a small
-     "Soon" badge for non-admins).
+     "Soon" badge while `customer_visible` is off).
    - `app/api/telegram/webhook/route.js` — verifies iStar's `X-iStar-Signature` header
      (HMAC-**SHA256** over the raw body, signed with `ISTAR_WEBHOOK_SECRET`) and updates orders on
      `order.completed` / `order.failed`, refunding the buyer's NGN wallet on failure.
-   - `app/api/telegram/orders/[id]/status/route.js` — manual poll fallback (admin-only) for when
-     the webhook hasn't arrived, e.g. local dev with no public URL registered.
-   - `app/api/telegram/star/buy` and `app/api/telegram/premium/buy` — admin-only. Debits the calling
-     admin's own wallet, exactly like a real customer purchase would, so testing here is a genuine
-     end-to-end test.
-2. **Deliberately different from every provider above: the `enabled` toggle does NOT control
-   customer visibility.** Customers always see "Telegram Premium" marked **Coming soon** on
-   `/products/telegram-premium` no matter what — gated purely by `profiles.role = 'admin'`, checked
-   server-side in the page itself. The toggle only controls whether an *admin* can place a real test
-   order. This was an explicit product decision (customers should see the section exists, without
-   being able to use it yet) — don't "fix" this later by wiring the toggle into the customer page's
-   visibility, that would be undoing the intended design.
+   - `app/api/telegram/orders/[id]/status/route.js` — manual poll fallback, scoped to the order's
+     own owner (admin or customer, whoever placed it), for when the webhook hasn't arrived, e.g.
+     local dev with no public URL registered.
+   - `app/api/telegram/star/buy` and `app/api/telegram/premium/buy` — debits the calling user's own
+     wallet, whether that's you testing as admin or a real customer.
+2. **Two separate, deliberately independent switches on `istar_config` — not one:**
+   - `enabled`: gates whether *you* (admin) can place a real, wallet-charging test order on
+     `/products/telegram-premium`. Always available to you regardless of `customer_visible`.
+   - `customer_visible`: off by default. While off, every non-admin visitor sees "Telegram Premium"
+     marked **Coming soon** no matter what `enabled` says. Once you flip it on, real customers get
+     the same buy flow you tested — billed from their own NGN wallet — but with a simplified view: no
+     TON/USDT wallet picker (that's an internal detail, not a customer choice — always sent as
+     `"TON"` for them) and no raw provider order IDs shown, matching the white-labeling rule below.
+     The intended workflow is: turn `enabled` on, test it yourself, then turn `customer_visible` on
+     when you're satisfied.
 3. Also deliberately different: since iStar has no documented order-cancellation endpoint, both buy
    routes create the iStar order **before** touching the local wallet, and do not attempt a rollback
    if the local DB insert or wallet debit fails afterward — the iStar-side spend is already real and
@@ -516,16 +521,18 @@ then a webhook or a manual poll tells you it completed or failed later).
      A missing/misconfigured secret makes the webhook route reject every request (by design — no
      "skip verification" fallback, unlike the query-string-secret convention used by DaisySMS/
      DaisySim).
-5. Test it: go to `/admin/telegram-premium`, turn it on, set a price-per-star and a premium markup,
-   save (the wallet balance card up top should show your iStar TON balance — if it errors, check
-   `ISTAR_API_KEY`). As an admin, open `/products/telegram-premium`, search a recipient, and place a
-   small test order; use the Refresh button if it stays "pending" for a while (webhook not yet
-   registered, or still in flight). Log out / view as a non-admin to confirm the page shows only
-   "Coming soon" regardless of the toggle state.
+5. Test it: go to `/admin/telegram-premium`, turn "Enabled" on, set a price-per-star and a premium
+   markup, save (the wallet balance card up top should show your iStar TON balance — if it errors,
+   check `ISTAR_API_KEY`). As an admin, open `/products/telegram-premium`, search a recipient, and
+   place a small test order; use the Refresh button if it stays "pending" for a while (webhook not
+   yet registered, or still in flight). Log out / view as a non-admin to confirm the page shows only
+   "Coming soon". Only once you're happy, go back and flip "Let customers see it" on — then check
+   again as a non-admin to confirm the real (simplified) buy flow now shows instead.
 
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
 - Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `DAISYSIM_USA_API_KEY`, `ISTAR_API_KEY`, `ISTAR_WEBHOOK_SECRET`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
 - Don't refer to "DaisySim" or "iStar" anywhere in customer-facing UI — only the admin pages may name them; customers only ever see "International Numbers"/"All countries" and "Telegram Premium".
-- Don't wire `istar_config.enabled` into the customer-facing visibility of `/products/telegram-premium` — that page is intentionally role-gated only, not toggle-gated. See section 18.
+- Don't confuse `istar_config.enabled` with `istar_config.customer_visible` — the first is your own admin test-ordering access, the second (separate, off by default) is what actually opens the buy flow to real customers. See section 18.
+- Don't show the TON/USDT wallet picker or a raw `istar_order_id` to a non-admin on `/products/telegram-premium` — `TelegramGiftBuyForm`'s `isAdminView` prop controls this; it's not a customer-facing decision or something they should see.

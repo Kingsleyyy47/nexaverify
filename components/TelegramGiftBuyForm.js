@@ -6,12 +6,20 @@ import { RefreshCw } from "lucide-react";
 
 const MONTH_OPTIONS = [3, 6, 12];
 
-// Admin-only test/purchase flow for iStar Telegram gifting. Two tabs sharing
-// the same shape: search a recipient, review the found name, buy, then poll
-// status since the webhook may not be reachable (e.g. local dev with no
-// public URL registered with iStar). Debits the ADMIN's own NGN wallet, same
-// as a real customer purchase would.
-export default function TelegramGiftBuyForm() {
+// Shared buy flow for both the admin test view and the real customer view
+// (see app/(customer)/products/telegram-premium/page.js) — same two tabs,
+// search a recipient, review the found name, buy, then poll status since the
+// webhook may not be reachable yet. Debits the CALLING user's own NGN
+// wallet either way.
+//
+// `isAdminView` controls what's shown, not what's callable — the API routes
+// are the real gate (istar_config.enabled / customer_visible). Customers
+// never see the TON/USDT wallet picker (that's which of the SITE's own
+// backend wallets funds the order, not something a customer chooses — always
+// sent as "TON" for them) or the raw provider order id, matching the
+// white-labeling pattern used everywhere else in this app (never name
+// DaisySMS/DaisySim/iStar in customer-facing UI).
+export default function TelegramGiftBuyForm({ isAdminView = false }) {
   const router = useRouter();
   const [tab, setTab] = useState("star");
 
@@ -42,16 +50,20 @@ export default function TelegramGiftBuyForm() {
         </button>
       </div>
 
-      {tab === "star" ? <GiftFlow key="star" mode="star" router={router} /> : <GiftFlow key="premium" mode="premium" router={router} />}
+      {tab === "star" ? (
+        <GiftFlow key="star" mode="star" router={router} isAdminView={isAdminView} />
+      ) : (
+        <GiftFlow key="premium" mode="premium" router={router} isAdminView={isAdminView} />
+      )}
     </div>
   );
 }
 
-function GiftFlow({ mode, router }) {
+function GiftFlow({ mode, router, isAdminView }) {
   const [username, setUsername] = useState("");
   const [quantity, setQuantity] = useState(50);
   const [months, setMonths] = useState(3);
-  const [walletType, setWalletType] = useState("TON");
+  const [walletType, setWalletType] = useState("TON"); // customers never choose this — see header comment
 
   const [recipient, setRecipient] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -178,25 +190,30 @@ function GiftFlow({ mode, router }) {
           </div>
         )}
 
-        <div>
-          <label className="font-bold text-sm block mb-2">Wallet</label>
-          <div className="flex gap-2">
-            {["TON", "USDT"].map((w) => (
-              <button
-                key={w}
-                type="button"
-                onClick={() => setWalletType(w)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                  walletType === w
-                    ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
-                    : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
-                }`}
-              >
-                {w}
-              </button>
-            ))}
+        {isAdminView && (
+          <div>
+            <label className="font-bold text-sm block mb-2">Wallet</label>
+            <div className="flex gap-2">
+              {["TON", "USDT"].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setWalletType(w)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    walletType === w
+                      ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
+                      : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
+                  }`}
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
+              Admin-only setting — customers never see or choose this.
+            </p>
           </div>
-        </div>
+        )}
 
         <button type="submit" disabled={searching} className="btn-secondary w-full">
           {searching ? "Searching…" : "Search recipient"}
@@ -232,15 +249,17 @@ function GiftFlow({ mode, router }) {
             </button>
           </div>
           <div className="text-sm text-gray-500 dark:text-night-300">
-            <span className="font-mono text-xs">{order.istar_order_id}</span> —{" "}
+            {isAdminView && <span className="font-mono text-xs">{order.istar_order_id}</span>}
+            {isAdminView && " — "}
             <span className="font-semibold capitalize">{order.status}</span>
           </div>
           {order.error_message && (
             <p className="text-xs text-red-600 dark:text-red-400">{order.error_message}</p>
           )}
           <p className="text-xs text-gray-400 dark:text-night-400">
-            If this stays "pending" for a while, the webhook likely hasn't landed yet — tap Refresh
-            to poll iStar directly.
+            {isAdminView
+              ? 'If this stays "pending" for a while, the webhook likely hasn\'t landed yet — tap Refresh to poll iStar directly.'
+              : 'If this stays "pending" for a while, tap Refresh to check for an update.'}
           </p>
         </div>
       )}

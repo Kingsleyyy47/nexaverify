@@ -128,7 +128,7 @@ export default function ProvidersConfigForm({ config }) {
       />
       <ToggleRow
         title="Telegram Premium & Stars (iStar)"
-        description="Unlike the other toggles, this one does not control customer visibility — customers always see 'Coming soon' on /products/telegram-premium either way. This only controls whether an admin can place a real test order."
+        description="Unlike the other toggles, this only controls whether an admin can place a real test order — customer visibility is a separate switch, off by default, on the Telegram Premium settings page."
         detailHref="/admin/telegram-premium"
         detailLabel="Manage price & wallet"
         checked={istarEnabled}

@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { searchPremiumRecipient, IStarError } from "@/lib/istar";
 
-// Admin-only, deliberately — see istar_config in schema.sql.
+// Admins can always reach this (their own testing flow). Everyone else only
+// if istar_config.customer_visible is on — see that column's comment in
+// schema.sql for why this is a separate flag from `enabled`.
 export async function GET(request) {
   const { user, profile } = await getSessionProfile();
-  if (!user || !isAdmin(profile)) {
+  if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!isAdmin(profile)) {
+    const admin = createAdminClient();
+    const { data: config } = await admin.from("istar_config").select("customer_visible").eq("id", true).maybeSingle();
+    if (!config?.customer_visible) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const username = request.nextUrl.searchParams.get("username");

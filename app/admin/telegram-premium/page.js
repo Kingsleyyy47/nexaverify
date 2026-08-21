@@ -9,6 +9,7 @@ export default async function AdminTelegramPremiumPage() {
 
   const config = {
     enabled: Boolean(row?.enabled),
+    customerVisible: Boolean(row?.customer_visible),
     ngnPerStar: row?.ngn_per_star ?? 0,
     markupAmountNgn: row?.markup_amount_ngn ?? 0,
     updatedAt: row?.updated_at ?? null,
@@ -31,10 +32,11 @@ export default async function AdminTelegramPremiumPage() {
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1 max-w-lg">
           Telegram Stars and Telegram Premium gifting, billed from the site's own iStar TON/USDT
           wallet — not a customer's NGN balance is what actually pays iStar, but customers still
-          pay in NGN out of their wallet here, same as every other product. Customers only ever see
-          "Telegram Premium" marked <span className="italic">Coming soon</span> — only admins can
-          open the purchase flow and test it, regardless of the toggle below. That's deliberate: see{" "}
-          <span className="font-mono text-xs">public.istar_config</span> in the schema.
+          pay in NGN out of their wallet here, same as every other product. Two separate switches
+          below: "Enabled" is your own test-ordering access (always available to you as admin, with
+          the TON/USDT wallet picker visible); "Let customers see it" is a second, off-by-default
+          switch that opens the real buy flow to everyone else — with the wallet picker hidden, since
+          that's an internal detail, not a customer choice.
         </p>
       </div>
 

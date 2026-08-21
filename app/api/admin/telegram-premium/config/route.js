@@ -8,7 +8,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { enabled, ngnPerStar, markupAmountNgn } = await request.json();
+  const { enabled, customerVisible, ngnPerStar, markupAmountNgn } = await request.json();
   const perStar = Number(ngnPerStar);
   const markup = Number(markupAmountNgn);
 
@@ -24,6 +24,7 @@ export async function POST(request) {
     .from("istar_config")
     .update({
       enabled: Boolean(enabled),
+      customer_visible: Boolean(customerVisible),
       ngn_per_star: perStar,
       markup_amount_ngn: markup,
       updated_at: new Date().toISOString(),

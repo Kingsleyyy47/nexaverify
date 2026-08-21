@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 // `config` comes from admin/telegram-premium/page.js as:
-// { enabled, ngnPerStar, markupAmountNgn, updatedAt }
+// { enabled, customerVisible, ngnPerStar, markupAmountNgn, updatedAt }
 export default function TelegramPremiumConfigForm({ config }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(Boolean(config.enabled));
+  const [customerVisible, setCustomerVisible] = useState(Boolean(config.customerVisible));
   const [ngnPerStar, setNgnPerStar] = useState(config.ngnPerStar ?? "");
   const [markup, setMarkup] = useState(config.markupAmountNgn ?? "");
   const [loading, setLoading] = useState(false);
@@ -26,6 +27,7 @@ export default function TelegramPremiumConfigForm({ config }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled,
+          customerVisible,
           ngnPerStar: Number(ngnPerStar),
           markupAmountNgn: Number(markup),
         }),
@@ -73,10 +75,45 @@ export default function TelegramPremiumConfigForm({ config }) {
           </div>
         </div>
         <p className="text-xs text-gray-400 dark:text-night-400">
-          Controls whether an admin can actually place a test order on{" "}
-          <span className="font-mono">/products/telegram-premium</span>. Customers always see
-          "Coming soon" regardless of this switch — it does not control customer visibility the way
-          every other provider toggle on this site does.
+          Controls whether you (admin) can actually place a test order on{" "}
+          <span className="font-mono">/products/telegram-premium</span> — always available to you
+          regardless of the switch below.
+        </p>
+      </div>
+
+      <div className="pb-5 border-b border-gray-100 dark:border-night-800">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-bold text-sm">Let customers see it</span>
+          <div className="flex rounded-lg bg-gray-100 dark:bg-night-800 p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setCustomerVisible(false)}
+              className={`px-2.5 py-1 rounded-md transition ${
+                !customerVisible
+                  ? "bg-white dark:bg-night-900 text-brand-700 dark:text-brand-400 shadow-sm"
+                  : "text-gray-500 dark:text-night-400"
+              }`}
+            >
+              Off
+            </button>
+            <button
+              type="button"
+              onClick={() => setCustomerVisible(true)}
+              className={`px-2.5 py-1 rounded-md transition ${
+                customerVisible
+                  ? "bg-white dark:bg-night-900 text-brand-700 dark:text-brand-400 shadow-sm"
+                  : "text-gray-500 dark:text-night-400"
+              }`}
+            >
+              On
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-night-400">
+          A second, separate switch from "Enabled" above. Off (default): every customer sees
+          "Coming soon" no matter what. On: real customers get the actual buy flow too, billed from
+          their own wallet — with a simplified view (no TON/USDT picker, no order IDs). Only flip
+          this once you're happy with your own test purchases above.
         </p>
       </div>
 

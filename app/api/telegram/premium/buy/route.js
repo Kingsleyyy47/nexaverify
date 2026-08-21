@@ -3,14 +3,17 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPremiumOrder, getPremiumPackages, computeNgnPrice, IStarError } from "@/lib/istar";
 
-// Admin-only, deliberately — see istar_config in schema.sql. Debits the
-// CALLING admin's own NGN wallet, exactly like a real customer purchase
-// would. Unlike star gifting, iStar exposes a live price for premium
-// packages (getPremiumPackages()), so this prices the same way DaisySim
-// does: live USD value x currency_rates rate + admin's flat NGN markup.
+// Admins can always reach this (their own testing flow, gated only by
+// `enabled` below). Everyone else additionally needs
+// istar_config.customer_visible — a separate, off-by-default flag from
+// `enabled` (see that column's comment in schema.sql). Debits the CALLING
+// user's own NGN wallet either way. Unlike star gifting, iStar exposes a
+// live price for premium packages (getPremiumPackages()), so this prices the
+// same way DaisySim does: live USD value x currency_rates rate + admin's
+// flat NGN markup.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
-  if (!user || !isAdmin(profile)) {
+  if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -27,11 +30,14 @@ export async function POST(request) {
 
   const { data: config } = await admin
     .from("istar_config")
-    .select("enabled, markup_amount_ngn")
+    .select("enabled, customer_visible, markup_amount_ngn")
     .eq("id", true)
     .maybeSingle();
   if (!config?.enabled) {
     return NextResponse.json({ error: "Telegram gifting isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
+  }
+  if (!isAdmin(profile) && !config.customer_visible) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: usdRateRow } = await admin
