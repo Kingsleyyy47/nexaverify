@@ -162,9 +162,10 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
           className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
         />
         <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
-          Added on top of the learned cost once it exists —{" "}
-          <span className="font-mono">learned cost + this amount = price per star</span>. Has no
-          effect until the first real cost is learned; see the table above for the current numbers.
+          Always added on top — never multiplied. Before a real cost is learned, that's{" "}
+          <span className="font-mono">starting price + this amount</span>; after, it's{" "}
+          <span className="font-mono">learned cost + this amount</span>. See the table above for the
+          current numbers.
         </p>
       </div>
 

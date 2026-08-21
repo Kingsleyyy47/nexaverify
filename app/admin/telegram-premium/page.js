@@ -106,22 +106,17 @@ export default async function AdminTelegramPremiumPage() {
                 <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
                   {config.starLastCostNgn
                     ? `₦${Number(config.starLastCostNgn).toFixed(4)}`
-                    : "No data yet"}
+                    : `₦${Number(config.ngnPerStar || 0).toFixed(4)} (starting price guess)`}
                 </td>
                 <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                  {config.starLastCostNgn ? `₦${Number(config.starMarkupNgn || 0).toFixed(4)}` : "—"}
+                  ₦{Number(config.starMarkupNgn || 0).toFixed(4)}
                 </td>
                 <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
                   ₦
-                  {(config.starLastCostNgn
-                    ? Number(config.starLastCostNgn) + Number(config.starMarkupNgn || 0)
-                    : Number(config.ngnPerStar || 0)
+                  {(
+                    (config.starLastCostNgn ? Number(config.starLastCostNgn) : Number(config.ngnPerStar || 0)) +
+                    Number(config.starMarkupNgn || 0)
                   ).toFixed(4)}
-                  {!config.starLastCostNgn && (
-                    <span className="block text-[11px] font-normal text-gray-400 dark:text-night-400">
-                      (starting price, no live data yet)
-                    </span>
-                  )}
                 </td>
               </tr>
             </tbody>
