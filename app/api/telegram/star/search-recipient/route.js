@@ -11,7 +11,8 @@ export async function GET(request) {
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!isAdmin(profile)) {
+  const admin_ = isAdmin(profile);
+  if (!admin_) {
     const admin = createAdminClient();
     const { data: config } = await admin.from("istar_config").select("customer_visible").eq("id", true).maybeSingle();
     if (!config?.customer_visible) {
@@ -30,7 +31,10 @@ export async function GET(request) {
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof IStarError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      return NextResponse.json(
+        { error: admin_ ? err.message : "Could not look up that username — try again shortly." },
+        { status: err.status || 502 }
+      );
     }
     throw err;
   }

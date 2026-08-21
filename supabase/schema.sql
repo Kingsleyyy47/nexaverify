@@ -306,11 +306,18 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 --   ngn_per_star: iStar has no live pre-purchase price lookup for star
 --     gifting (unlike premium, which has /premium/packages) — the `amount`
 --     for a star order only appears in iStar's OWN order-creation response,
---     after the fact. So star pricing is admin-set manually here instead of
---     converted from a live rate.
---   markup_amount_ngn: flat NGN margin added on top of premium's live
---     usd_value (from getPremiumPackages()) x your currency_rates USD rate
---     — same pattern as daisysim_config/daisysim_usa_config.
+--     after the fact. So star pricing is admin-set manually here as a flat
+--     price PER SINGLE STAR — total charged = quantity x this value, kept
+--     deliberately simple so the math is obvious even when a customer types
+--     a custom quantity.
+--   premium_markup_3 / premium_markup_6 / premium_markup_12: flat NGN margin
+--     added on top of THAT specific duration's live usd_value (from
+--     getPremiumPackages()) x your currency_rates USD rate — set separately
+--     per duration since iStar's own cost per month isn't linear. Re-fetched
+--     live at purchase time every time (see app/api/telegram/premium/buy),
+--     so raising iStar's own price never silently eats your markup.
+--   markup_amount_ngn: superseded by the three columns above — no longer
+--     written to, kept only so an old row doesn't break on read.
 -- ============================================================================
 create table if not exists public.istar_config (
   id boolean primary key default true check (id),
@@ -318,10 +325,16 @@ create table if not exists public.istar_config (
   customer_visible boolean not null default false,
   ngn_per_star numeric(12,4) not null default 0,
   markup_amount_ngn numeric(12,2) not null default 0,
+  premium_markup_3 numeric(12,2) not null default 0,
+  premium_markup_6 numeric(12,2) not null default 0,
+  premium_markup_12 numeric(12,2) not null default 0,
   updated_at timestamptz not null default now()
 );
 
 alter table public.istar_config add column if not exists customer_visible boolean not null default false;
+alter table public.istar_config add column if not exists premium_markup_3 numeric(12,2) not null default 0;
+alter table public.istar_config add column if not exists premium_markup_6 numeric(12,2) not null default 0;
+alter table public.istar_config add column if not exists premium_markup_12 numeric(12,2) not null default 0;
 
 insert into public.istar_config (id) values (true) on conflict (id) do nothing;
 

@@ -488,7 +488,25 @@ then a webhook or a manual poll tells you it completed or failed later).
      local dev with no public URL registered.
    - `app/api/telegram/star/buy` and `app/api/telegram/premium/buy` — debits the calling user's own
      wallet, whether that's you testing as admin or a real customer.
-2. **Two separate, deliberately independent switches on `istar_config` — not one:**
+2. **Pricing, redone:**
+   - Stars: `istar_config.ngn_per_star` is a flat price for ONE star. Total charged = quantity x
+     that value — deliberately simple math. The buy page shows preset quantities
+     (50/100/500/1,000/2,500) plus a "Custom" option; the server accepts any quantity 50–1,000,000
+     either way.
+   - Premium: three separate markups — `premium_markup_3`, `premium_markup_6`, `premium_markup_12` —
+     one per duration, since iStar's own cost per month isn't linear. `lib/istar.js#buildPremiumPricing`
+     fetches iStar's live `getPremiumPackages()` fresh, converts that duration's `usd_value` at the
+     current `currency_rates` USD rate, and adds the matching markup — called both for display
+     (admin settings page, customer buy page) and for real, inside `app/api/telegram/premium/buy`, so
+     the price a customer is actually charged is always freshly computed at the moment of purchase,
+     never a stale cached number.
+   - `/admin/telegram-premium` shows the live cost iStar is charging for each duration right next to
+     the markup input, so you can see at a glance whether your markup covers it before saving.
+   - Bug fix: premium purchases were previously failing to match iStar's package list because the
+     code compared `p.months === m` with strict equality — iStar's JSON has returned `months` as a
+     numeric string in practice, which fails a strict `===` against a number. `buildPremiumPricing`
+     now compares with `Number(p.months) === months` instead.
+3. **Two separate, deliberately independent switches on `istar_config` — not one:**
    - `enabled`: gates whether *you* (admin) can place a real, wallet-charging test order on
      `/products/telegram-premium`. Always available to you regardless of `customer_visible`.
    - `customer_visible`: off by default. While off, every non-admin visitor sees "Telegram Premium"

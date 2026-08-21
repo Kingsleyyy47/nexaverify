@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderStatus, IStarError } from "@/lib/istar";
 
@@ -11,10 +11,11 @@ import { getOrderStatus, IStarError } from "@/lib/istar";
 // webhook firing later can never double-refund an order this route already
 // resolved (and vice versa).
 export async function GET(request, { params }) {
-  const { user } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const admin_ = isAdmin(profile);
 
   const admin = createAdminClient();
 
@@ -38,7 +39,10 @@ export async function GET(request, { params }) {
     remote = await getOrderStatus(orderRow.istar_order_id);
   } catch (err) {
     if (err instanceof IStarError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      return NextResponse.json(
+        { error: admin_ ? err.message : "Could not check the order status — try again shortly." },
+        { status: err.status || 502 }
+      );
     }
     throw err;
   }

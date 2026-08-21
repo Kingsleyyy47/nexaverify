@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createPremiumOrder, getPremiumPackages, computeNgnPrice, IStarError } from "@/lib/istar";
+import { createPremiumOrder, getPremiumPackages, buildPremiumPricing, IStarError } from "@/lib/istar";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled` below). Everyone else additionally needs
 // istar_config.customer_visible — a separate, off-by-default flag from
 // `enabled` (see that column's comment in schema.sql). Debits the CALLING
-// user's own NGN wallet either way. Unlike star gifting, iStar exposes a
-// live price for premium packages (getPremiumPackages()), so this prices the
-// same way DaisySim does: live USD value x currency_rates rate + admin's
-// flat NGN markup.
+// user's own NGN wallet either way. Prices auto-sync live every time: fetch
+// getPremiumPackages() fresh, convert THIS duration's usd_value at the
+// current currency_rates USD rate, then add the admin's per-duration markup
+// (premium_markup_3/6/12) on top — never a stale/cached number, so a change
+// in iStar's own price never silently eats the margin.
+function customerSafeMessage(err, admin) {
+  return admin ? err.message : "Something went wrong placing this order — try again shortly.";
+}
+
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user) {
@@ -28,15 +33,17 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
+  const admin_ = isAdmin(profile);
+
   const { data: config } = await admin
     .from("istar_config")
-    .select("enabled, customer_visible, markup_amount_ngn")
+    .select("enabled, customer_visible, premium_markup_3, premium_markup_6, premium_markup_12")
     .eq("id", true)
     .maybeSingle();
   if (!config?.enabled) {
     return NextResponse.json({ error: "Telegram gifting isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
   }
-  if (!isAdmin(profile) && !config.customer_visible) {
+  if (!admin_ && !config.customer_visible) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -55,16 +62,24 @@ export async function POST(request) {
     packages = await getPremiumPackages();
   } catch (err) {
     if (err instanceof IStarError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      return NextResponse.json({ error: customerSafeMessage(err, admin_) }, { status: err.status || 502 });
     }
     throw err;
   }
-  const pkg = (packages || []).find((p) => p.months === m);
-  if (!pkg) {
-    return NextResponse.json({ error: `No package found for ${m} months.` }, { status: 502 });
-  }
 
-  const price = computeNgnPrice(pkg.usd_value, usdRate, config.markup_amount_ngn);
+  const markups = {
+    3: config.premium_markup_3,
+    6: config.premium_markup_6,
+    12: config.premium_markup_12,
+  };
+  const pricing = buildPremiumPricing(packages, usdRate, markups)[m];
+  if (!pricing) {
+    return NextResponse.json(
+      { error: admin_ ? `No package found for ${m} months.` : "Could not price this package — try again shortly." },
+      { status: 502 }
+    );
+  }
+  const price = pricing.priceNgn;
   if (!price || price <= 0) {
     return NextResponse.json({ error: "Could not price this package — try again." }, { status: 400 });
   }
@@ -87,7 +102,7 @@ export async function POST(request) {
     });
   } catch (err) {
     if (err instanceof IStarError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      return NextResponse.json({ error: customerSafeMessage(err, admin_) }, { status: err.status || 502 });
     }
     throw err;
   }
@@ -112,7 +127,11 @@ export async function POST(request) {
   if (insertError || !orderRow) {
     console.error(`[telegram/premium/buy] order ${order.order_id} placed but DB insert failed:`, insertError?.message);
     return NextResponse.json(
-      { error: `Order placed with iStar (${order.order_id}) but could not be saved — contact support with this ID.` },
+      {
+        error: admin_
+          ? `Order placed with iStar (${order.order_id}) but could not be saved — contact support with this ID.`
+          : `Your order was placed but could not be saved — contact support and mention reference ${order.order_id}.`,
+      },
       { status: 500 }
     );
   }

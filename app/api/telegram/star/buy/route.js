@@ -9,16 +9,22 @@ import { createStarOrder, IStarError } from "@/lib/istar";
 // `enabled` (see that column's comment in schema.sql). Debits the CALLING
 // user's own NGN wallet either way.
 //
-// Price is admin-set (public.istar_config.ngn_per_star) rather than
-// converted from a live rate, because iStar has no pre-purchase price
-// lookup for star gifting — the real `amount` only comes back in the order
-// creation response itself, which is stored as `provider_amount` for
-// reference but does NOT change what the buyer is charged.
+// Price is admin-set (public.istar_config.ngn_per_star) — a flat price PER
+// SINGLE STAR — rather than converted from a live rate, because iStar has no
+// pre-purchase price lookup for star gifting. Total charged = quantity x
+// ngn_per_star; the real `amount` iStar reports only comes back in the order
+// creation response itself, stored as `provider_amount` for reference but
+// does NOT change what the buyer is charged.
+function customerSafeMessage(err, admin) {
+  return admin ? err.message : "Something went wrong placing this order — try again shortly.";
+}
+
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const admin_ = isAdmin(profile);
 
   const { username, recipientHash, quantity, walletType } = await request.json();
   const qty = Number(quantity);
@@ -39,7 +45,7 @@ export async function POST(request) {
   if (!config?.enabled) {
     return NextResponse.json({ error: "Telegram gifting isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
   }
-  if (!isAdmin(profile) && !config.customer_visible) {
+  if (!admin_ && !config.customer_visible) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -67,7 +73,7 @@ export async function POST(request) {
     });
   } catch (err) {
     if (err instanceof IStarError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      return NextResponse.json({ error: customerSafeMessage(err, admin_) }, { status: err.status || 502 });
     }
     throw err;
   }
@@ -96,7 +102,11 @@ export async function POST(request) {
     // the iStar order_id so it can be reconciled by hand from the logs.
     console.error(`[telegram/star/buy] order ${order.order_id} placed but DB insert failed:`, insertError?.message);
     return NextResponse.json(
-      { error: `Order placed with iStar (${order.order_id}) but could not be saved — contact support with this ID.` },
+      {
+        error: admin_
+          ? `Order placed with iStar (${order.order_id}) but could not be saved — contact support with this ID.`
+          : `Your order was placed but could not be saved — contact support and mention reference ${order.order_id}.`,
+      },
       { status: 500 }
     );
   }

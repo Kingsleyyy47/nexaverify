@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import { useCurrency } from "./CurrencyProvider";
 
 const MONTH_OPTIONS = [3, 6, 12];
+const STAR_PRESETS = [50, 100, 500, 1000, 2500];
 
 // Shared buy flow for both the admin test view and the real customer view
 // (see app/(customer)/products/telegram-premium/page.js) — same two tabs,
@@ -14,12 +16,16 @@ const MONTH_OPTIONS = [3, 6, 12];
 //
 // `isAdminView` controls what's shown, not what's callable — the API routes
 // are the real gate (istar_config.enabled / customer_visible). Customers
-// never see the TON/USDT wallet picker (that's which of the SITE's own
+// never see the TON/USDT wallet picker (that's which of the site's own
 // backend wallets funds the order, not something a customer chooses — always
 // sent as "TON" for them) or the raw provider order id, matching the
-// white-labeling pattern used everywhere else in this app (never name
-// DaisySMS/DaisySim/iStar in customer-facing UI).
-export default function TelegramGiftBuyForm({ isAdminView = false }) {
+// white-labeling rule used everywhere else in this app.
+//
+// `pricePerStar` (₦ per single star) and `premiumPricing` (per-duration
+// {costNgn, markupNgn, priceNgn} from lib/istar.js#buildPremiumPricing) are
+// for DISPLAY only — the buy route always recomputes the real charge itself
+// at purchase time, so a stale prop here can never under/overcharge anyone.
+export default function TelegramGiftBuyForm({ isAdminView = false, pricePerStar = 0, premiumPricing = {} }) {
   const router = useRouter();
   const [tab, setTab] = useState("star");
 
@@ -51,17 +57,19 @@ export default function TelegramGiftBuyForm({ isAdminView = false }) {
       </div>
 
       {tab === "star" ? (
-        <GiftFlow key="star" mode="star" router={router} isAdminView={isAdminView} />
+        <GiftFlow key="star" mode="star" router={router} isAdminView={isAdminView} pricePerStar={pricePerStar} />
       ) : (
-        <GiftFlow key="premium" mode="premium" router={router} isAdminView={isAdminView} />
+        <GiftFlow key="premium" mode="premium" router={router} isAdminView={isAdminView} premiumPricing={premiumPricing} />
       )}
     </div>
   );
 }
 
-function GiftFlow({ mode, router, isAdminView }) {
+function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing = {} }) {
+  const { format } = useCurrency();
   const [username, setUsername] = useState("");
-  const [quantity, setQuantity] = useState(50);
+  const [quantity, setQuantity] = useState(STAR_PRESETS[0]);
+  const [customQuantity, setCustomQuantity] = useState(false);
   const [months, setMonths] = useState(3);
   const [walletType, setWalletType] = useState("TON"); // customers never choose this — see header comment
 
@@ -72,6 +80,11 @@ function GiftFlow({ mode, router, isAdminView }) {
   const [order, setOrder] = useState(null);
   const [polling, setPolling] = useState(false);
 
+  const qty = Number(quantity) || 0;
+  const starPrice = pricePerStar > 0 && qty > 0 ? qty * pricePerStar : null;
+  const premiumPrice = premiumPricing?.[months]?.priceNgn ?? null;
+  const displayPrice = mode === "star" ? starPrice : premiumPrice;
+
   async function search(e) {
     e.preventDefault();
     setError("");
@@ -81,7 +94,7 @@ function GiftFlow({ mode, router, isAdminView }) {
     try {
       const params =
         mode === "star"
-          ? new URLSearchParams({ username, quantity: String(quantity) })
+          ? new URLSearchParams({ username, quantity: String(qty) })
           : new URLSearchParams({ username, months: String(months) });
       const res = await fetch(`/api/telegram/${mode}/search-recipient?${params}`);
       const data = await res.json();
@@ -101,7 +114,7 @@ function GiftFlow({ mode, router, isAdminView }) {
     try {
       const body =
         mode === "star"
-          ? { username, recipientHash: recipient.recipient, quantity: Number(quantity), walletType }
+          ? { username, recipientHash: recipient.recipient, quantity: qty, walletType }
           : { username, recipientHash: recipient.recipient, months: Number(months), walletType };
       const res = await fetch(`/api/telegram/${mode}/buy`, {
         method: "POST",
@@ -157,16 +170,55 @@ function GiftFlow({ mode, router, isAdminView }) {
 
         {mode === "star" ? (
           <div>
-            <label className="font-bold text-sm block mb-2">Quantity (50 – 1,000,000)</label>
-            <input
-              type="number"
-              min="50"
-              max="1000000"
-              required
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
-            />
+            <label className="font-bold text-sm block mb-2">Quantity</label>
+            <div className="flex flex-wrap gap-2">
+              {STAR_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setCustomQuantity(false);
+                    setQuantity(preset);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    !customQuantity && qty === preset
+                      ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
+                      : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
+                  }`}
+                >
+                  {preset}
+                  {pricePerStar > 0 && (
+                    <span className="block text-[11px] font-normal opacity-80">
+                      {format(preset * pricePerStar)}
+                    </span>
+                  )}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCustomQuantity(true)}
+                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                  customQuantity
+                    ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
+                    : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+            {customQuantity && (
+              <input
+                type="number"
+                min="50"
+                max="1000000"
+                required
+                autoFocus
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder="Quantity"
+                className="w-full mt-2.5 rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+              />
+            )}
           </div>
         ) : (
           <div>
@@ -184,6 +236,9 @@ function GiftFlow({ mode, router, isAdminView }) {
                   }`}
                 >
                   {m} months
+                  <span className="block text-[11px] font-normal opacity-80">
+                    {premiumPricing?.[m]?.priceNgn ? format(premiumPricing[m].priceNgn) : "—"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -224,7 +279,9 @@ function GiftFlow({ mode, router, isAdminView }) {
         <div className="rounded-lg border border-gray-100 dark:border-night-700 p-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="font-bold text-sm truncate">{recipient.name || `@${username}`}</div>
-            <div className="text-xs text-gray-400 dark:text-night-400">Recipient found — ready to buy.</div>
+            <div className="text-xs text-gray-400 dark:text-night-400">
+              Recipient found{displayPrice ? ` — ${format(displayPrice)}` : ""}
+            </div>
           </div>
           <button type="button" onClick={buy} disabled={buying} className="btn-primary shrink-0">
             {buying ? "Placing order…" : "Buy"}

@@ -1,4 +1,5 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { getPremiumPackages, buildPremiumPricing } from "@/lib/istar";
 import TelegramGiftBuyForm from "@/components/TelegramGiftBuyForm";
 
 // Admins always see the real buy flow here (to test it end-to-end with their
@@ -11,11 +12,13 @@ export default async function TelegramPremiumPage() {
   const { profile, supabase } = await getSessionProfile();
   const admin = isAdmin(profile);
 
-  let customerVisible = false;
-  if (!admin) {
-    const { data: config } = await supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle();
-    customerVisible = Boolean(config?.customer_visible);
-  }
+  const { data: config } = await supabase
+    .from("istar_config")
+    .select("customer_visible, ngn_per_star, premium_markup_3, premium_markup_6, premium_markup_12")
+    .eq("id", true)
+    .maybeSingle();
+
+  const customerVisible = Boolean(config?.customer_visible);
 
   if (!admin && !customerVisible) {
     return (
@@ -33,6 +36,28 @@ export default async function TelegramPremiumPage() {
     );
   }
 
+  // Best-effort live pricing for display only — the buy route always
+  // re-fetches and re-computes this itself at purchase time, so a failure
+  // here just means the price preview is blank, not that pricing is wrong.
+  const { data: usdRateRow } = await supabase
+    .from("currency_rates")
+    .select("ngn_per_unit")
+    .eq("currency", "USD")
+    .maybeSingle();
+  const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
+
+  let premiumPricing = { 3: null, 6: null, 12: null };
+  try {
+    const packages = await getPremiumPackages();
+    premiumPricing = buildPremiumPricing(packages, usdRate, {
+      3: config?.premium_markup_3,
+      6: config?.premium_markup_6,
+      12: config?.premium_markup_12,
+    });
+  } catch {
+    // leave as nulls — form shows "—" for price and still lets the flow run
+  }
+
   return (
     <div>
       <div className="mb-7">
@@ -43,7 +68,11 @@ export default async function TelegramPremiumPage() {
             : "Gift Telegram Stars and Telegram Premium subscriptions — paid straight from your wallet balance."}
         </p>
       </div>
-      <TelegramGiftBuyForm isAdminView={admin} />
+      <TelegramGiftBuyForm
+        isAdminView={admin}
+        pricePerStar={Number(config?.ngn_per_star || 0)}
+        premiumPricing={premiumPricing}
+      />
     </div>
   );
 }
