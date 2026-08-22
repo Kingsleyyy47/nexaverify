@@ -1,5 +1,5 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
-import { getPremiumPackages, buildPremiumPricing, computeStarPricePerUnit } from "@/lib/istar";
+import { getPremiumPackages, buildPremiumPricing } from "@/lib/istar";
 import TelegramGiftBuyForm from "@/components/TelegramGiftBuyForm";
 
 // Admins always see the real buy flow here (to test it end-to-end with their
@@ -71,11 +71,12 @@ export default async function TelegramPremiumPage() {
       </div>
       <TelegramGiftBuyForm
         isAdminView={admin}
-        pricePerStar={computeStarPricePerUnit({
+        starPricingConfig={{
           ngnPerStar: config?.ngn_per_star,
-          starMarkupNgn: config?.star_markup_ngn,
+          markupUnder1000: config?.star_markup_under_1000_ngn,
+          markupOver1000: config?.star_markup_1000_plus_ngn,
           starLastCostNgn: config?.star_last_cost_ngn,
-        })}
+        }}
         premiumPricing={premiumPricing}
       />
     </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
+import { computeStarPricePerUnit } from "@/lib/istar-pricing";
 
 const MONTH_OPTIONS = [3, 6, 12];
 const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
@@ -23,11 +24,16 @@ const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
 // now matches. Customers also never see the raw provider order id, matching
 // the white-labeling rule used everywhere else in this app.
 //
-// `pricePerStar` (₦ per single star) and `premiumPricing` (per-duration
-// {costNgn, markupNgn, priceNgn} from lib/istar.js#buildPremiumPricing) are
-// for DISPLAY only — the buy route always recomputes the real charge itself
-// at purchase time, so a stale prop here can never under/overcharge anyone.
-export default function TelegramGiftBuyForm({ isAdminView = false, pricePerStar = 0, premiumPricing = {} }) {
+// `starPricingConfig` ({ ngnPerStar, markupUnder1000, markupOver1000,
+// starLastCostNgn }, fed straight into lib/istar-pricing.js#computeStarPricePerUnit)
+// and `premiumPricing` (per-duration {costNgn, markupNgn, priceNgn} from
+// lib/istar.js#buildPremiumPricing) are for DISPLAY only — the buy route
+// always recomputes the real charge itself at purchase time, so a stale
+// prop here can never under/overcharge anyone. starPricingConfig is an
+// object rather than one flat number because the markup is tiered by
+// quantity (under 1,000 vs 1,000+), so each preset button needs its own
+// price computed for its own quantity.
+export default function TelegramGiftBuyForm({ isAdminView = false, starPricingConfig = {}, premiumPricing = {} }) {
   const router = useRouter();
   const [tab, setTab] = useState("star");
 
@@ -59,7 +65,7 @@ export default function TelegramGiftBuyForm({ isAdminView = false, pricePerStar 
       </div>
 
       {tab === "star" ? (
-        <GiftFlow key="star" mode="star" router={router} isAdminView={isAdminView} pricePerStar={pricePerStar} />
+        <GiftFlow key="star" mode="star" router={router} isAdminView={isAdminView} starPricingConfig={starPricingConfig} />
       ) : (
         <GiftFlow key="premium" mode="premium" router={router} isAdminView={isAdminView} premiumPricing={premiumPricing} />
       )}
@@ -67,7 +73,7 @@ export default function TelegramGiftBuyForm({ isAdminView = false, pricePerStar 
   );
 }
 
-function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing = {} }) {
+function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPricing = {} }) {
   const { format } = useCurrency();
   const [username, setUsername] = useState("");
   const [quantity, setQuantity] = useState(STAR_PRESETS[0]);
@@ -83,6 +89,9 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
   const [polling, setPolling] = useState(false);
 
   const qty = Number(quantity) || 0;
+  // Markup tier depends on THIS quantity, so per-star price isn't a single
+  // flat number — recompute it for whatever quantity is currently selected.
+  const pricePerStar = qty > 0 ? computeStarPricePerUnit(starPricingConfig, qty) : 0;
   const starPrice = pricePerStar > 0 && qty > 0 ? qty * pricePerStar : null;
   const premiumPrice = premiumPricing?.[months]?.priceNgn ?? null;
   const displayPrice = mode === "star" ? starPrice : premiumPrice;
@@ -174,26 +183,32 @@ function GiftFlow({ mode, router, isAdminView, pricePerStar = 0, premiumPricing 
           <div>
             <label className="font-bold text-sm block mb-2">Quantity</label>
             <div className="grid grid-cols-3 gap-2">
-              {STAR_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setCustomQuantity(false);
-                    setQuantity(preset);
-                  }}
-                  className={`rounded-lg border px-3 py-2.5 text-sm font-semibold text-center transition ${
-                    !customQuantity && qty === preset
-                      ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
-                      : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
-                  }`}
-                >
-                  {preset}
-                  <span className="block text-[11px] font-normal opacity-80">
-                    {pricePerStar > 0 ? format(preset * pricePerStar) : "—"}
-                  </span>
-                </button>
-              ))}
+              {STAR_PRESETS.map((preset) => {
+                // Each preset gets its own per-star price computed for ITS
+                // OWN quantity — the markup tier (under vs 1,000+) depends on
+                // the button's quantity, not whatever's currently selected.
+                const presetPerStar = computeStarPricePerUnit(starPricingConfig, preset);
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setCustomQuantity(false);
+                      setQuantity(preset);
+                    }}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-semibold text-center transition ${
+                      !customQuantity && qty === preset
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300"
+                        : "border-gray-200 dark:border-night-600 text-gray-500 dark:text-night-400"
+                    }`}
+                  >
+                    {preset}
+                    <span className="block text-[11px] font-normal opacity-80">
+                      {presetPerStar > 0 ? format(preset * presetPerStar) : "—"}
+                    </span>
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setCustomQuantity(true)}

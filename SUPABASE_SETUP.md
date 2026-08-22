@@ -498,8 +498,13 @@ then a webhook or a manual poll tells you it completed or failed later).
      `istar_config.star_last_cost_ngn` (see `lib/istar.js#learnStarCostFromOrder`, called from both
      `app/api/telegram/webhook` and `.../orders/[id]/status` whenever a star order completes). Once
      it exists, EVERY subsequent star purchase — by anyone — prices at
-     `star_last_cost_ngn + star_markup_ngn` per star instead of the static guess
-     (`lib/istar.js#computeStarPricePerUnit`). Total charged = quantity x per-star price either way.
+     `star_last_cost_ngn + markup` per star instead of the static guess
+     (`lib/istar-pricing.js#computeStarPricePerUnit`, moved out of `lib/istar.js` — no `"server-only"`
+     import — so `TelegramGiftBuyForm.js` can call it client-side too, to show a live price under
+     each quantity preset). The markup itself is tiered by the REQUESTED QUANTITY on that specific
+     order: `star_markup_under_1000_ngn` for quantity < 1,000, `star_markup_1000_plus_ngn` for
+     quantity >= 1,000 — a bulk buyer can be margined differently from a small one. Total charged =
+     quantity x per-star price either way.
      The buy page shows preset quantities (50/100/500/1,000/2,500) plus a "Custom" option; the
      server accepts any quantity 50–1,000,000 regardless.
    - Diagnostics: `learnStarCostFromOrder` records EVERY attempt — success or not — to

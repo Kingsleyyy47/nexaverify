@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 const MONTH_OPTIONS = [3, 6, 12];
 
 // `config` comes from admin/telegram-premium/page.js as:
-// { enabled, customerVisible, ngnPerStar, starMarkupNgn, starLastCostNgn,
-//   starLastCostWalletType, starLastCostUpdatedAt, premiumMarkup3,
-//   premiumMarkup6, premiumMarkup12, updatedAt }
+// { enabled, customerVisible, ngnPerStar, starMarkupUnder1000Ngn,
+//   starMarkupOver1000Ngn, starLastCostNgn, starLastCostWalletType,
+//   starLastCostUpdatedAt, premiumMarkup3, premiumMarkup6, premiumMarkup12,
+//   updatedAt }
 // `livePricing` is { 3: {costNgn, markupNgn, priceNgn} | null, 6: ..., 12: ... } —
 // fetched fresh from iStar on every page load, so the admin sees exactly
 // what's being charged right now before deciding on a markup.
@@ -17,7 +18,8 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
   const [enabled, setEnabled] = useState(Boolean(config.enabled));
   const [customerVisible, setCustomerVisible] = useState(Boolean(config.customerVisible));
   const [ngnPerStar, setNgnPerStar] = useState(config.ngnPerStar ?? "");
-  const [starMarkupNgn, setStarMarkupNgn] = useState(config.starMarkupNgn ?? "");
+  const [starMarkupUnder1000Ngn, setStarMarkupUnder1000Ngn] = useState(config.starMarkupUnder1000Ngn ?? "");
+  const [starMarkupOver1000Ngn, setStarMarkupOver1000Ngn] = useState(config.starMarkupOver1000Ngn ?? "");
   const [markups, setMarkups] = useState({
     3: config.premiumMarkup3 ?? "",
     6: config.premiumMarkup6 ?? "",
@@ -41,7 +43,8 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
           enabled,
           customerVisible,
           ngnPerStar: Number(ngnPerStar),
-          starMarkupNgn: Number(starMarkupNgn),
+          starMarkupUnder1000Ngn: Number(starMarkupUnder1000Ngn),
+          starMarkupOver1000Ngn: Number(starMarkupOver1000Ngn),
           premiumMarkup3: Number(markups[3]),
           premiumMarkup6: Number(markups[6]),
           premiumMarkup12: Number(markups[12]),
@@ -151,21 +154,35 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
       </div>
 
       <div>
-        <label className="font-bold text-sm block mb-2">Per-star markup (₦)</label>
+        <label className="font-bold text-sm block mb-2">Per-star markup — under 1,000 stars (₦)</label>
         <input
           type="number"
           min="0"
           step="0.01"
           required
-          value={starMarkupNgn}
-          onChange={(e) => setStarMarkupNgn(e.target.value)}
+          value={starMarkupUnder1000Ngn}
+          onChange={(e) => setStarMarkupUnder1000Ngn(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+        />
+      </div>
+
+      <div>
+        <label className="font-bold text-sm block mb-2">Per-star markup — 1,000+ stars (₦)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          value={starMarkupOver1000Ngn}
+          onChange={(e) => setStarMarkupOver1000Ngn(e.target.value)}
           className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
         />
         <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
-          Always added on top — never multiplied. Before a real cost is learned, that's{" "}
-          <span className="font-mono">starting price + this amount</span>; after, it's{" "}
-          <span className="font-mono">learned cost + this amount</span>. See the table above for the
-          current numbers.
+          Which one applies is picked per order by the REQUESTED QUANTITY (under 1,000 vs 1,000+),
+          not a running total. Always added on top — never multiplied. Before a real cost is
+          learned, that's <span className="font-mono">starting price + this amount</span>; after,
+          it's <span className="font-mono">learned cost + this amount</span>. See the table above
+          for the current numbers.
         </p>
       </div>
 

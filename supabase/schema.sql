@@ -309,10 +309,15 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 --     after the fact. This is the FALLBACK flat price PER SINGLE STAR, used
 --     only until the system has learned a real cost (see star_last_cost_ngn
 --     below) — total charged = quantity x this value.
---   star_markup_ngn: once a real cost HAS been learned, pricing switches to
---     star_last_cost_ngn + this flat NGN margin per star, instead of the
---     ngn_per_star fallback above. Lets the price track reality instead of a
---     one-time guess.
+--   star_markup_ngn: superseded by the two tiered columns below — no longer
+--     written to, kept only so an old row doesn't break on read.
+--   star_markup_under_1000_ngn / star_markup_1000_plus_ngn: flat NGN margin
+--     per star, added on top of whichever base cost applies (star_last_cost_ngn
+--     once learned, else ngn_per_star). Which one is used depends on the
+--     REQUESTED QUANTITY for that specific order: under_1000 for quantity < 1000,
+--     1000_plus for quantity >= 1000. Lets a bulk buyer be priced differently
+--     from a small one — see lib/istar-pricing.js#computeStarPricePerUnit,
+--     which takes quantity as an explicit second argument for exactly this.
 --   star_last_cost_ngn / star_last_cost_wallet_type / star_last_cost_updated_at:
 --     self-learning cost tracking. Every time a star order actually
 --     completes AND was paid from the USDT-on-TON wallet (USDT is pegged
@@ -338,6 +343,8 @@ create table if not exists public.istar_config (
   ngn_per_star numeric(12,4) not null default 0,
   markup_amount_ngn numeric(12,2) not null default 0,
   star_markup_ngn numeric(12,4) not null default 0,
+  star_markup_under_1000_ngn numeric(12,4) not null default 0,
+  star_markup_1000_plus_ngn numeric(12,4) not null default 0,
   star_last_cost_ngn numeric(12,4),
   star_last_cost_wallet_type text,
   star_last_cost_updated_at timestamptz,
@@ -363,6 +370,16 @@ alter table public.istar_config add column if not exists premium_markup_3 numeri
 alter table public.istar_config add column if not exists premium_markup_6 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists premium_markup_12 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists star_markup_ngn numeric(12,4) not null default 0;
+alter table public.istar_config add column if not exists star_markup_under_1000_ngn numeric(12,4) not null default 0;
+alter table public.istar_config add column if not exists star_markup_1000_plus_ngn numeric(12,4) not null default 0;
+-- One-time backfill: carry the old single markup into "under 1000" so
+-- existing pricing doesn't silently reset to 0 the moment this migration
+-- runs. Guarded so it only fires once (only touches rows that still have the
+-- new column at its just-added default of 0) — safe to re-run this whole
+-- file later without re-clobbering a value an admin has since changed.
+update public.istar_config
+  set star_markup_under_1000_ngn = star_markup_ngn
+  where star_markup_under_1000_ngn = 0 and star_markup_ngn <> 0;
 alter table public.istar_config add column if not exists star_last_cost_ngn numeric(12,4);
 alter table public.istar_config add column if not exists star_last_cost_wallet_type text;
 alter table public.istar_config add column if not exists star_last_cost_updated_at timestamptz;

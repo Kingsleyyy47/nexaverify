@@ -9,11 +9,13 @@ import { createStarOrder, computeStarPricePerUnit, IStarError } from "@/lib/ista
 // `enabled` (see that column's comment in schema.sql). Debits the CALLING
 // user's own NGN wallet either way.
 //
-// Pricing self-learns over time (see lib/istar.js#computeStarPricePerUnit /
-// #learnStarCostFromOrder): once at least one USDT-paid star order has
-// actually completed, price = star_last_cost_ngn + star_markup_ngn per star.
-// Until then, it falls back to the static ngn_per_star guess. Either way,
-// total charged = quantity x per-unit price; the real `amount` iStar reports
+// Pricing self-learns over time (see lib/istar-pricing.js#computeStarPricePerUnit,
+// lib/istar.js#learnStarCostFromOrder): once at least one USDT-paid star
+// order has actually completed, price = star_last_cost_ngn + markup per
+// star. Until then, it falls back to the static ngn_per_star guess. The
+// markup itself is tiered by THIS order's quantity: star_markup_under_1000_ngn
+// for quantity < 1000, star_markup_1000_plus_ngn for quantity >= 1000.
+// Either way, total charged = quantity x per-unit price; the real `amount` iStar reports
 // only comes back in the order creation response itself, stored as
 // `provider_amount` for reference (and as learning input once it completes)
 // but does NOT change what the buyer is charged for THIS order.
@@ -41,7 +43,7 @@ export async function POST(request) {
 
   const { data: config } = await admin
     .from("istar_config")
-    .select("enabled, customer_visible, ngn_per_star, star_markup_ngn, star_last_cost_ngn")
+    .select("enabled, customer_visible, ngn_per_star, star_markup_under_1000_ngn, star_markup_1000_plus_ngn, star_last_cost_ngn")
     .eq("id", true)
     .maybeSingle();
   if (!config?.enabled) {
@@ -51,11 +53,17 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const perStar = computeStarPricePerUnit({
-    ngnPerStar: config.ngn_per_star,
-    starMarkupNgn: config.star_markup_ngn,
-    starLastCostNgn: config.star_last_cost_ngn,
-  });
+  // Markup tier depends on THIS order's requested quantity — under 1,000
+  // stars vs 1,000+ can be margined differently (see lib/istar-pricing.js).
+  const perStar = computeStarPricePerUnit(
+    {
+      ngnPerStar: config.ngn_per_star,
+      markupUnder1000: config.star_markup_under_1000_ngn,
+      markupOver1000: config.star_markup_1000_plus_ngn,
+      starLastCostNgn: config.star_last_cost_ngn,
+    },
+    qty
+  );
   const price = Math.max(0, Math.round(qty * perStar * 100) / 100);
   if (!price || price <= 0) {
     return NextResponse.json({ error: "Set a price-per-star in admin settings before testing a purchase." }, { status: 400 });
