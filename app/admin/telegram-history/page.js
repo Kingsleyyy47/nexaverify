@@ -119,6 +119,8 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
                 <th className="pb-2.5 font-bold">Type</th>
                 <th className="pb-2.5 font-bold">Qty / Months</th>
                 <th className="pb-2.5 font-bold">Price</th>
+                <th className="pb-2.5 font-bold">Wallet</th>
+                <th className="pb-2.5 font-bold">Provider charged</th>
                 <th className="pb-2.5 font-bold">Status</th>
                 <th className="pb-2.5 font-bold">Placed</th>
               </tr>
@@ -126,7 +128,7 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
             <tbody className="divide-y divide-gray-50 dark:divide-night-800">
               {(orders || []).length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-400 dark:text-night-400">
+                  <td colSpan={9} className="py-6 text-center text-gray-400 dark:text-night-400">
                     {q ? "No orders match that search." : "No Telegram orders placed yet."}
                   </td>
                 </tr>
@@ -147,6 +149,12 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
                       ₦{Number(o.price).toLocaleString()}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-gray-500 dark:text-night-300">
+                      {o.wallet_type || "—"}
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
+                      {o.provider_amount != null ? `${o.provider_amount} ${o.wallet_type || ""}` : "—"}
                     </td>
                     <td className="py-2.5 pr-3">
                       <span className={`badge ${STATUS_BADGE[o.status] || "badge-neutral"}`}>{o.status}</span>

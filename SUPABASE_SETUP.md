@@ -502,6 +502,17 @@ then a webhook or a manual poll tells you it completed or failed later).
      (`lib/istar.js#computeStarPricePerUnit`). Total charged = quantity x per-star price either way.
      The buy page shows preset quantities (50/100/500/1,000/2,500) plus a "Custom" option; the
      server accepts any quantity 50–1,000,000 regardless.
+   - Diagnostics: `learnStarCostFromOrder` records EVERY attempt — success or not — to
+     `istar_config.star_learn_last_*` (attempt time, raw amount/quantity/wallet from the provider,
+     status, and a human-readable note), shown on `/admin/telegram-premium` under "What you're
+     charged (Stars)". This exists because the function used to silently `return false` with nothing
+     written anywhere on failure, which made a missed learn invisible. Two real bugs were found and
+     fixed via this: (1) the markup was dropped entirely, not added, before any cost had been
+     learned — fixed in `computeStarPricePerUnit`; (2) the webhook/status-poll "mark completed" write
+     was guarded by `.eq("status", "pending")`, so an order the status-poll had already bumped to
+     `"processing"` could never be marked completed (or learned from) afterward — fixed to
+     `.in("status", ["pending", "processing"])` in both `app/api/telegram/webhook/route.js` and
+     `.../orders/[id]/status/route.js`.
    - Premium: three separate markups — `premium_markup_3`, `premium_markup_6`, `premium_markup_12` —
      one per duration, since iStar's own cost per month isn't linear. `lib/istar.js#buildPremiumPricing`
      fetches iStar's live `getPremiumPackages()` fresh, converts that duration's `usd_value` at the

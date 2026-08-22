@@ -341,6 +341,17 @@ create table if not exists public.istar_config (
   star_last_cost_ngn numeric(12,4),
   star_last_cost_wallet_type text,
   star_last_cost_updated_at timestamptz,
+  -- Diagnostic trail — written on EVERY completed star order, whether or not
+  -- learning actually succeeded, so a failure to learn is always visible
+  -- somewhere instead of silently vanishing (see lib/istar.js#learnStarCostFromOrder).
+  -- star_last_cost_ngn/wallet_type/updated_at above only ever change on a
+  -- successful learn; these track the most recent ATTEMPT, success or not.
+  star_learn_last_attempt_at timestamptz,
+  star_learn_last_status text,        -- 'learned' | 'skipped_no_amount' | 'skipped_no_rate' | 'skipped_invalid'
+  star_learn_last_raw_amount numeric(14,4),
+  star_learn_last_raw_quantity integer,
+  star_learn_last_wallet_type text,
+  star_learn_last_note text,
   premium_markup_3 numeric(12,2) not null default 0,
   premium_markup_6 numeric(12,2) not null default 0,
   premium_markup_12 numeric(12,2) not null default 0,
@@ -355,6 +366,12 @@ alter table public.istar_config add column if not exists star_markup_ngn numeric
 alter table public.istar_config add column if not exists star_last_cost_ngn numeric(12,4);
 alter table public.istar_config add column if not exists star_last_cost_wallet_type text;
 alter table public.istar_config add column if not exists star_last_cost_updated_at timestamptz;
+alter table public.istar_config add column if not exists star_learn_last_attempt_at timestamptz;
+alter table public.istar_config add column if not exists star_learn_last_status text;
+alter table public.istar_config add column if not exists star_learn_last_raw_amount numeric(14,4);
+alter table public.istar_config add column if not exists star_learn_last_raw_quantity integer;
+alter table public.istar_config add column if not exists star_learn_last_wallet_type text;
+alter table public.istar_config add column if not exists star_learn_last_note text;
 
 insert into public.istar_config (id) values (true) on conflict (id) do nothing;
 

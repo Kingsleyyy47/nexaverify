@@ -67,7 +67,15 @@ export async function POST(request) {
         updated_at: now,
       })
       .eq("id", existing.id)
-      .eq("status", "pending") // don't clobber a status a status-poll already resolved
+      // "pending" OR "processing" — a status-poll can move an order to
+      // "processing" in between polls before it's actually done, and that
+      // intermediate write must not block this final "completed" write from
+      // matching. Only "completed"/"failed" (a truly resolved order) should
+      // block it. This used to be .eq("status", "pending") only, which meant
+      // an order that had been bumped to "processing" by a prior status poll
+      // could report as completed to a customer while silently never
+      // recording completion (or learning its cost) in our own DB.
+      .in("status", ["pending", "processing"])
       .select()
       .maybeSingle();
 

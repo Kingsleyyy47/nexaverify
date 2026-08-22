@@ -12,13 +12,12 @@ export default async function TelegramPremiumPage() {
   const { profile, supabase } = await getSessionProfile();
   const admin = isAdmin(profile);
 
-  const { data: config } = await supabase
-    .from("istar_config")
-    .select(
-      "customer_visible, ngn_per_star, star_markup_ngn, star_last_cost_ngn, premium_markup_3, premium_markup_6, premium_markup_12"
-    )
-    .eq("id", true)
-    .maybeSingle();
+  // select("*") on purpose, matching /admin/telegram-premium — an explicit
+  // column list here silently breaks (query errors, config comes back null,
+  // every price collapses to "—") any time a new istar_config column exists
+  // in code but the SQL migration hasn't landed on this DB yet. select("*")
+  // never errors just because extra columns exist that this page doesn't use.
+  const { data: config } = await supabase.from("istar_config").select("*").eq("id", true).maybeSingle();
 
   const customerVisible = Boolean(config?.customer_visible);
 

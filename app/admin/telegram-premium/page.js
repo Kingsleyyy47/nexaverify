@@ -18,6 +18,12 @@ export default async function AdminTelegramPremiumPage() {
     starLastCostNgn: row?.star_last_cost_ngn ?? null,
     starLastCostWalletType: row?.star_last_cost_wallet_type ?? null,
     starLastCostUpdatedAt: row?.star_last_cost_updated_at ?? null,
+    starLearnLastAttemptAt: row?.star_learn_last_attempt_at ?? null,
+    starLearnLastStatus: row?.star_learn_last_status ?? null,
+    starLearnLastRawAmount: row?.star_learn_last_raw_amount ?? null,
+    starLearnLastRawQuantity: row?.star_learn_last_raw_quantity ?? null,
+    starLearnLastWalletType: row?.star_learn_last_wallet_type ?? null,
+    starLearnLastNote: row?.star_learn_last_note ?? null,
     premiumMarkup3: row?.premium_markup_3 ?? 0,
     premiumMarkup6: row?.premium_markup_6 ?? 0,
     premiumMarkup12: row?.premium_markup_12 ?? 0,
@@ -127,6 +133,40 @@ export default async function AdminTelegramPremiumPage() {
             Learned from your last completed {config.starLastCostWalletType} order,{" "}
             {config.starLastCostUpdatedAt ? new Date(config.starLastCostUpdatedAt).toLocaleString() : "recently"}.
           </p>
+        )}
+
+        {config.starLearnLastAttemptAt && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-night-800">
+            <h4 className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-2">
+              Last learning attempt (every completed star order, success or not)
+            </h4>
+            <div className="text-xs text-gray-500 dark:text-night-300 space-y-1">
+              <p>
+                <span className="font-semibold">When:</span>{" "}
+                {new Date(config.starLearnLastAttemptAt).toLocaleString()}
+              </p>
+              <p>
+                <span className="font-semibold">Result:</span>{" "}
+                <span
+                  className={
+                    config.starLearnLastStatus === "learned"
+                      ? "text-brand-700 dark:text-brand-400 font-semibold"
+                      : "text-amber-600 dark:text-amber-400 font-semibold"
+                  }
+                >
+                  {config.starLearnLastStatus || "unknown"}
+                </span>
+              </p>
+              <p>
+                <span className="font-semibold">Raw from provider:</span>{" "}
+                {config.starLearnLastRawAmount ?? "—"} {config.starLearnLastWalletType || ""} for{" "}
+                {config.starLearnLastRawQuantity ?? "—"} stars
+              </p>
+              {config.starLearnLastNote && (
+                <p className="text-amber-600 dark:text-amber-400">{config.starLearnLastNote}</p>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

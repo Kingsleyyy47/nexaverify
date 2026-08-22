@@ -32,7 +32,11 @@ export async function GET(request) {
   } catch (err) {
     if (err instanceof IStarError) {
       return NextResponse.json(
-        { error: admin_ ? err.message : "Could not look up that username — try again shortly." },
+        {
+          error: admin_
+            ? `${err.message} (HTTP ${err.status || "?"}, code ${err.code || "?"})`
+            : "Could not look up that username — try again shortly.",
+        },
         { status: err.status || 502 }
       );
     }

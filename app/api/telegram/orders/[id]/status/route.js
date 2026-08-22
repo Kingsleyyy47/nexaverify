@@ -58,7 +58,11 @@ export async function GET(request, { params }) {
         updated_at: now,
       })
       .eq("id", orderRow.id)
-      .eq("status", "pending")
+      // See app/api/telegram/webhook/route.js for why this accepts
+      // "processing" too, not just "pending" — otherwise an order this same
+      // route bumped to "processing" on an earlier poll can never be marked
+      // completed (or learned from) on a later one.
+      .in("status", ["pending", "processing"])
       .select()
       .maybeSingle();
 
