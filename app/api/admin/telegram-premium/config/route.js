@@ -12,15 +12,15 @@ export async function POST(request) {
     enabled,
     customerVisible,
     ngnPerStar,
-    starMarkupUnder1000Ngn,
-    starMarkupOver1000Ngn,
+    starFlatMarkupUnder1000Ngn,
+    starFlatMarkupOver1000Ngn,
     premiumMarkup3,
     premiumMarkup6,
     premiumMarkup12,
   } = await request.json();
   const perStar = Number(ngnPerStar);
-  const starMarkupUnder1000 = Number(starMarkupUnder1000Ngn);
-  const starMarkupOver1000 = Number(starMarkupOver1000Ngn);
+  const flatMarkupUnder1000 = Number(starFlatMarkupUnder1000Ngn);
+  const flatMarkupOver1000 = Number(starFlatMarkupOver1000Ngn);
   const markup3 = Number(premiumMarkup3);
   const markup6 = Number(premiumMarkup6);
   const markup12 = Number(premiumMarkup12);
@@ -28,11 +28,11 @@ export async function POST(request) {
   if (!Number.isFinite(perStar) || perStar < 0) {
     return NextResponse.json({ error: "Enter a valid starting price per star" }, { status: 400 });
   }
-  if (!Number.isFinite(starMarkupUnder1000) || starMarkupUnder1000 < 0) {
-    return NextResponse.json({ error: "Enter a valid markup for under 1,000 stars" }, { status: 400 });
+  if (!Number.isFinite(flatMarkupUnder1000) || flatMarkupUnder1000 < 0) {
+    return NextResponse.json({ error: "Enter a valid flat markup for orders under 1,000 stars" }, { status: 400 });
   }
-  if (!Number.isFinite(starMarkupOver1000) || starMarkupOver1000 < 0) {
-    return NextResponse.json({ error: "Enter a valid markup for 1,000+ stars" }, { status: 400 });
+  if (!Number.isFinite(flatMarkupOver1000) || flatMarkupOver1000 < 0) {
+    return NextResponse.json({ error: "Enter a valid flat markup for orders of 1,000+ stars" }, { status: 400 });
   }
   for (const [label, value] of [
     ["3-month", markup3],
@@ -51,8 +51,8 @@ export async function POST(request) {
       enabled: Boolean(enabled),
       customer_visible: Boolean(customerVisible),
       ngn_per_star: perStar,
-      star_markup_under_1000_ngn: starMarkupUnder1000,
-      star_markup_1000_plus_ngn: starMarkupOver1000,
+      star_flat_markup_under_1000_ngn: flatMarkupUnder1000,
+      star_flat_markup_1000_plus_ngn: flatMarkupOver1000,
       premium_markup_3: markup3,
       premium_markup_6: markup6,
       premium_markup_12: markup12,

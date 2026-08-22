@@ -73,8 +73,8 @@ export default async function TelegramPremiumPage() {
         isAdminView={admin}
         starPricingConfig={{
           ngnPerStar: config?.ngn_per_star,
-          markupUnder1000: config?.star_markup_under_1000_ngn,
-          markupOver1000: config?.star_markup_1000_plus_ngn,
+          flatMarkupUnder1000: config?.star_flat_markup_under_1000_ngn,
+          flatMarkupOver1000: config?.star_flat_markup_1000_plus_ngn,
           starLastCostNgn: config?.star_last_cost_ngn,
         }}
         premiumPricing={premiumPricing}

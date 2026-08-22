@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
-import { computeStarPricePerUnit } from "@/lib/istar-pricing";
+import { computeStarTotalPrice } from "@/lib/istar-pricing";
 
 const MONTH_OPTIONS = [3, 6, 12];
 const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
@@ -24,15 +24,16 @@ const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
 // now matches. Customers also never see the raw provider order id, matching
 // the white-labeling rule used everywhere else in this app.
 //
-// `starPricingConfig` ({ ngnPerStar, markupUnder1000, markupOver1000,
-// starLastCostNgn }, fed straight into lib/istar-pricing.js#computeStarPricePerUnit)
+// `starPricingConfig` ({ ngnPerStar, flatMarkupUnder1000, flatMarkupOver1000,
+// starLastCostNgn }, fed straight into lib/istar-pricing.js#computeStarTotalPrice)
 // and `premiumPricing` (per-duration {costNgn, markupNgn, priceNgn} from
 // lib/istar.js#buildPremiumPricing) are for DISPLAY only — the buy route
 // always recomputes the real charge itself at purchase time, so a stale
 // prop here can never under/overcharge anyone. starPricingConfig is an
-// object rather than one flat number because the markup is tiered by
-// quantity (under 1,000 vs 1,000+), so each preset button needs its own
-// price computed for its own quantity.
+// object rather than one flat number because the markup is a FLAT amount
+// added once per order (not per star) and which flat amount applies is
+// tiered by quantity (under 1,000 vs 1,000+), so each preset button needs
+// its own total computed for its own quantity.
 export default function TelegramGiftBuyForm({ isAdminView = false, starPricingConfig = {}, premiumPricing = {} }) {
   const router = useRouter();
   const [tab, setTab] = useState("star");
@@ -89,10 +90,10 @@ function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPr
   const [polling, setPolling] = useState(false);
 
   const qty = Number(quantity) || 0;
-  // Markup tier depends on THIS quantity, so per-star price isn't a single
-  // flat number — recompute it for whatever quantity is currently selected.
-  const pricePerStar = qty > 0 ? computeStarPricePerUnit(starPricingConfig, qty) : 0;
-  const starPrice = pricePerStar > 0 && qty > 0 ? qty * pricePerStar : null;
+  // The flat markup tier depends on THIS quantity, so the total isn't just
+  // "per-star price x quantity" — recompute the whole total for whatever
+  // quantity is currently selected.
+  const starPrice = qty > 0 ? computeStarTotalPrice(starPricingConfig, qty) : null;
   const premiumPrice = premiumPricing?.[months]?.priceNgn ?? null;
   const displayPrice = mode === "star" ? starPrice : premiumPrice;
 
@@ -184,10 +185,10 @@ function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPr
             <label className="font-bold text-sm block mb-2">Quantity</label>
             <div className="grid grid-cols-3 gap-2">
               {STAR_PRESETS.map((preset) => {
-                // Each preset gets its own per-star price computed for ITS
-                // OWN quantity — the markup tier (under vs 1,000+) depends on
-                // the button's quantity, not whatever's currently selected.
-                const presetPerStar = computeStarPricePerUnit(starPricingConfig, preset);
+                // Each preset gets its own total computed for ITS OWN
+                // quantity — the flat markup tier (under vs 1,000+) depends
+                // on the button's quantity, not whatever's currently selected.
+                const presetTotal = computeStarTotalPrice(starPricingConfig, preset);
                 return (
                   <button
                     key={preset}
@@ -204,7 +205,7 @@ function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPr
                   >
                     {preset}
                     <span className="block text-[11px] font-normal opacity-80">
-                      {presetPerStar > 0 ? format(preset * presetPerStar) : "—"}
+                      {presetTotal > 0 ? format(presetTotal) : "—"}
                     </span>
                   </button>
                 );

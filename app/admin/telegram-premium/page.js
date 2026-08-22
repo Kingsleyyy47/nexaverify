@@ -1,6 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getWalletBalance, getPremiumPackages, buildPremiumPricing, IStarError } from "@/lib/istar";
+import { computeStarTotalPrice } from "@/lib/istar-pricing";
 import TelegramPremiumConfigForm from "@/components/TelegramPremiumConfigForm";
+
+// Example quantities used purely to illustrate each tier's math below — any
+// quantity < 1000 lands in the first row, any >= 1000 in the second; these
+// two numbers aren't special beyond being representative.
+const EXAMPLE_QTY_UNDER_1000 = 100;
+const EXAMPLE_QTY_OVER_1000 = 1500;
 
 export default async function AdminTelegramPremiumPage() {
   const admin = createAdminClient();
@@ -14,8 +21,8 @@ export default async function AdminTelegramPremiumPage() {
     enabled: Boolean(row?.enabled),
     customerVisible: Boolean(row?.customer_visible),
     ngnPerStar: row?.ngn_per_star ?? 0,
-    starMarkupUnder1000Ngn: row?.star_markup_under_1000_ngn ?? 0,
-    starMarkupOver1000Ngn: row?.star_markup_1000_plus_ngn ?? 0,
+    starFlatMarkupUnder1000Ngn: row?.star_flat_markup_under_1000_ngn ?? 0,
+    starFlatMarkupOver1000Ngn: row?.star_flat_markup_1000_plus_ngn ?? 0,
     starLastCostNgn: row?.star_last_cost_ngn ?? null,
     starLastCostWalletType: row?.star_last_cost_wallet_type ?? null,
     starLastCostUpdatedAt: row?.star_last_cost_updated_at ?? null,
@@ -93,40 +100,51 @@ export default async function AdminTelegramPremiumPage() {
       <div className="card card-pad">
         <h3 className="font-bold text-[15px] mb-1">What you're charged (Stars)</h3>
         <p className="text-xs text-gray-400 dark:text-night-400 mb-4 max-w-lg">
-          iStar has no live pre-purchase price for stars — the "cost" column fills in automatically
-          the first time a star order actually completes, paid from the USDT wallet. Markup is
-          tiered by the REQUESTED QUANTITY on each order: under 1,000 stars gets one markup, 1,000+
-          gets a different one. Total for an order = quantity x the matching row's "Customer pays."
+          iStar has no live pre-purchase price for stars — "cost per star" fills in automatically
+          the first time a star order actually completes, paid from the USDT wallet. Your markup is
+          a FLAT amount added ONCE to the whole order — not per star — tiered by the REQUESTED
+          QUANTITY: under 1,000 stars gets one flat amount, 1,000+ gets a different one. The example
+          rows below show a {EXAMPLE_QTY_UNDER_1000}-star and a {EXAMPLE_QTY_OVER_1000}-star order
+          just to illustrate the math — any quantity in that tier uses the same flat markup.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 border-b border-gray-100 dark:border-night-700">
-                <th className="pb-2.5 font-bold">Quantity tier</th>
-                <th className="pb-2.5 font-bold">Learned cost (₦/star)</th>
-                <th className="pb-2.5 font-bold">Your markup (₦/star)</th>
-                <th className="pb-2.5 font-bold">Customer pays (₦/star)</th>
+                <th className="pb-2.5 font-bold">Example order</th>
+                <th className="pb-2.5 font-bold">Cost (qty x ₦/star)</th>
+                <th className="pb-2.5 font-bold">Flat markup (₦)</th>
+                <th className="pb-2.5 font-bold">Customer pays (₦)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-night-800">
               {[
-                { label: "Under 1,000 stars", markup: config.starMarkupUnder1000Ngn },
-                { label: "1,000+ stars", markup: config.starMarkupOver1000Ngn },
+                { label: `${EXAMPLE_QTY_UNDER_1000} stars (under 1,000)`, qty: EXAMPLE_QTY_UNDER_1000, flatMarkup: config.starFlatMarkupUnder1000Ngn },
+                { label: `${EXAMPLE_QTY_OVER_1000.toLocaleString()} stars (1,000+)`, qty: EXAMPLE_QTY_OVER_1000, flatMarkup: config.starFlatMarkupOver1000Ngn },
               ].map((tier) => {
-                const baseCost = config.starLastCostNgn ? Number(config.starLastCostNgn) : Number(config.ngnPerStar || 0);
+                const baseCostPerStar = config.starLastCostNgn ? Number(config.starLastCostNgn) : Number(config.ngnPerStar || 0);
+                const subtotal = baseCostPerStar * tier.qty;
+                const total = computeStarTotalPrice(
+                  {
+                    ngnPerStar: config.ngnPerStar,
+                    starLastCostNgn: config.starLastCostNgn,
+                    flatMarkupUnder1000: config.starFlatMarkupUnder1000Ngn,
+                    flatMarkupOver1000: config.starFlatMarkupOver1000Ngn,
+                  },
+                  tier.qty
+                );
                 return (
                   <tr key={tier.label}>
                     <td className="py-2.5 pr-3 font-semibold dark:text-night-100">{tier.label}</td>
                     <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                      {config.starLastCostNgn
-                        ? `₦${baseCost.toFixed(4)}`
-                        : `₦${baseCost.toFixed(4)} (starting price guess)`}
+                      ₦{subtotal.toFixed(2)}
+                      {!config.starLastCostNgn && " (starting price guess)"}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                      ₦{Number(tier.markup || 0).toFixed(4)}
+                      ₦{Number(tier.flatMarkup || 0).toFixed(2)}
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                      ₦{(baseCost + Number(tier.markup || 0)).toFixed(4)}
+                      ₦{total.toLocaleString()}
                     </td>
                   </tr>
                 );
