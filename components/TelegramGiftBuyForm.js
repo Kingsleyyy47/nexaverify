@@ -24,16 +24,20 @@ const STAR_PRESETS = [50, 100, 250, 500, 750, 1000, 1500, 2500];
 // now matches. Customers also never see the raw provider order id, matching
 // the white-labeling rule used everywhere else in this app.
 //
-// `starPricingConfig` ({ ngnPerStar, flatMarkupUnder1000, flatMarkupOver1000,
-// starLastCostNgn }, fed straight into lib/istar-pricing.js#computeStarTotalPrice)
-// and `premiumPricing` (per-duration {costNgn, markupNgn, priceNgn} from
-// lib/istar.js#buildPremiumPricing) are for DISPLAY only — the buy route
-// always recomputes the real charge itself at purchase time, so a stale
-// prop here can never under/overcharge anyone. starPricingConfig is an
-// object rather than one flat number because the markup is a FLAT amount
-// added once per order (not per star) and which flat amount applies is
-// tiered by quantity (under 1,000 vs 1,000+), so each preset button needs
-// its own total computed for its own quantity.
+// `starPricingConfig` comes from lib/istar.js#starConfigFromRow (maps the
+// raw istar_config DB row into the shape lib/istar-pricing.js#computeStarTotalPrice
+// expects: { ngnPerStar, starLastCostNgn, activeWay, oldWayOperator,
+// oldWayMarkupUnder1000, oldWayMarkupOver1000, newWayOperator,
+// newWayMarkupUnder1000, newWayMarkupOver1000 }) — computeStarTotalPrice
+// dispatches on activeWay to pick "Old way" vs "New way", each of which has
+// its own independent ×/+ operator. `premiumPricing` (per-duration
+// {costNgn, markupNgn, priceNgn} from lib/istar.js#buildPremiumPricing) is
+// similar. Both are for DISPLAY only — the buy route always recomputes the
+// real charge itself at purchase time, so a stale prop here can never
+// under/overcharge anyone. starPricingConfig is an object rather than one
+// flat number because whichever profile is live is tiered by quantity
+// (under 1,000 vs 1,000+), so each preset button needs its own total
+// computed for its own quantity.
 export default function TelegramGiftBuyForm({ isAdminView = false, starPricingConfig = {}, premiumPricing = {} }) {
   const router = useRouter();
   const [tab, setTab] = useState("star");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createStarOrder, computeStarTotalPrice, IStarError } from "@/lib/istar";
+import { createStarOrder, computeStarTotalPrice, starConfigFromRow, IStarError } from "@/lib/istar";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled` below). Everyone else additionally needs
@@ -12,14 +12,15 @@ import { createStarOrder, computeStarTotalPrice, IStarError } from "@/lib/istar"
 // Pricing self-learns over time (see lib/istar-pricing.js#computeStarTotalPrice,
 // lib/istar.js#learnStarCostFromOrder): once at least one USDT-paid star
 // order has actually completed, base cost per star = star_last_cost_ngn.
-// Until then, it falls back to the static ngn_per_star guess. On top of
-// (base cost per star x quantity), a FLAT NGN amount is added ONCE per
-// order — not per star — tiered by THIS order's quantity:
-// star_flat_markup_under_1000_ngn for quantity < 1000,
-// star_flat_markup_1000_plus_ngn for quantity >= 1000. The real `amount`
-// iStar reports only comes back in the order creation response itself,
-// stored as `provider_amount` for reference (and as learning input once it
-// completes) but does NOT change what the buyer is charged for THIS order.
+// Until then, it falls back to the static ngn_per_star guess. Two markup
+// PROFILES exist side by side ("Old way", "New way"), each with its own
+// ×/+ operator (see lib/istar-pricing.js for the exact math) —
+// istar_config.star_pricing_mode picks which profile is actually charged;
+// switching it doesn't require re-entering either profile's numbers or
+// operator. The real `amount` iStar reports only comes back in the order
+// creation response itself, stored as `provider_amount` for reference (and
+// as learning input once it completes) but does NOT change what the buyer
+// is charged for THIS order.
 function customerSafeMessage(err, admin) {
   return admin ? err.message : "Something went wrong placing this order — try again shortly.";
 }
@@ -42,11 +43,11 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  const { data: config } = await admin
-    .from("istar_config")
-    .select("enabled, customer_visible, ngn_per_star, star_flat_markup_under_1000_ngn, star_flat_markup_1000_plus_ngn, star_last_cost_ngn")
-    .eq("id", true)
-    .maybeSingle();
+  // select("*") on purpose — an explicit column list here would silently
+  // break (query errors, config comes back null, price collapses) any time
+  // a new istar_config column exists in code but the migration hasn't
+  // landed on this DB yet.
+  const { data: config } = await admin.from("istar_config").select("*").eq("id", true).maybeSingle();
   if (!config?.enabled) {
     return NextResponse.json({ error: "Telegram gifting isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
   }
@@ -54,17 +55,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Flat markup tier depends on THIS order's requested quantity — added ONCE
-  // to the whole order, not per star (see lib/istar-pricing.js).
-  const price = computeStarTotalPrice(
-    {
-      ngnPerStar: config.ngn_per_star,
-      flatMarkupUnder1000: config.star_flat_markup_under_1000_ngn,
-      flatMarkupOver1000: config.star_flat_markup_1000_plus_ngn,
-      starLastCostNgn: config.star_last_cost_ngn,
-    },
-    qty
-  );
+  // Which profile is live ("Old way" vs "New way", each with its own ×/+
+  // operator) is picked by star_pricing_mode — see lib/istar-pricing.js.
+  const price = computeStarTotalPrice(starConfigFromRow(config), qty);
   if (!price || price <= 0) {
     return NextResponse.json({ error: "Set a price-per-star in admin settings before testing a purchase." }, { status: 400 });
   }

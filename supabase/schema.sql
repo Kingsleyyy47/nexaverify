@@ -309,22 +309,35 @@ create policy "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrid
 --     after the fact. This is the FALLBACK flat price PER SINGLE STAR, used
 --     only until the system has learned a real cost (see star_last_cost_ngn
 --     below) — total charged = quantity x this value.
---   star_markup_ngn / star_markup_under_1000_ngn / star_markup_1000_plus_ngn:
---     superseded by the flat-markup columns below — no longer written to,
---     kept only so an old row doesn't break on read. (These were PER-STAR
---     margins, added once per star and therefore scaling with quantity —
---     replaced because the actual requirement is a flat amount added ONCE
---     to the whole order, not multiplied by quantity.)
---   star_flat_markup_under_1000_ngn / star_flat_markup_1000_plus_ngn: a flat
---     NGN amount added ONCE to the total order price — NOT per star, NOT
---     multiplied by quantity. Order total = (base cost per star x quantity)
---     + this flat amount. Which one applies depends on the REQUESTED
---     QUANTITY for that specific order: under_1000 for quantity < 1000,
---     1000_plus for quantity >= 1000. Base cost per star is star_last_cost_ngn
---     once learned, else ngn_per_star. See
---     lib/istar-pricing.js#computeStarTotalPrice, which takes quantity as an
---     explicit argument to pick the right flat amount and compute the total
---     directly (not a per-star price to be multiplied by the caller).
+--   "Old way" and "New way" are two INDEPENDENT, fully-configured markup
+--     profiles — each has its own ×/+ calculation operator AND its own
+--     under-1,000 / 1,000+ markup amounts. Either profile can use either
+--     operator; they aren't locked to "Old = ×, New = +" anymore (that was
+--     the first version of this and confused the business owner, who wanted
+--     to be able to change the CALCULATION on either profile independently
+--     without touching the other one's numbers).
+--   star_pricing_mode: 'per_star' means "Old way" profile is what's actually
+--     charged, 'flat' means "New way" is. Switching this doesn't clear or
+--     touch either profile's saved operator/markups.
+--   star_old_way_operator / star_new_way_operator: 'times' or 'plus' — the
+--     calculation for that profile:
+--       'times': order total = (base cost per star + markup) x quantity
+--       'plus':  order total = (base cost per star x quantity) + markup
+--   star_markup_under_1000_ngn / star_markup_1000_plus_ngn: "Old way"
+--     profile's markup amount for each quantity tier.
+--   star_flat_markup_under_1000_ngn / star_flat_markup_1000_plus_ngn: "New
+--     way" profile's markup amount for each quantity tier. (Column names
+--     kept from before the ×/+ toggle existed — "flat" no longer implies a
+--     fixed operator, since New way can now be set to 'times' too.)
+--   Both profiles pick their under/over-1000 variant the same way: by the
+--     REQUESTED QUANTITY on that specific order (< 1000 vs >= 1000). Base
+--     cost per star is star_last_cost_ngn once learned, else ngn_per_star.
+--     See lib/istar-pricing.js#computeStarTotalPrice (charges whichever
+--     profile star_pricing_mode selects) and #computeStarTotalPriceForWay
+--     (computes either profile on demand regardless of which is live, used
+--     to show both side by side in admin).
+--   star_markup_ngn: superseded by everything above — no longer written to,
+--     kept only so an old row doesn't break on read.
 --   star_last_cost_ngn / star_last_cost_wallet_type / star_last_cost_updated_at:
 --     self-learning cost tracking. Every time a star order actually
 --     completes AND was paid from the USDT-on-TON wallet (USDT is pegged
@@ -350,6 +363,9 @@ create table if not exists public.istar_config (
   ngn_per_star numeric(12,4) not null default 0,
   markup_amount_ngn numeric(12,2) not null default 0,
   star_markup_ngn numeric(12,4) not null default 0,
+  star_pricing_mode text not null default 'flat' check (star_pricing_mode in ('per_star', 'flat')),
+  star_old_way_operator text not null default 'times' check (star_old_way_operator in ('times', 'plus')),
+  star_new_way_operator text not null default 'plus' check (star_new_way_operator in ('times', 'plus')),
   star_markup_under_1000_ngn numeric(12,4) not null default 0,
   star_markup_1000_plus_ngn numeric(12,4) not null default 0,
   star_flat_markup_under_1000_ngn numeric(12,2) not null default 0,
@@ -379,6 +395,27 @@ alter table public.istar_config add column if not exists premium_markup_3 numeri
 alter table public.istar_config add column if not exists premium_markup_6 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists premium_markup_12 numeric(12,2) not null default 0;
 alter table public.istar_config add column if not exists star_markup_ngn numeric(12,4) not null default 0;
+alter table public.istar_config add column if not exists star_pricing_mode text not null default 'flat';
+-- Guard added separately so re-running this file doesn't error if the check
+-- already exists.
+do $$ begin
+  alter table public.istar_config add constraint istar_config_star_pricing_mode_check check (star_pricing_mode in ('per_star', 'flat'));
+exception when duplicate_object then null;
+end $$;
+-- Defaults preserve current behavior for existing rows: Old way keeps
+-- calculating with × (as it always has), New way keeps calculating with +
+-- (as it always has) — this migration only makes each one independently
+-- switchable going forward, it doesn't change anyone's live pricing today.
+alter table public.istar_config add column if not exists star_old_way_operator text not null default 'times';
+alter table public.istar_config add column if not exists star_new_way_operator text not null default 'plus';
+do $$ begin
+  alter table public.istar_config add constraint istar_config_star_old_way_operator_check check (star_old_way_operator in ('times', 'plus'));
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter table public.istar_config add constraint istar_config_star_new_way_operator_check check (star_new_way_operator in ('times', 'plus'));
+exception when duplicate_object then null;
+end $$;
 alter table public.istar_config add column if not exists star_markup_under_1000_ngn numeric(12,4) not null default 0;
 alter table public.istar_config add column if not exists star_markup_1000_plus_ngn numeric(12,4) not null default 0;
 -- These two are FLAT amounts, added once to the whole order — not scaled by

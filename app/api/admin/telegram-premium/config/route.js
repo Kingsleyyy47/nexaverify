@@ -12,6 +12,11 @@ export async function POST(request) {
     enabled,
     customerVisible,
     ngnPerStar,
+    starPricingMode,
+    starOldWayOperator,
+    starNewWayOperator,
+    starMarkupUnder1000Ngn,
+    starMarkupOver1000Ngn,
     starFlatMarkupUnder1000Ngn,
     starFlatMarkupOver1000Ngn,
     premiumMarkup3,
@@ -19,6 +24,11 @@ export async function POST(request) {
     premiumMarkup12,
   } = await request.json();
   const perStar = Number(ngnPerStar);
+  const pricingMode = starPricingMode === "per_star" ? "per_star" : "flat";
+  const oldWayOperator = starOldWayOperator === "plus" ? "plus" : "times";
+  const newWayOperator = starNewWayOperator === "times" ? "times" : "plus";
+  const markupUnder1000 = Number(starMarkupUnder1000Ngn);
+  const markupOver1000 = Number(starMarkupOver1000Ngn);
   const flatMarkupUnder1000 = Number(starFlatMarkupUnder1000Ngn);
   const flatMarkupOver1000 = Number(starFlatMarkupOver1000Ngn);
   const markup3 = Number(premiumMarkup3);
@@ -28,11 +38,17 @@ export async function POST(request) {
   if (!Number.isFinite(perStar) || perStar < 0) {
     return NextResponse.json({ error: "Enter a valid starting price per star" }, { status: 400 });
   }
+  if (!Number.isFinite(markupUnder1000) || markupUnder1000 < 0) {
+    return NextResponse.json({ error: "Enter a valid Old-way markup for under 1,000 stars" }, { status: 400 });
+  }
+  if (!Number.isFinite(markupOver1000) || markupOver1000 < 0) {
+    return NextResponse.json({ error: "Enter a valid Old-way markup for 1,000+ stars" }, { status: 400 });
+  }
   if (!Number.isFinite(flatMarkupUnder1000) || flatMarkupUnder1000 < 0) {
-    return NextResponse.json({ error: "Enter a valid flat markup for orders under 1,000 stars" }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid New-way flat markup for orders under 1,000 stars" }, { status: 400 });
   }
   if (!Number.isFinite(flatMarkupOver1000) || flatMarkupOver1000 < 0) {
-    return NextResponse.json({ error: "Enter a valid flat markup for orders of 1,000+ stars" }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid New-way flat markup for orders of 1,000+ stars" }, { status: 400 });
   }
   for (const [label, value] of [
     ["3-month", markup3],
@@ -51,6 +67,11 @@ export async function POST(request) {
       enabled: Boolean(enabled),
       customer_visible: Boolean(customerVisible),
       ngn_per_star: perStar,
+      star_pricing_mode: pricingMode,
+      star_old_way_operator: oldWayOperator,
+      star_new_way_operator: newWayOperator,
+      star_markup_under_1000_ngn: markupUnder1000,
+      star_markup_1000_plus_ngn: markupOver1000,
       star_flat_markup_under_1000_ngn: flatMarkupUnder1000,
       star_flat_markup_1000_plus_ngn: flatMarkupOver1000,
       premium_markup_3: markup3,

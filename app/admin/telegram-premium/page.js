@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getWalletBalance, getPremiumPackages, buildPremiumPricing, IStarError } from "@/lib/istar";
-import { computeStarTotalPrice } from "@/lib/istar-pricing";
+import { computeStarTotalPriceForWay } from "@/lib/istar-pricing";
 import TelegramPremiumConfigForm from "@/components/TelegramPremiumConfigForm";
 
 // Example quantities used purely to illustrate each tier's math below — any
@@ -21,6 +21,11 @@ export default async function AdminTelegramPremiumPage() {
     enabled: Boolean(row?.enabled),
     customerVisible: Boolean(row?.customer_visible),
     ngnPerStar: row?.ngn_per_star ?? 0,
+    starPricingMode: row?.star_pricing_mode === "per_star" ? "per_star" : "flat",
+    starOldWayOperator: row?.star_old_way_operator === "plus" ? "plus" : "times",
+    starNewWayOperator: row?.star_new_way_operator === "times" ? "times" : "plus",
+    starMarkupUnder1000Ngn: row?.star_markup_under_1000_ngn ?? 0,
+    starMarkupOver1000Ngn: row?.star_markup_1000_plus_ngn ?? 0,
     starFlatMarkupUnder1000Ngn: row?.star_flat_markup_under_1000_ngn ?? 0,
     starFlatMarkupOver1000Ngn: row?.star_flat_markup_1000_plus_ngn ?? 0,
     starLastCostNgn: row?.star_last_cost_ngn ?? null,
@@ -101,57 +106,109 @@ export default async function AdminTelegramPremiumPage() {
         <h3 className="font-bold text-[15px] mb-1">What you're charged (Stars)</h3>
         <p className="text-xs text-gray-400 dark:text-night-400 mb-4 max-w-lg">
           iStar has no live pre-purchase price for stars — "cost per star" fills in automatically
-          the first time a star order actually completes, paid from the USDT wallet. Your markup is
-          a FLAT amount added ONCE to the whole order — not per star — tiered by the REQUESTED
-          QUANTITY: under 1,000 stars gets one flat amount, 1,000+ gets a different one. The example
-          rows below show a {EXAMPLE_QTY_UNDER_1000}-star and a {EXAMPLE_QTY_OVER_1000}-star order
-          just to illustrate the math — any quantity in that tier uses the same flat markup.
+          the first time a star order actually completes, paid from the USDT wallet. Two markup
+          styles are kept configured side by side below so you can compare them — only ONE is
+          actually charged to buyers at a time, picked by "Pricing mode" in Settings below
+          (currently{" "}
+          <span className="font-semibold text-gray-600 dark:text-night-200">
+            {config.starPricingMode === "per_star" ? "Old way" : "New way"}
+          </span>
+          ). The example rows show a {EXAMPLE_QTY_UNDER_1000}-star and a{" "}
+          {EXAMPLE_QTY_OVER_1000}-star order just to illustrate the math — any quantity in that tier
+          works the same way.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 border-b border-gray-100 dark:border-night-700">
-                <th className="pb-2.5 font-bold">Example order</th>
-                <th className="pb-2.5 font-bold">Cost (qty x ₦/star)</th>
-                <th className="pb-2.5 font-bold">Flat markup (₦)</th>
-                <th className="pb-2.5 font-bold">Customer pays (₦)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-night-800">
-              {[
-                { label: `${EXAMPLE_QTY_UNDER_1000} stars (under 1,000)`, qty: EXAMPLE_QTY_UNDER_1000, flatMarkup: config.starFlatMarkupUnder1000Ngn },
-                { label: `${EXAMPLE_QTY_OVER_1000.toLocaleString()} stars (1,000+)`, qty: EXAMPLE_QTY_OVER_1000, flatMarkup: config.starFlatMarkupOver1000Ngn },
-              ].map((tier) => {
-                const baseCostPerStar = config.starLastCostNgn ? Number(config.starLastCostNgn) : Number(config.ngnPerStar || 0);
-                const subtotal = baseCostPerStar * tier.qty;
-                const total = computeStarTotalPrice(
-                  {
-                    ngnPerStar: config.ngnPerStar,
-                    starLastCostNgn: config.starLastCostNgn,
-                    flatMarkupUnder1000: config.starFlatMarkupUnder1000Ngn,
-                    flatMarkupOver1000: config.starFlatMarkupOver1000Ngn,
-                  },
-                  tier.qty
-                );
-                return (
-                  <tr key={tier.label}>
-                    <td className="py-2.5 pr-3 font-semibold dark:text-night-100">{tier.label}</td>
-                    <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                      ₦{subtotal.toFixed(2)}
-                      {!config.starLastCostNgn && " (starting price guess)"}
-                    </td>
-                    <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                      ₦{Number(tier.flatMarkup || 0).toFixed(2)}
-                    </td>
-                    <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                      ₦{total.toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          {[
+            {
+              key: "old",
+              modeValue: "per_star",
+              title: "Old way",
+              operator: config.starOldWayOperator,
+              markupUnder: config.starMarkupUnder1000Ngn,
+              markupOver: config.starMarkupOver1000Ngn,
+            },
+            {
+              key: "new",
+              modeValue: "flat",
+              title: "New way",
+              operator: config.starNewWayOperator,
+              markupUnder: config.starFlatMarkupUnder1000Ngn,
+              markupOver: config.starFlatMarkupOver1000Ngn,
+            },
+          ].map((profile) => {
+            const isActive = config.starPricingMode === profile.modeValue;
+            const isTimes = profile.operator === "times";
+            const desc = isTimes
+              ? "(cost per star + markup) × quantity"
+              : "(cost per star × quantity) + markup";
+            return (
+              <div
+                key={profile.key}
+                className={`rounded-lg border p-3 ${
+                  isActive
+                    ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
+                    : "border-gray-200 dark:border-night-700"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm">
+                    {profile.title} <span className="text-gray-400 dark:text-night-400 font-normal">({isTimes ? "×" : "+"})</span>
+                  </span>
+                  {isActive && <span className="badge badge-success text-[10px]">Active</span>}
+                </div>
+                <p className="text-xs text-gray-400 dark:text-night-400 mb-3 font-mono">{desc}</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 dark:text-night-400 border-b border-gray-100 dark:border-night-700">
+                      <th className="pb-1.5 font-bold">Example</th>
+                      <th className="pb-1.5 font-bold">Markup</th>
+                      <th className="pb-1.5 font-bold">Total (₦)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-night-800">
+                    {[
+                      { label: `${EXAMPLE_QTY_UNDER_1000} stars`, qty: EXAMPLE_QTY_UNDER_1000, markup: profile.markupUnder },
+                      { label: `${EXAMPLE_QTY_OVER_1000.toLocaleString()} stars`, qty: EXAMPLE_QTY_OVER_1000, markup: profile.markupOver },
+                    ].map((row) => {
+                      const total = computeStarTotalPriceForWay(
+                        {
+                          ngnPerStar: config.ngnPerStar,
+                          starLastCostNgn: config.starLastCostNgn,
+                          oldWayOperator: config.starOldWayOperator,
+                          oldWayMarkupUnder1000: config.starMarkupUnder1000Ngn,
+                          oldWayMarkupOver1000: config.starMarkupOver1000Ngn,
+                          newWayOperator: config.starNewWayOperator,
+                          newWayMarkupUnder1000: config.starFlatMarkupUnder1000Ngn,
+                          newWayMarkupOver1000: config.starFlatMarkupOver1000Ngn,
+                        },
+                        row.qty,
+                        profile.key
+                      );
+                      return (
+                        <tr key={row.label}>
+                          <td className="py-1.5 pr-2 font-semibold dark:text-night-100">{row.label}</td>
+                          <td className="py-1.5 pr-2 text-gray-500 dark:text-night-300">
+                            {isTimes ? "×" : "+"} ₦{Number(row.markup || 0).toFixed(2)}
+                          </td>
+                          <td className="py-1.5 pr-2 font-bold text-brand-700 dark:text-brand-400">
+                            ₦{total.toLocaleString()}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
+        {!config.starLastCostNgn && (
+          <p className="text-xs text-gray-400 dark:text-night-400 mt-3">
+            Cost per star above is still the starting-price guess (₦{Number(config.ngnPerStar || 0).toFixed(2)}) —
+            it'll switch to a learned real cost after the first completed USDT star order.
+          </p>
+        )}
         {config.starLastCostNgn && (
           <p className="text-xs text-gray-400 dark:text-night-400 mt-3">
             Learned from your last completed {config.starLastCostWalletType} order,{" "}

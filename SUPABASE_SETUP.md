@@ -496,17 +496,26 @@ then a webhook or a manual poll tells you it completed or failed later).
      `(amount / quantity) x currency_rates.USD` converts to NGN reliably — TON orders are skipped,
      since there's no TON->NGN rate anywhere in this app). That learned figure is stored in
      `istar_config.star_last_cost_ngn` (see `lib/istar.js#learnStarCostFromOrder`, called from both
-     `app/api/telegram/webhook` and `.../orders/[id]/status` whenever a star order completes). Once
-     it exists, EVERY subsequent star purchase — by anyone — bases its cost on
-     `star_last_cost_ngn x quantity` instead of the static guess x quantity
-     (`lib/istar-pricing.js#computeStarTotalPrice`, moved out of `lib/istar.js` — no `"server-only"`
-     import — so `TelegramGiftBuyForm.js` can call it client-side too, to show a live total under
-     each quantity preset). On top of that subtotal, a FLAT NGN amount is added ONCE per order —
-     NOT per star, NOT multiplied by quantity — tiered by the REQUESTED QUANTITY on that specific
-     order: `star_flat_markup_under_1000_ngn` for quantity < 1,000, `star_flat_markup_1000_plus_ngn`
-     for quantity >= 1,000 (e.g. a flat ₦1,000 added to any order under 1,000 stars, ₦1,500 to any
-     order of 1,000+, regardless of the exact quantity within that tier). Total charged =
-     `(quantity x cost per star) + flat markup for that tier`.
+     `app/api/telegram/webhook` and `.../orders/[id]/status` whenever a star order completes).
+     On top of that base cost, TWO independent markup PROFILES are kept fully configured side by
+     side — "Old way" and "New way" (`istar_config.star_pricing_mode` picks which one is actually
+     charged; `star_old_way_operator` / `star_new_way_operator` each independently pick that
+     profile's own calculation, `'times'` or `'plus'`):
+       - `'times'`: order total = `(cost per star + markup) x quantity`
+       - `'plus'`:  order total = `(cost per star x quantity) + markup`
+     Both profiles pick their markup amount by the REQUESTED QUANTITY on that specific order — under
+     1,000 vs 1,000+ (`star_markup_under_1000_ngn` / `star_markup_1000_plus_ngn` for "Old way",
+     `star_flat_markup_under_1000_ngn` / `star_flat_markup_1000_plus_ngn` for "New way" — column
+     names predate the operator toggle, "flat" no longer implies a fixed operator since New way can
+     be set to `'times'` too). All the math lives in `lib/istar-pricing.js` (moved out of
+     `lib/istar.js` — no `"server-only"` import — so `TelegramGiftBuyForm.js` can call
+     `computeStarTotalPrice` client-side too, to show a live total under each quantity preset).
+     `starConfigFromRow()` maps a raw `istar_config` DB row into the shape that function expects, in
+     one place, so the buy route / admin page / customer page can't drift on field names. This
+     two-profile, independently-switchable design exists because the business owner wanted to be
+     able to change EITHER profile's calculation without touching the other one's saved numbers —
+     see `TelegramPremiumConfigForm.js`, which shows both profiles with their own ×/+ toggle and
+     stays fully editable regardless of which is active.
      The buy page shows preset quantities (50/100/250/500/750/1,000/1,500/2,500) plus a "Custom"
      option; the server accepts any quantity 50–1,000,000 regardless.
    - Diagnostics: `learnStarCostFromOrder` records EVERY attempt — success or not — to
