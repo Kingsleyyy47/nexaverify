@@ -124,14 +124,35 @@ export async function POST(request) {
     return NextResponse.json({ rental: current });
   }
 
-  await admin.rpc("adjust_balance", {
-    p_user_id: user.id,
-    p_amount: rental.price,
-    p_type: "refund",
-    p_reference_id: rental.id,
-    p_note: `Refund for cancelled ${rental.service_name || rental.service_id} number ${rental.phone_number}`,
-    p_created_by: null,
-  });
+  try {
+    await admin.rpc("adjust_balance", {
+      p_user_id: user.id,
+      p_amount: rental.price,
+      p_type: "refund",
+      p_reference_id: rental.id,
+      p_note: `Refund for cancelled ${rental.service_name || rental.service_id} number ${rental.phone_number}`,
+      p_created_by: null,
+    });
+  } catch (err) {
+    // The provider cancel already went through above, so we can't (and
+    // shouldn't) revert `status`. But `updated` (the rental object returned
+    // to the client) came from the SELECT before this failed, so if we left
+    // refunded_at as-is, the credit would be lost forever — the sweep route's
+    // `pendingRefunds` recovery query only picks up rentals where
+    // refunded_at IS NULL. Un-claim just the refund, same pattern as
+    // app/api/admin/rentals/sweep-timeouts, so that route's next run (every
+    // minute) retries the credit automatically without re-cancelling on the
+    // provider a second time.
+    console.error(`[rentals/cancel] refund failed for rental ${updated.id}:`, err.message);
+    await admin
+      .from("rentals")
+      .update({ refunded_at: null, cancel_error: `refund failed: ${err.message}`.slice(0, 500) })
+      .eq("id", updated.id);
+    return NextResponse.json({
+      rental: { ...updated, refunded_at: null },
+      error: "Cancelled, but the refund is still processing — it'll land automatically within a minute.",
+    });
+  }
 
   return NextResponse.json({ rental: updated });
 }

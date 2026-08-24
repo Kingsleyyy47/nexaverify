@@ -60,6 +60,12 @@ export default function NumberCard({ rental }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Action failed");
       if (data.rental) setState(data.rental);
+      // Some responses are a 200 with BOTH an updated rental AND an
+      // informational error (e.g. "refund still processing", or a code that
+      // arrived right as a cancel was requested) — surface that too, not
+      // just the rental update.
+      if (data.error) setError(data.error);
+      else setError("");
     } catch (err) {
       setError(err.message);
     } finally {
