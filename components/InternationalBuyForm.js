@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
-import NumberCard from "./NumberCard";
+import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
 
 export default function InternationalBuyForm({ countries }) {
   const router = useRouter();
@@ -256,7 +256,7 @@ export default function InternationalBuyForm({ countries }) {
 
         {result && (
           <div className="mt-5">
-            <NumberCard rental={result} />
+            <PurchasedNumberDropdown rental={result} />
           </div>
         )}
       </div>

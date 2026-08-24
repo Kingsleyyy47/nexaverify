@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
-import NumberCard from "./NumberCard";
+import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
 
 const DURATIONS = [
   { value: "", label: "Short-term (5-15 min, standard rental)" },
@@ -149,7 +149,7 @@ export default function BuyForm({ services }) {
 
         {result && (
           <div className="mt-5">
-            <NumberCard rental={result} />
+            <PurchasedNumberDropdown rental={result} />
           </div>
         )}
       </div>

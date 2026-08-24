@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
-import NumberCard from "./NumberCard";
+import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
 
 // Tap-to-buy widget for the "US Only" provider — mirrors QuickBuyList.js's
 // pattern (services list with price passed in already priced, tap a row to
@@ -18,10 +18,10 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
   const [query, setQuery] = useState("");
   const [buyingCode, setBuyingCode] = useState(null);
   const [error, setError] = useState("");
-  // Numbers bought THIS session — shown inline right below the list they
-  // were bought from, instead of only appearing in the separate "Your
-  // numbers" section further down the page. Newest first.
-  const [purchased, setPurchased] = useState([]);
+  // Numbers bought THIS session, keyed by service code — rendered as a
+  // collapsible dropdown directly under the SPECIFIC row that was tapped,
+  // same pattern used by every other buy flow in the app.
+  const [purchasedByService, setPurchasedByService] = useState({});
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,7 +45,7 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Purchase failed");
-      if (data.rental) setPurchased((prev) => [data.rental, ...prev]);
+      if (data.rental) setPurchasedByService((prev) => ({ ...prev, [service.code]: data.rental }));
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -94,30 +94,26 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
             </p>
           ) : (
             filtered.map((s) => (
-              <button
-                key={s.code}
-                type="button"
-                disabled={buyingCode !== null}
-                onClick={() => buy(s)}
-                className="w-full flex items-center px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-night-800 transition disabled:opacity-50"
-              >
-                <span className="flex-1 font-semibold truncate pr-3 dark:text-night-100">{s.name}</span>
-                <span className="text-brand-700 dark:text-brand-400 font-bold shrink-0">
-                  {buyingCode === s.code ? "Purchasing…" : format(s.priceNgn)}
-                </span>
-              </button>
+              <Fragment key={s.code}>
+                <button
+                  type="button"
+                  disabled={buyingCode !== null}
+                  onClick={() => buy(s)}
+                  className="w-full flex items-center px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-night-800 transition disabled:opacity-50"
+                >
+                  <span className="flex-1 font-semibold truncate pr-3 dark:text-night-100">{s.name}</span>
+                  <span className="text-brand-700 dark:text-brand-400 font-bold shrink-0">
+                    {buyingCode === s.code ? "Purchasing…" : format(s.priceNgn)}
+                  </span>
+                </button>
+                {purchasedByService[s.code] && (
+                  <PurchasedNumberDropdown rental={purchasedByService[s.code]} />
+                )}
+              </Fragment>
             ))
           )}
         </div>
       </div>
-
-      {purchased.length > 0 && (
-        <div className="mt-4 space-y-3">
-          {purchased.map((r) => (
-            <NumberCard key={r.id} rental={r} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
