@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Copy, Check } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 
 const STATUS_BADGE = {
@@ -16,6 +17,19 @@ export default function NumberCard({ rental }) {
   const [state, setState] = useState(rental);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function copyCode() {
+    if (!state.sms_code) return;
+    try {
+      await navigator.clipboard.writeText(state.sms_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard permission denied or unavailable — silently no-op, the
+      // code is still selectable/readable on screen either way.
+    }
+  }
 
   useEffect(() => {
     if (state.status !== "waiting") return;
@@ -71,11 +85,28 @@ export default function NumberCard({ rental }) {
       </div>
 
       {state.sms_code ? (
-        <div className="p-3 rounded-lg bg-brand-50 dark:bg-brand-950 border border-brand-100 dark:border-brand-900 mb-3">
-          <div className="text-[11px] uppercase tracking-wide text-brand-600 dark:text-brand-400 font-bold mb-0.5">
-            Code
+        <div className="p-3 rounded-lg bg-brand-50 dark:bg-brand-950 border border-brand-100 dark:border-brand-900 mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-brand-600 dark:text-brand-400 font-bold mb-0.5">
+              Code
+            </div>
+            <div className="text-lg font-mono font-bold text-brand-900 dark:text-brand-200">{state.sms_code}</div>
           </div>
-          <div className="text-lg font-mono font-bold text-brand-900 dark:text-brand-200">{state.sms_code}</div>
+          <button
+            type="button"
+            onClick={copyCode}
+            className="btn-secondary btn-sm shrink-0 flex items-center gap-1.5"
+          >
+            {copied ? (
+              <>
+                <Check size={14} /> Copied
+              </>
+            ) : (
+              <>
+                <Copy size={14} /> Copy
+              </>
+            )}
+          </button>
         </div>
       ) : state.status === "waiting" ? (
         <div className="text-xs text-gray-400 dark:text-night-400 mb-3">Waiting for SMS… checking every 5s.</div>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
+import NumberCard from "./NumberCard";
 
 // Tap-to-buy widget for the "US Only" provider — mirrors QuickBuyList.js's
 // pattern (services list with price passed in already priced, tap a row to
@@ -17,6 +18,10 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
   const [query, setQuery] = useState("");
   const [buyingCode, setBuyingCode] = useState(null);
   const [error, setError] = useState("");
+  // Numbers bought THIS session — shown inline right below the list they
+  // were bought from, instead of only appearing in the separate "Your
+  // numbers" section further down the page. Newest first.
+  const [purchased, setPurchased] = useState([]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -40,6 +45,7 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Purchase failed");
+      if (data.rental) setPurchased((prev) => [data.rental, ...prev]);
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -104,6 +110,14 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
           )}
         </div>
       </div>
+
+      {purchased.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {purchased.map((r) => (
+            <NumberCard key={r.id} rental={r} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
