@@ -18,16 +18,17 @@ export default function NumberCard({ rental }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [numberCopied, setNumberCopied] = useState(false);
 
-  async function copyCode() {
-    if (!state.sms_code) return;
+  async function copyText(text, setFlag) {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(state.sms_code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setFlag(true);
+      setTimeout(() => setFlag(false), 2000);
     } catch {
       // clipboard permission denied or unavailable — silently no-op, the
-      // code is still selectable/readable on screen either way.
+      // text is still selectable/readable on screen either way.
     }
   }
 
@@ -70,8 +71,16 @@ export default function NumberCard({ rental }) {
     <div className="card card-pad">
       <div className="flex items-start justify-between mb-3 gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="font-mono text-base font-bold">{state.phone_number}</div>
+            <button
+              type="button"
+              onClick={() => copyText(state.phone_number, setNumberCopied)}
+              title="Copy number"
+              className="shrink-0 p-1 rounded-md text-gray-400 dark:text-night-400 hover:text-brand-700 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-night-800 transition"
+            >
+              {numberCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
           </div>
           <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
             {state.service_name || state.service_id} · {format(state.price)}
@@ -94,7 +103,7 @@ export default function NumberCard({ rental }) {
           </div>
           <button
             type="button"
-            onClick={copyCode}
+            onClick={() => copyText(state.sms_code, setCopied)}
             className="btn-secondary btn-sm shrink-0 flex items-center gap-1.5"
           >
             {copied ? (
