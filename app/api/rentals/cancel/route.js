@@ -19,9 +19,21 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
+  // Set below for daisysim/daisysim_usa only — their /cancel response
+  // includes an explicit `refund` boolean confirming THEIR side actually
+  // credited our master balance back, separate from the cancel itself
+  // succeeding. DaisySMS's cancelRental has no equivalent field; its single
+  // ACCESS_CANCEL response IS the full confirmation for that provider (see
+  // lib/daisy.js — anything else throws). We must not credit the customer's
+  // wallet unless the upstream provider has actually confirmed a refund,
+  // otherwise NexaVerify eats the cost of every cancel the provider quietly
+  // declines to refund.
+  let providerRefundConfirmed = true;
+
   if (rental.provider === "daisysim") {
     try {
-      await cancelActivation(rental.daisysim_activation_id);
+      const result = await cancelActivation(rental.daisysim_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
     } catch (err) {
       if (err instanceof DaisySimError && err.code === "TOO_EARLY") {
         return NextResponse.json(
@@ -53,7 +65,8 @@ export async function POST(request) {
     }
   } else if (rental.provider === "daisysim_usa") {
     try {
-      await cancelActivationUsa(rental.daisysim_usa_activation_id);
+      const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
     } catch (err) {
       if (err instanceof DaisySimUsaError && err.code === "TOO_EARLY") {
         return NextResponse.json(
@@ -95,6 +108,31 @@ export async function POST(request) {
       }
       return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
     }
+  }
+
+  if (!providerRefundConfirmed) {
+    // The provider cancelled the number but did NOT confirm a refund on
+    // their end (daisysim/daisysim_usa's `refund` field came back false) —
+    // mark it cancelled so the customer isn't stuck on a dead number, but
+    // deliberately do NOT credit the wallet or set refunded_at. Flagged via
+    // cancel_error for admin review; crediting here would mean NexaVerify
+    // eats the cost every time the provider quietly declines to refund.
+    const { data: cancelledNoRefund } = await admin
+      .from("rentals")
+      .update({
+        status: "cancelled",
+        refund_denied_by_provider: true,
+        cancel_error: "Provider cancelled but did not confirm a refund — needs admin review before crediting.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", rentalId)
+      .eq("status", "waiting")
+      .select()
+      .maybeSingle();
+    return NextResponse.json({
+      rental: cancelledNoRefund || rental,
+      error: "Cancelled, but the provider didn't confirm a refund — support has been notified to review this.",
+    });
   }
 
   // Claims the cancellation AND the refund together in one atomic UPDATE —

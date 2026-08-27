@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
+import { RENTAL_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 
 const STATUS_BADGE = {
   waiting: "badge-warning",
@@ -19,6 +20,7 @@ export default function NumberCard({ rental }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [numberCopied, setNumberCopied] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(null);
 
   async function copyText(text, setFlag) {
     if (!text) return;
@@ -47,6 +49,29 @@ export default function NumberCard({ rental }) {
 
     return () => clearInterval(interval);
   }, [state.status, state.id]);
+
+  // Live countdown to when the server-side sweep (see
+  // app/api/admin/rentals/sweep-timeouts, runs every minute via pg_cron)
+  // will auto-cancel and refund this rental if no code has arrived. Purely
+  // a display — this component never cancels anything itself; the backend
+  // does, on its own schedule, independent of whether this page is even
+  // open. Long-term rentals are excluded, matching the sweep route's own
+  // `is_long_term` filter — they're SUPPOSED to sit "waiting" indefinitely.
+  useEffect(() => {
+    if (state.status !== "waiting" || state.is_long_term || !state.created_at) {
+      setSecondsLeft(null);
+      return;
+    }
+
+    const deadline = new Date(state.created_at).getTime() + RENTAL_TIMEOUT_MINUTES * 60 * 1000;
+
+    function tick() {
+      setSecondsLeft(Math.max(0, Math.round((deadline - Date.now()) / 1000)));
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [state.status, state.is_long_term, state.created_at]);
 
   async function act(action, extraBody = {}) {
     setBusy(true);
@@ -124,7 +149,26 @@ export default function NumberCard({ rental }) {
           </button>
         </div>
       ) : state.status === "waiting" ? (
-        <div className="text-xs text-gray-400 dark:text-night-400 mb-3">Waiting for SMS… checking every 5s.</div>
+        <div className="text-xs text-gray-400 dark:text-night-400 mb-3">
+          Waiting for SMS… checking every 5s.
+          {secondsLeft != null && (
+            <>
+              {" "}
+              {secondsLeft > 0 ? (
+                <>
+                  Auto-cancels &amp; refunds in{" "}
+                  <span className="font-mono font-semibold text-gray-500 dark:text-night-300">
+                    {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
+                    {String(secondsLeft % 60).padStart(2, "0")}
+                  </span>{" "}
+                  if no code arrives.
+                </>
+              ) : (
+                "Cancelling and refunding now…"
+              )}
+            </>
+          )}
+        </div>
       ) : null}
 
       {state.is_long_term && state.paid_until && (

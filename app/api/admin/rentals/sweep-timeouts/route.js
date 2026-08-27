@@ -5,14 +5,18 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { RENTAL_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 
-// Kingsley's rule: any rental (any provider) that's gone 3 minutes
-// without a code gets cancelled on the provider, cancelled on our side, and
-// fully refunded — automatically, server-side, whether or not the customer
-// still has the page open. Called on a timer (see supabase/cron.sql,
-// 'nexaverify-sweep-timeouts', every minute) via CRON_SECRET, same pattern
-// as the other scheduled admin routes. Also callable by a logged-in admin.
-const TIMEOUT_MINUTES = 3;
+// Kingsley's rule: any rental (any provider) that's gone
+// RENTAL_TIMEOUT_MINUTES without a code gets cancelled on the provider,
+// cancelled on our side, and fully refunded — automatically, server-side,
+// whether or not the customer still has the page open. Called on a timer
+// (see supabase/cron.sql, 'nexaverify-sweep-timeouts', every minute) via
+// CRON_SECRET, same pattern as the other scheduled admin routes. Also
+// callable by a logged-in admin. The exact minute count lives in
+// lib/rentalTimeout.js — shared with the client-side countdown shown on
+// NumberCard.js so the two can never disagree.
+const TIMEOUT_MINUTES = RENTAL_TIMEOUT_MINUTES;
 
 export async function POST(request) {
   if (!isAuthorizedCron(request)) {
@@ -42,8 +46,17 @@ export async function POST(request) {
     // refunded_at got reset back to null (see the catch block below). They
     // won't show up in the query above since status is no longer 'waiting' —
     // this catches them so the refund still eventually goes through without
-    // trying to cancel on the provider a second time.
-    admin.from("rentals").select("*").eq("status", "cancelled").is("refunded_at", null),
+    // trying to cancel on the provider a second time. Explicitly excludes
+    // refund_denied_by_provider=true rentals — those have refunded_at null
+    // for a DIFFERENT reason (the provider itself declined the refund, not a
+    // transient adjust_balance failure) and must NOT be auto-credited here;
+    // they need an admin to look at them.
+    admin
+      .from("rentals")
+      .select("*")
+      .eq("status", "cancelled")
+      .is("refunded_at", null)
+      .eq("refund_denied_by_provider", false),
   ]);
 
   if (fetchError || pendingError) {
@@ -80,6 +93,7 @@ async function retryPendingRefund(admin, rental, results) {
     .eq("id", rental.id)
     .eq("status", "cancelled")
     .is("refunded_at", null)
+    .eq("refund_denied_by_provider", false)
     .select()
     .maybeSingle();
 
@@ -112,11 +126,23 @@ async function processExpiredRental(admin, rental, results) {
   const isDaisySimUsa = rental.provider === "daisysim_usa";
   const now = new Date().toISOString();
 
+  // Set below for daisysim/daisysim_usa only — see the matching comment in
+  // app/api/rentals/cancel/route.js. Their /cancel response includes an
+  // explicit `refund` boolean confirming the provider's own side actually
+  // credited our master balance back; DaisySMS's cancelRental has no
+  // equivalent field, so its ACCESS_CANCEL response IS full confirmation
+  // for that provider. `alreadyGone` below (provider has no record of the
+  // rental at all) has no response to check either — treated as confirmed
+  // since there's genuinely nothing more to verify against.
+  let providerRefundConfirmed = true;
+
   try {
     if (isDaisySim) {
-      await cancelActivation(rental.daisysim_activation_id);
+      const result = await cancelActivation(rental.daisysim_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
     } else if (isDaisySimUsa) {
-      await cancelActivationUsa(rental.daisysim_usa_activation_id);
+      const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
     } else {
       await cancelRental(rental.daisy_id);
     }
@@ -184,6 +210,28 @@ async function processExpiredRental(admin, rental, results) {
       results.errors++;
       return;
     }
+  }
+
+  if (!providerRefundConfirmed) {
+    // Provider cancelled the number but did NOT confirm a refund on their
+    // end — mark it cancelled (so the customer isn't left thinking a dead
+    // number is still active) but deliberately withhold the wallet credit
+    // and refunded_at, same as the manual cancel route. Flagged for admin
+    // review rather than assuming the customer should be made whole out of
+    // NexaVerify's own pocket for a refund the provider didn't grant.
+    await admin
+      .from("rentals")
+      .update({
+        status: "cancelled",
+        refund_denied_by_provider: true,
+        cancel_error: "Provider cancelled but did not confirm a refund — needs admin review before crediting.",
+        updated_at: now,
+      })
+      .eq("id", rental.id)
+      .eq("status", "waiting");
+    results.cancelled++;
+    results.errors++;
+    return;
   }
 
   // Provider cancel succeeded (or there was nothing left to cancel) — claim

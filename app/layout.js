@@ -1,4 +1,5 @@
 import "./globals.css";
+import VersionWatcher from "@/components/VersionWatcher";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.nexaverify.org";
 
@@ -55,13 +56,26 @@ const THEME_INIT_SCRIPT = `
 })();
 `;
 
+// Stamps the build id this exact page was rendered with onto `window`, so
+// components/VersionWatcher.js has something to compare against when it
+// later polls /api/build-version for whatever's currently live. Evaluated
+// server-side per request, so it always reflects the deployment that
+// actually served this page — never stale, regardless of caching elsewhere.
+const VERSION_STAMP_SCRIPT = `window.__NEXA_BUILD_ID__ = ${JSON.stringify(
+  process.env.NEXT_PUBLIC_BUILD_ID || "dev"
+)};`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: VERSION_STAMP_SCRIPT }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <VersionWatcher />
+      </body>
     </html>
   );
 }

@@ -571,10 +571,27 @@ alter table public.rentals add column if not exists daisysim_usa_activation_id t
 --   cancel_error: last provider-cancel error, for admin visibility only, when
 --     the sweep couldn't cancel on the provider (network hiccup, etc.) and
 --     left the rental as 'waiting' for the next run to retry. Cleared once a
---     retry succeeds.
+--     retry succeeds. ALSO used (with a fixed explanatory string) when a
+--     provider confirmed a cancel but explicitly did NOT confirm a refund —
+--     see refund_denied_by_provider below.
+--   refund_denied_by_provider: true when daisysim/daisysim_usa's own
+--     /cancel response came back with `refund: false` (or equivalent) —
+--     i.e. the provider itself declined to refund NexaVerify's master
+--     balance for this cancellation. In that case the rental is marked
+--     'cancelled' but refunded_at is deliberately left null WITHOUT crediting
+--     the customer's wallet, since NexaVerify would otherwise be eating that
+--     cost itself. This flag is what stops the sweep's own
+--     "retry pending refunds" recovery pass (which normally auto-credits any
+--     'cancelled' + refunded_at IS NULL rental, assuming the gap was just a
+--     transient adjust_balance failure) from wrongly auto-crediting these —
+--     they need an admin to look at the account and decide manually.
+--     DaisySMS's cancelRental has no equivalent "did they actually refund
+--     us" field, so this never applies to that provider (its ACCESS_CANCEL
+--     response is treated as full confirmation on its own).
 -- ----------------------------------------------------------------------------
 alter table public.rentals add column if not exists refunded_at timestamptz;
 alter table public.rentals add column if not exists cancel_error text;
+alter table public.rentals add column if not exists refund_denied_by_provider boolean not null default false;
 
 -- Backfill: every rental already sitting at status='cancelled' before this
 -- feature existed was refunded synchronously in the same request by the
