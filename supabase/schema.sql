@@ -490,6 +490,123 @@ create policy "telegram_gift_orders_select_own" on public.telegram_gift_orders
 -- routes under app/api/telegram/* and the webhook write this.
 
 -- ============================================================================
+-- social_boost_config: site-wide settings for "Social Boost" — the SMM panel
+-- (followers/likes/views/comments) at thelordofthepanels.com (see
+-- lib/socialboost.js). Same two-switch shape as istar_config:
+--   enabled: admin's own access to place TEST orders from /admin/social-boost
+--     (and, for a real customer, the actual buy flow) — always available to
+--     admins regardless of customer_visible.
+--   customer_visible: separate, off-by-default switch. Customers always see
+--     "Coming soon" on /products/social-boost until this is flipped on.
+-- Unlike iStar, there's no admin-set markup here — every service's `rate`
+-- (price per 1000 units) comes straight from the provider's live /services
+-- list; NexaVerify isn't reselling with its own markup on this provider yet.
+-- ============================================================================
+create table if not exists public.social_boost_config (
+  id boolean primary key default true check (id),
+  enabled boolean not null default false,
+  customer_visible boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.social_boost_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.social_boost_config enable row level security;
+
+drop policy if exists "social_boost_config_select_all" on public.social_boost_config;
+create policy "social_boost_config_select_all" on public.social_boost_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/social-boost/config (service role key) writes this.
+
+-- ============================================================================
+-- social_boost_orders: every Social Boost order ever placed (currently
+-- admin-only test orders — see app/api/admin/social-boost/orders). user_id is
+-- whoever placed it, same table for a future real customer purchase once
+-- social_boost_config.customer_visible is turned on.
+--   provider_order_id: the panel's own numeric order id, used for every
+--     status/refill/cancel lookup afterward.
+--   status/remains/start_count/charge: the panel's own status fields,
+--     refreshed on demand (no webhook — this panel is poll-only) via
+--     app/api/admin/social-boost/orders/[id]/refresh.
+-- ============================================================================
+create table if not exists public.social_boost_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  provider_order_id text not null,
+  service_id integer not null,
+  service_name text,
+  link text not null,
+  quantity integer not null,
+  runs integer,
+  interval_minutes integer,
+  price_ngn numeric(12,2),            -- what the buyer was actually charged, in NGN
+  charge numeric(14,4),                -- the provider's own charge, in `currency` (USD)
+  currency text,
+  start_count integer,
+  remains integer,
+  status text not null default 'Pending',
+  refill_id text,
+  refill_status text,
+  cancel_requested_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists social_boost_orders_user_id_idx on public.social_boost_orders(user_id);
+create index if not exists social_boost_orders_provider_order_id_idx on public.social_boost_orders(provider_order_id);
+
+alter table public.social_boost_orders enable row level security;
+
+drop policy if exists "social_boost_orders_select_own" on public.social_boost_orders;
+create policy "social_boost_orders_select_own" on public.social_boost_orders
+  for select using (auth.uid() = user_id);
+
+-- No client insert/update policy on purpose — only the service-role admin
+-- routes under app/api/admin/social-boost/* write this.
+
+-- ============================================================================
+-- social_boost_overrides: per-service admin overrides for the Social Boost
+-- catalog (see app/admin/social-boost -> SocialBoostCatalogManager), same
+-- favorite/enabled/markup semantics as every other catalog override table in
+-- this schema. service_id IS the provider's own numeric service id — used
+-- directly as the primary key since it's already unique and stable, no
+-- surrogate uuid needed.
+--   enabled: hides this service entirely from customers and blocks purchase
+--     server-side (see app/api/social-boost/orders), without touching the
+--     global on/off switch in social_boost_config.
+--   favorite: pins this service to the top of its platform tab for customers
+--     (see app/api/social-boost/services).
+--   markup_ngn: a FLAT Naira amount added once per order for this specific
+--     service — set in bulk for many services at once ("Markup" button,
+--     replaces whatever was there before, doesn't add on top of it — same
+--     behavior as /admin/products' bulk Markup) or edited individually
+--     afterward. Defaults to 0 (no markup) until an admin sets one; there's
+--     no live per-service cost lookup to compute a percentage from the way
+--     DaisySMS's sync does, so this is deliberately a flat admin-set amount.
+-- Rows are created lazily — only services an admin has actually touched
+-- exist here at all.
+-- ============================================================================
+create table if not exists public.social_boost_overrides (
+  service_id integer primary key,
+  service_name text,
+  enabled boolean not null default true,
+  favorite boolean not null default false,
+  markup_ngn numeric(12,2) not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.social_boost_overrides enable row level security;
+
+drop policy if exists "social_boost_overrides_select_all" on public.social_boost_overrides;
+create policy "social_boost_overrides_select_all" on public.social_boost_overrides
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/social-boost/overrides/* (service role key) writes this.
+
+-- ============================================================================
 -- rentals: every phone number ever purchased through NexaVerify.
 -- is_long_term flags the ones the admin's "Long-term numbers" page tracks.
 -- ============================================================================

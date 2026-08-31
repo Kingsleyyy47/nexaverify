@@ -19,7 +19,8 @@ const BASE_LINKS = [
   { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
   { href: "/get-a-website", label: "Website" },
-  { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: true },
+  { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: "istar" },
+  { href: "/products/social-boost", label: "Social Boost", soonForNonAdmin: "socialBoost" },
   { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
@@ -29,7 +30,18 @@ export default function CustomerSidebar({
   daisysimEnabled = false,
   usOnlyEnabled = false,
   istarCustomerVisible = false,
+  socialBoostCustomerVisible = false,
 }) {
+  // Keyed by each link's `soonForNonAdmin` value (a provider tag, not just
+  // `true`) — this used to be one shared boolean when Telegram Premium was
+  // the only "coming soon" product, which would have wrongly shown/hidden
+  // Social Boost's badge based on iStar's own visibility switch. Add a new
+  // "coming soon" product by adding its own key here and tagging its link
+  // with the matching soonForNonAdmin value.
+  const customerVisibleByTag = {
+    istar: istarCustomerVisible,
+    socialBoost: socialBoostCustomerVisible,
+  };
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -67,7 +79,7 @@ export default function CustomerSidebar({
             }`}
           >
             {link.label}
-            {link.soonForNonAdmin && !istarCustomerVisible && profile?.role !== "admin" && (
+            {link.soonForNonAdmin && !customerVisibleByTag[link.soonForNonAdmin] && profile?.role !== "admin" && (
               <span className="badge badge-neutral text-[10px] px-1.5 py-0.5">Soon</span>
             )}
           </Link>

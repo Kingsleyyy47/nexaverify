@@ -1,18 +1,14 @@
 -- NexaVerify — scheduled jobs (pg_cron + pg_net)
 --
--- Run this AFTER supabase/schema.sql, and after replacing the two
--- placeholders below. This schedules three of NexaVerify's own admin API
--- routes to run automatically on a timer, entirely inside Supabase — no
+-- Run this AFTER supabase/schema.sql. This schedules NexaVerify's own admin
+-- API routes to run automatically on a timer, entirely inside Supabase — no
 -- external cron host needed. Each job just does the same HTTP POST a browser
 -- button-click would, carrying a shared secret instead of a login session
 -- (see lib/cron-auth.js).
 --
--- Before running:
---   1. Replace YOUR-DOMAIN.com below with your real deployed domain (this
---      won't work against http://localhost — Supabase's servers can't reach
---      your laptop, so these jobs only make sense once you've deployed).
---   2. Replace YOUR_CRON_SECRET with the exact value you put in CRON_SECRET
---      in your hosting provider's environment variables.
+-- URL is set to https://nexaverify.org and the secret below matches
+-- CRON_SECRET in .env.local. If you ever rotate CRON_SECRET in your hosting
+-- provider's env vars, update it here too — it must match exactly.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
@@ -23,8 +19,8 @@ select cron.schedule(
   '0 * * * *', -- every hour, on the hour
   $$
   select net.http_post(
-    url := 'https://YOUR-DOMAIN.com/api/admin/services/sync',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+    url := 'https://nexaverify.org/api/admin/services/sync',
+    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
   );
   $$
 );
@@ -47,8 +43,8 @@ select cron.schedule(
 --   '0 */3 * * *', -- every 3 hours
 --   $$
 --   select net.http_post(
---     url := 'https://YOUR-DOMAIN.com/api/admin/rentals/sync-ltrs',
---     headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+--     url := 'https://nexaverify.org/api/admin/rentals/sync-ltrs',
+--     headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
 --   );
 --   $$
 -- );
@@ -60,8 +56,8 @@ select cron.schedule(
   '30 3 * * *', -- once a day at 03:30 UTC
   $$
   select net.http_post(
-    url := 'https://YOUR-DOMAIN.com/api/admin/backup/run',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+    url := 'https://nexaverify.org/api/admin/backup/run',
+    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
   );
   $$
 );
@@ -75,8 +71,8 @@ select cron.schedule(
   '0 */6 * * *', -- every 6 hours
   $$
   select net.http_post(
-    url := 'https://YOUR-DOMAIN.com/api/admin/currency-rates/sync',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+    url := 'https://nexaverify.org/api/admin/currency-rates/sync',
+    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
   );
   $$
 );
@@ -90,8 +86,8 @@ select cron.schedule(
   '* * * * *', -- every minute
   $$
   select net.http_post(
-    url := 'https://YOUR-DOMAIN.com/api/admin/rentals/sweep-timeouts',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET', 'Content-Type', 'application/json')
+    url := 'https://nexaverify.org/api/admin/rentals/sweep-timeouts',
+    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
   );
   $$
 );

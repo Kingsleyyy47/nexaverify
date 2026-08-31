@@ -22,6 +22,7 @@ const LINKS = [
   { href: "/admin/international", label: "International (DaisySim)" },
   { href: "/admin/us-only", label: "US Only" },
   { href: "/admin/telegram-premium", label: "Telegram Premium" },
+  { href: "/admin/social-boost", label: "Social Boost" },
   { href: "/admin/pocketfi", label: "PocketFi funding" },
   { href: "/admin/onboarding", label: "Welcome popup" },
 ];

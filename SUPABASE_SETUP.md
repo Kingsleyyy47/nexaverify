@@ -583,10 +583,47 @@ then a webhook or a manual poll tells you it completed or failed later).
    "Coming soon". Only once you're happy, go back and flip "Let customers see it" on — then check
    again as a non-admin to confirm the real (simplified) buy flow now shows instead.
 
+## 19. Social Boost — a FIFTH provider (SMM panel), opt-in customer visibility
+
+Same two-switch shape as section 18's iStar integration, but a much simpler kind of provider:
+`thelordofthepanels.com`'s SMM panel API (`lib/socialboost.js`) sells followers/likes/views/comments
+per 1000 units against a numeric `service` id and a target `link` — no recipient search, no wallet
+currency, no webhook (this panel is poll-only; status is refreshed on demand, not pushed).
+
+1. What it adds:
+   - Admin: `/admin/social-boost` — panel balance display, "Enabled" (your own test-ordering access)
+     and "Let customers see it" (separate, off by default) toggles, plus a sixth toggle on
+     `/admin/providers` ("Social Boost") that maps to `enabled` only.
+   - Customer: `/products/social-boost` and a "Social Boost" sidebar link (with a "Soon" badge until
+     `customer_visible` is turned on) — same page component serves the admin test flow and, once
+     opened up, the real customer flow, exactly like Telegram Premium.
+   - `app/api/social-boost/services/route.js`, `.../orders/route.js`, and
+     `.../orders/[id]/{refresh,cancel}/route.js` — callable by any logged-in user once
+     `customer_visible` is on (or always, for an admin), gated the same two-switch way as iStar's buy
+     routes.
+2. Pricing: unlike iStar's admin-set markups, there's no markup here yet — customers pay exactly what
+   the panel's own live `rate` (USD per 1000 units) converts to at your currently configured USD→NGN
+   rate (`/admin/currency`). `social_boost_orders.price_ngn` records what was actually charged;
+   `charge`/`currency` record the panel's own USD cost for reference.
+3. What to run:
+   - Re-run `supabase/schema.sql` (idempotent, safe in full) — creates `social_boost_config` and
+     `social_boost_orders`.
+   - Add to `.env.local` and your Vercel project's env vars:
+     ```
+     SOCIAL_BOOST_API_KEY=your-social-boost-api-key
+     SOCIAL_BOOST_API_URL=https://thelordofthepanels.com/api/v2
+     ```
+4. Test it: go to `/admin/social-boost`, turn "Enabled" on (the balance card up top should show your
+   panel balance — if it errors, check `SOCIAL_BOOST_API_KEY`). As an admin, open
+   `/products/social-boost`, load the service list, search for a service, place a small test order,
+   and use Refresh/Cancel to check on it. Log out / view as a non-admin to confirm the page shows only
+   "Coming soon". Only once you're happy, go back and flip "Let customers see it" on — then check
+   again as a non-admin to confirm the real buy flow now shows instead.
+
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `DAISYSIM_USA_API_KEY`, `ISTAR_API_KEY`, `ISTAR_WEBHOOK_SECRET`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
-- Don't refer to "DaisySim" or "iStar" anywhere in customer-facing UI — only the admin pages may name them; customers only ever see "International Numbers"/"All countries" and "Telegram Premium".
-- Don't confuse `istar_config.enabled` with `istar_config.customer_visible` — the first is your own admin test-ordering access, the second (separate, off by default) is what actually opens the buy flow to real customers. See section 18.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `DAISYSIM_USA_API_KEY`, `ISTAR_API_KEY`, `ISTAR_WEBHOOK_SECRET`, `SOCIAL_BOOST_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
+- Don't refer to "DaisySim", "iStar", or the SMM panel's own name anywhere in customer-facing UI — only the admin pages may name them; customers only ever see "International Numbers"/"All countries", "Telegram Premium", and "Social Boost".
+- Don't confuse `istar_config.enabled`/`social_boost_config.enabled` with their respective `customer_visible` columns — the first is your own admin test-ordering access, the second (separate, off by default) is what actually opens the buy flow to real customers. See sections 18–19.
 - Don't show the TON/USDT wallet picker or a raw `istar_order_id` to a non-admin on `/products/telegram-premium` — `TelegramGiftBuyForm`'s `isAdminView` prop controls this; it's not a customer-facing decision or something they should see.

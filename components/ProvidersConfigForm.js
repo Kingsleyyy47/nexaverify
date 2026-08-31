@@ -58,6 +58,7 @@ export default function ProvidersConfigForm({ config }) {
     config.pocketfiVirtualAccountEnabled
   );
   const [istarEnabled, setIstarEnabled] = useState(config.istarEnabled);
+  const [socialBoostEnabled, setSocialBoostEnabled] = useState(config.socialBoostEnabled);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -78,6 +79,7 @@ export default function ProvidersConfigForm({ config }) {
           usOnlyEnabled,
           pocketfiVirtualAccountEnabled,
           istarEnabled,
+          socialBoostEnabled,
         }),
       });
       const data = await res.json();
@@ -133,6 +135,14 @@ export default function ProvidersConfigForm({ config }) {
         detailLabel="Manage price & wallet"
         checked={istarEnabled}
         onChange={setIstarEnabled}
+      />
+      <ToggleRow
+        title="Social Boost"
+        description="Followers/likes/views/comments via the SMM panel. Unlike the other toggles, this only controls whether an admin can place a real test order — customer visibility is a separate switch, off by default, on the Social Boost settings page."
+        detailHref="/admin/social-boost"
+        detailLabel="Manage balance & visibility"
+        checked={socialBoostEnabled}
+        onChange={setSocialBoostEnabled}
       />
 
       {error && <p className="text-sm text-red-600 dark:text-red-400 mt-4">{error}</p>}
