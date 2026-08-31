@@ -75,7 +75,7 @@ export default function SocialBoostConfigForm({ config }) {
       />
       <ToggleRow
         title="Let customers see it"
-        description='A separate, off-by-default switch — flip this on once you\'re happy with testing to open the real buy flow to everyone else. Until then, non-admins see "Coming soon".'
+        description={`A separate, off-by-default switch — flip this on once you're happy with testing to open the real buy flow to everyone else. Until then, non-admins see "Coming soon".`}
         checked={customerVisible}
         onChange={setCustomerVisible}
       />
