@@ -1,58 +1,13 @@
 import Link from "next/link";
 import { getSessionProfile } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickBuyList from "@/components/QuickBuyList";
 import UsOnlyBuyList from "@/components/UsOnlyBuyList";
-import LogsQuickList from "@/components/LogsQuickList";
+import QuickLinksGrid from "@/components/QuickLinksGrid";
 import NumberCard from "@/components/NumberCard";
 import BuyNumberMenu from "@/components/BuyNumberMenu";
 import WelcomeModal from "@/components/WelcomeModal";
-
-const LOGS_PREVIEW_COUNT = 6;
-
-// Picks what shows in the dashboard's "Logs" preview: every favorited
-// (non-archived) template if any exist, otherwise a random sample — so the
-// section is never empty just because an admin hasn't favorited anything
-// yet. Stock counts come from the service role key since
-// digital_stock_items has no client-facing select policy at all (see
-// schema.sql) — this is a Server Component, so that's safe to do inline here
-// rather than through a Route Handler.
-async function getLogsPreview() {
-  const admin = createAdminClient();
-  const [{ data: templates }, { data: categories }, { data: stockItems }] = await Promise.all([
-    admin.from("digital_product_templates").select("*").eq("archived", false),
-    admin.from("digital_categories").select("id, name"),
-    admin.from("digital_stock_items").select("template_id, status"),
-  ]);
-
-  if (!templates || templates.length === 0) return [];
-
-  const categoryNameById = {};
-  for (const c of categories || []) categoryNameById[c.id] = c.name;
-
-  const stockCountByTemplate = {};
-  for (const s of stockItems || []) {
-    if (s.status !== "available") continue;
-    stockCountByTemplate[s.template_id] = (stockCountByTemplate[s.template_id] || 0) + 1;
-  }
-
-  const withExtras = templates.map((t) => ({
-    ...t,
-    categoryName: categoryNameById[t.category_id] || "Logs",
-    stockCount: stockCountByTemplate[t.id] || 0,
-  }));
-
-  const favorites = withExtras.filter((t) => t.favorite);
-  if (favorites.length > 0) return favorites.slice(0, LOGS_PREVIEW_COUNT);
-
-  // No favorites set yet — show a random sample instead of nothing, and
-  // shuffle fresh on every dashboard load (not cached) so it doesn't always
-  // show the same handful.
-  const shuffled = [...withExtras].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, LOGS_PREVIEW_COUNT);
-}
 
 export default async function DashboardPage() {
   const { profile, supabase } = await getSessionProfile();
@@ -64,7 +19,6 @@ export default async function DashboardPage() {
     { data: daisysmsConfig },
     { data: daisysimConfig },
     usOnlyCatalog,
-    logsPreview,
   ] = await Promise.all([
     supabase
       .from("services")
@@ -85,7 +39,6 @@ export default async function DashboardPage() {
     supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
     supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
     getUsOnlyCatalog(supabase),
-    getLogsPreview(),
   ]);
 
   // All fail open/closed to their respective defaults — see /admin/providers.
@@ -101,16 +54,11 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">Your wallet and recent activity.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <BuyNumberMenu
-            daisysmsEnabled={daisysmsEnabled}
-            daisysimEnabled={daisysimEnabled}
-            usOnlyEnabled={usOnlyEnabled}
-          />
-          <Link href="/digital-accounts" className="btn-secondary">
-            Buy Logs
-          </Link>
-        </div>
+        <BuyNumberMenu
+          daisysmsEnabled={daisysmsEnabled}
+          daisysimEnabled={daisysimEnabled}
+          usOnlyEnabled={usOnlyEnabled}
+        />
       </div>
 
       <div className="grid sm:grid-cols-2 gap-5 mb-7 items-stretch">
@@ -130,13 +78,17 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      <QuickLinksGrid
+        daisysmsEnabled={daisysmsEnabled}
+        daisysimEnabled={daisysimEnabled}
+        usOnlyEnabled={usOnlyEnabled}
+      />
+
       {usOnlyEnabled && !usOnlyCatalog.error && (
         <div className="mb-7">
           <UsOnlyBuyList services={usOnlyCatalog.services} title="US Only" compact />
         </div>
       )}
-
-      <LogsQuickList items={logsPreview} />
 
       {daisysmsEnabled && (
         <div className="mb-7">
