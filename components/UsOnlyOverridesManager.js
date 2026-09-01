@@ -7,11 +7,23 @@ import { Search, Star } from "lucide-react";
 // Flat favorite/disabled override list for the "US Only" catalog — no
 // country picker needed (unlike InternationalOverridesManager) since this
 // provider is USA-only, so the whole service list is passed in up front.
-export default function UsOnlyOverridesManager({ services, overrides }) {
+export default function UsOnlyOverridesManager({ services, overrides, usdRate, markupAmountNgn }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [savingCode, setSavingCode] = useState(null);
   const [error, setError] = useState("");
+  const [showCostInNgn, setShowCostInNgn] = useState(false);
+
+  // Same formula as lib/getatext.js#computeNgnPrice (the one actually used
+  // to charge customers at purchase time, in app/api/us-only/buy/route.js) —
+  // duplicated here in plain JS rather than imported, since that file is
+  // "server-only" and this is a Client Component. Unchanged from when this
+  // product was backed by DaisySim's server7 API: cost (USD) × your USD
+  // rate, plus your flat ₦ markup.
+  function computeNgnPrice(usdPrice) {
+    const ngn = Number(usdPrice || 0) * Number(usdRate || 0) + Number(markupAmountNgn || 0);
+    return Math.max(0, Math.round(ngn * 100) / 100);
+  }
 
   const overrideMap = useMemo(() => {
     const map = new Map();
@@ -56,15 +68,26 @@ export default function UsOnlyOverridesManager({ services, overrides }) {
 
   return (
     <div>
-      <div className="relative mb-3 max-w-sm">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search services…"
-          className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-9 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
-        />
+      <div className="flex items-center justify-between mb-3">
+        <div className="relative max-w-sm flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search services…"
+            className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-9 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCostInNgn((v) => !v)}
+          disabled={!usdRate}
+          title={!usdRate ? "Set a USD rate in Currency rates first" : ""}
+          className="btn-secondary btn-sm ml-3 shrink-0"
+        >
+          Show cost in {showCostInNgn ? "$" : "₦"}
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>}
@@ -80,13 +103,25 @@ export default function UsOnlyOverridesManager({ services, overrides }) {
             const isSaving = savingCode === s.code;
             return (
               <div key={s.code} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                <span
-                  className={`text-sm font-medium truncate pr-2 ${
-                    isDisabled ? "text-gray-400 dark:text-night-500 line-through" : ""
-                  }`}
-                >
-                  {s.name}
-                </span>
+                <div className="min-w-0 pr-2">
+                  <span
+                    className={`text-sm font-medium truncate block ${
+                      isDisabled ? "text-gray-400 dark:text-night-500 line-through" : ""
+                    }`}
+                  >
+                    {s.name}
+                  </span>
+                  <span className="text-xs text-gray-400 dark:text-night-400">
+                    {showCostInNgn && usdRate ? (
+                      <>
+                        Cost ₦{(Number(s.price || 0) * usdRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        {" · "}Customer pays ₦{computeNgnPrice(s.price).toLocaleString()}
+                      </>
+                    ) : (
+                      <>Cost ${Number(s.price || 0).toFixed(2)}</>
+                    )}
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"

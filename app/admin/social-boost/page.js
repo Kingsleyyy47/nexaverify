@@ -22,6 +22,17 @@ export default async function AdminSocialBoostPage() {
     balanceError = err instanceof SocialBoostError ? err.message : "Could not load balance.";
   }
 
+  // Needed to offer "show cost in ₦" in the catalog manager below — same
+  // pattern as /admin/products' "Show DaisySMS cost in ₦" toggle. Services'
+  // own `rate` is always in USD; converting it for display only ever uses
+  // this admin-set rate, never touches anything stored.
+  const { data: usdRateRow } = await admin
+    .from("currency_rates")
+    .select("ngn_per_unit")
+    .eq("currency", "USD")
+    .maybeSingle();
+  const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
+
   return (
     <div className="space-y-7">
       <div>
@@ -31,8 +42,9 @@ export default async function AdminSocialBoostPage() {
           from the site's own account balance there, same two-switch shape as Telegram Premium:
           "Enabled" is your own test-ordering access at /products/social-boost, always available to
           you as admin; "Let customers see it" is a second, off-by-default switch that opens the real
-          buy flow to everyone else too. There's no admin-set markup yet — customers pay exactly what
-          the panel charges, converted to Naira at your currently configured USD rate.
+          buy flow to everyone else too. Each service's markup is set in the catalog below (bulk or
+          individually) — a customer pays the panel's own cost, converted to Naira at your currently
+          configured USD rate, plus that markup.
         </p>
       </div>
 
@@ -66,7 +78,7 @@ export default async function AdminSocialBoostPage() {
           customers), or disable it — all independently of the bulk action and of the global
           "Enabled" switch above.
         </p>
-        <SocialBoostCatalogManager />
+        <SocialBoostCatalogManager usdRate={usdRate} />
       </div>
     </div>
   );

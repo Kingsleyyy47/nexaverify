@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { purchaseNumber, computeNgnPrice, cancelActivation, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { purchaseNumber, computeNgnPrice, cancelActivation, GetatextError } from "@/lib/getatext";
 
 // Buys a number via the "US Only" provider (third provider alongside
-// DaisySMS and "All countries" DaisySim — see lib/daisysimUsa.js). Same
-// pricing-safety pattern as app/api/international/buy/route.js: DaisySim
+// DaisySMS and "All countries" DaisySim — see lib/getatext.js). Same
+// pricing-safety pattern as app/api/international/buy/route.js: Getatext
 // resolves price server-side from the service code alone and ignores any
 // price sent to it, so `priceUsd` from the client (whatever
 // lib/usOnlyCatalog.js last showed them) is used ONLY as a pre-check
-// estimate. The real, authoritative USD amount is `amount_charged` in the
-// purchase response, and that — not the estimate — is what the customer is
-// actually billed in NGN.
+// estimate. The real, authoritative USD amount is `price` in the purchase
+// response, and that — not the estimate — is what the customer is actually
+// billed in NGN.
 export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -58,7 +58,7 @@ export async function POST(request) {
   const { data: profile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
 
   // Pre-check only — an estimate from whatever the client last saw, used to
-  // avoid needlessly spending DaisySim balance on an order the customer
+  // avoid needlessly spending Getatext balance on an order the customer
   // clearly can't afford. Not what they'll actually be charged.
   const estimatedPrice = computeNgnPrice(priceUsd, usdRate, config.markup_amount_ngn);
   if (!estimatedPrice || estimatedPrice <= 0) {
@@ -68,35 +68,24 @@ export async function POST(request) {
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
 
-  // DaisySim resolves the live price itself from `app` alone — no price is
-  // sent, and none would be honored if it were.
+  // Getatext resolves the live price itself from `app` (the service code)
+  // alone — no price is sent, and none would be honored if it were. Unlike
+  // the provider this replaces, Getatext doesn't hand back a machine
+  // -readable error code — just a human-readable message (see
+  // lib/getatext.js) — and that message is already customer-safe (no
+  // provider name or internal jargon), so it's shown through directly rather
+  // than mapped from a code table.
   let purchase;
   try {
-    purchase = await purchaseNumber({
-      country: "USA",
-      app: serviceCode,
-      appName: serviceName,
-      countryName: "USA",
-    });
+    purchase = await purchaseNumber({ app: serviceCode, appName: serviceName });
   } catch (err) {
-    if (err instanceof DaisySimUsaError) {
-      const messages = {
-        INSUFFICIENT_BALANCE: "This service is temporarily unavailable. Please contact support.",
-        PRICE_VERIFICATION_FAILED: "That price just expired — pick the service again.",
-        INVALID_PRICE: "That price just expired — pick the service again.",
-        OUT_OF_STOCK: "No numbers are available for this service right now.",
-        PROVIDER_DISABLED: "This service isn't available right now.",
-        RATE_LIMITED: "Too many requests — wait a moment and try again.",
-      };
-      return NextResponse.json(
-        { error: messages[err.code] || "Could not rent a number right now." },
-        { status: 502 }
-      );
+    if (err instanceof GetatextError) {
+      return NextResponse.json({ error: err.message || "Could not rent a number right now." }, { status: 502 });
     }
     throw err;
   }
 
-  // The real, final charge — what DaisySim actually debited, which may
+  // The real, final charge — what Getatext actually debited, which may
   // differ slightly from `estimatedPrice` if the live price moved between
   // the client's last fetch and this purchase.
   const customerPrice = computeNgnPrice(purchase.amountCharged, usdRate, config.markup_amount_ngn);
@@ -115,9 +104,10 @@ export async function POST(request) {
     try {
       await cancelActivation(purchase.activationId);
     } catch {
-      // best effort only — DaisySim only allows cancelling 180s+ after
-      // purchase, so this will likely fail (TOO_EARLY) immediately after a
-      // fresh purchase. Acceptable gap, same as the other providers.
+      // best effort only — Getatext's docs mention a wait (5 minutes on
+      // accounts without immediate cancellation) before a fresh rental can
+      // be cancelled, so this may well fail immediately after a purchase.
+      // Acceptable gap, same as the other providers.
     }
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
@@ -130,7 +120,7 @@ export async function POST(request) {
       daisysim_usa_activation_id: purchase.activationId,
       phone_number: purchase.phoneNumber,
       price: customerPrice, // NGN — what the customer is actually charged
-      cost_usd: purchase.amountCharged, // USD — what DaisySim actually charged us
+      cost_usd: purchase.amountCharged, // USD — what Getatext actually charged us
       country_name: "USA",
       service_code: serviceCode,
       service_name: serviceName || purchase.service,
@@ -160,7 +150,7 @@ export async function POST(request) {
     });
   } catch (err) {
     // Balance changed between our pre-check and now (e.g. concurrent
-    // purchase). Undo: best-effort cancel with DaisySim and mark cancelled.
+    // purchase). Undo: best-effort cancel with Getatext and mark cancelled.
     try {
       await cancelActivation(purchase.activationId);
     } catch {

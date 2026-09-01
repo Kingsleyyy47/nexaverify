@@ -97,7 +97,7 @@ export default function ProvidersConfigForm({ config }) {
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
       <ToggleRow
-        title="US Only (DaisySim USA)"
+        title="US Only (Getatext)"
         description="A separate USA-only numbers provider — /products/us-only, the dashboard quick-buy list, and the sidebar link. Off hides all of it from customers and blocks purchases server-side."
         detailHref="/admin/us-only"
         detailLabel="Manage markup & catalog"

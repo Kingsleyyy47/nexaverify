@@ -9,14 +9,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // DAISYSIM_WEBHOOK_SECRET in .env.example) to stop random internet traffic
 // from posting fake events. Must respond 2xx within 10s per their docs.
 //
-// This webhook is configured once per DaisySim ACCOUNT, not per product —
-// DAISYSIM_API_KEY ("All countries") and DAISYSIM_USA_API_KEY ("US Only")
-// are the same account/key, so an activation from either product can land
-// here. Activation IDs are checked against both provider's ID columns below
-// (daisysim_activation_id, then daisysim_usa_activation_id) so a "US Only"
-// code arriving through this same shared webhook still gets matched — even
-// though NexaVerify doesn't rely on it for that product (it's poll-only per
-// the server7 docs), this is a free, faster path when it does fire.
+// Only ever matches "All countries" (provider='daisysim') rentals —
+// "US Only" (provider='daisysim_usa') used to share this same DaisySim
+// account/webhook back when it was also backed by DaisySim's server7 API,
+// but it's backed by Getatext now (see lib/getatext.js), a completely
+// separate provider that would never post to this endpoint. "US Only" is
+// polling-only (see app/api/rentals/status/route.js); if Getatext ever gets
+// its own webhook wired up, it needs its own route, not this one.
 export async function POST(request) {
   const secret = request.nextUrl.searchParams.get("secret");
   if (!process.env.DAISYSIM_WEBHOOK_SECRET || secret !== process.env.DAISYSIM_WEBHOOK_SECRET) {
@@ -46,18 +45,6 @@ export async function POST(request) {
       .select("*")
       .eq("provider", "daisysim")
       .eq("daisysim_activation_id", String(activationId))
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    rental = data;
-  }
-
-  if (!rental) {
-    const { data } = await admin
-      .from("rentals")
-      .select("*")
-      .eq("provider", "daisysim_usa")
-      .eq("daisysim_usa_activation_id", String(activationId))
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

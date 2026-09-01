@@ -13,7 +13,7 @@ const RENDER_CAP = 300;
 // /api/social-boost/services — admins get every service, including ones
 // they've disabled, so they can be re-enabled here) on demand, since it
 // could be thousands of rows unlike DaisySMS's already-synced local table.
-export default function SocialBoostCatalogManager() {
+export default function SocialBoostCatalogManager({ usdRate }) {
   const router = useRouter();
   const [services, setServices] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,7 @@ export default function SocialBoostCatalogManager() {
   const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "disable" | "markup"
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showCostInNgn, setShowCostInNgn] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -174,6 +175,17 @@ export default function SocialBoostCatalogManager() {
         ))}
       </div>
 
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setShowCostInNgn((v) => !v)}
+          disabled={!usdRate}
+          title={!usdRate ? "Set a USD rate in Currency rates first" : ""}
+          className="btn-secondary btn-sm"
+        >
+          Show cost in {showCostInNgn ? "$" : "₦"}
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400" />
@@ -236,7 +248,7 @@ export default function SocialBoostCatalogManager() {
           {favoritesOpen && (
             <div className="px-4 pb-2 border-t border-amber-200 dark:border-amber-900">
               {favorites.map((s) => (
-                <SocialBoostServiceRow key={s.service} service={s} />
+                <SocialBoostServiceRow key={s.service} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} />
               ))}
             </div>
           )}
@@ -255,7 +267,7 @@ export default function SocialBoostCatalogManager() {
           {filtered.length === 0 ? "No services match." : "All matching services are favorited above."}
         </p>
       ) : (
-        capped.map((s) => <SocialBoostServiceRow key={s.service} service={s} />)
+        capped.map((s) => <SocialBoostServiceRow key={s.service} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} />)
       )}
 
       {nonFavorites.length > RENDER_CAP && (

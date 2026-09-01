@@ -411,54 +411,68 @@ through while it's off. On means everything comes back instantly — no redeploy
    as a customer (or logged out) — should show "not available" and the sidebar link should be gone.
    Flip it back on and confirm it returns immediately, no redeploy.
 
-## 17. "US Only" — a third phone-number provider
+## 17. "US Only" — a third phone-number provider (now backed by Getatext)
 
 A brand new, fully separate provider alongside DaisySMS (USA & Canada) and DaisySim "All
-countries". It uses a different API/product line on DaisySim's side (their "server7" base path,
-`https://daisysim.com/api/v1/server7`) — USA-only, flat catalog where `GET /apps/USA` already
-returns every service with its live, final price attached (no country picker, no price tiers, and
-no webhook — codes only arrive by polling `GET /check/{id}`, same as how NexaVerify already polls
-DaisySMS).
+countries". Originally backed by DaisySim's "server7" API; **as of 2026-08-31 it's backed by
+Getatext instead** (`https://getatext.com/api/v1`) — DaisySim's server7 integration has been fully
+removed. USA-only, flat catalog where `GET /prices-info` returns every service with its live,
+final price attached (no country picker, no price tiers). Polling (`POST /rental-status`) is the
+primary way codes arrive, same spirit as how NexaVerify already polls DaisySMS — a webhook is also
+wired up as a faster best-effort bonus on top of it (see `app/api/getatext/webhook/route.js`).
 
-1. What's new:
-   - `lib/daisysimUsa.js` — new provider wrapper, reads `DAISYSIM_USA_API_KEY` /
-     `DAISYSIM_USA_BASE_URL`.
+1. What's there:
+   - `lib/getatext.js` — provider wrapper, reads `GETATEXT_API_KEY` / `GETATEXT_BASE_URL`. Auth is a
+     plain `Auth: YOUR_API_KEY` header — NOT `Authorization: Bearer` like every other provider here,
+     easy to get wrong if you copy-paste from another `lib/*.js` file. Getatext has no
+     machine-readable error codes, just human-readable `errors` message strings — already
+     customer-safe, so they're shown straight through rather than mapped from a code table.
    - `public.daisysim_usa_config` (singleton, `enabled` off by default, `markup_amount_ngn`) and
-     `public.daisysim_usa_overrides` (per-service favorite/disabled, no country dimension since
-     it's USA-only) — same shape as the equivalent DaisySim "All countries" tables.
-   - `rentals.provider` now also accepts `'daisysim_usa'`, with its own
-     `rentals.daisysim_usa_activation_id` column (kept separate from `daisysim_activation_id` since
-     they're different APIs with their own ID namespaces).
+     `public.daisysim_usa_overrides` (per-service favorite/disabled, no country dimension since it's
+     USA-only) — still named `daisysim_usa_*` for historical reasons (this product used to be backed
+     by DaisySim's server7 API); purely internal, never shown to customers, not worth the migration
+     risk to rename now.
+   - `rentals.provider` still uses the value `'daisysim_usa'` for this product's rentals, with its
+     own `rentals.daisysim_usa_activation_id` column (now holding Getatext's own rental `id`, not a
+     DaisySim activation id — same column, different provider behind it).
    - Customer: `/products/us-only` (a flat tap-to-buy list, no country/tier drill-down), a matching
-     dashboard quick-buy section (shown above the USA & Canada section, per your ordering), and a
-     "US Only" sidebar link — positioned above "USA and Canada".
-   - Admin: `/admin/us-only` (enable + markup + favorites/blocks), and a fourth toggle on
-     `/admin/providers` ("US Only (DaisySim USA)").
-   - The same billing-safety pattern as "All countries": the customer is billed off DaisySim's real
-     `amount_charged` returned at purchase time, not the price they last saw on screen.
-   - The existing 3-minute no-code timeout sweep (`/api/admin/rentals/sweep-timeouts`) now handles
-     this provider too — no separate cron job needed, it's the same route, same schedule.
+     dashboard quick-buy section, and a "US Only" sidebar link.
+   - Admin: `/admin/us-only` (enable + markup + favorites/blocks), and a toggle on `/admin/providers`
+     ("US Only (Getatext)").
+   - The same billing-safety pattern as "All countries": the customer is billed off Getatext's real
+     `price` returned at purchase time, not the price they last saw on screen.
+   - The existing 3-minute no-code timeout sweep (`/api/admin/rentals/sweep-timeouts`) handles this
+     provider too — no separate cron job needed, it's the same route, same schedule. Getatext's
+     cancel-rental has no `refund` boolean and no documented distinct "too early"/"code already
+     arrived" error the way DaisySim's did — a successful cancel call is treated as full refund
+     confirmation on its own (same convention as DaisySMS), and any cancel failure just retries on
+     the next sweep run rather than being parsed for a specific code.
 2. What to run:
-   - Re-run `supabase/schema.sql` (idempotent, safe in full) — creates the two new tables, widens
-     the `rentals.provider` check constraint, and adds the new activation-id column.
-   - Add to `.env.local` and your Vercel project's env vars — same key as `DAISYSIM_API_KEY`
-     (Kingsley confirmed it's the same account/key, just a different base URL for this product
-     line):
+   - Re-run `supabase/schema.sql` (idempotent, safe in full) — no new tables needed for this switch,
+     the existing `daisysim_usa_*` tables are reused as-is.
+   - Add to `.env.local` and your Vercel project's env vars — this is a DIFFERENT account/key than
+     `DAISYSIM_API_KEY`, get it from your Getatext user profile page:
      ```
-     DAISYSIM_USA_API_KEY=DA_TJwMBMIudbkH0HXzIRKFJEppkwhq03XzP5ES7e2j
-     DAISYSIM_USA_BASE_URL=https://daisysim.com/api/v1/server7
+     GETATEXT_API_KEY=your-getatext-api-key
+     GETATEXT_BASE_URL=https://getatext.com/api/v1
+     GETATEXT_WEBHOOK_SECRET=change-me
      ```
-   - No separate webhook to register. The server7 docs only document polling, but since
-     `DAISYSIM_API_KEY` and `DAISYSIM_USA_API_KEY` are the same account, the ONE webhook already
-     configured for "All countries" (Settings -> Webhook URL in DaisySim's dashboard, pointed at
-     `/api/daisysim/webhook`) is account-wide and may push "US Only" codes through it too.
-     `app/api/daisysim/webhook/route.js` now checks both providers' activation-id columns, so this
-     is handled automatically either way — polling is still the primary path for this provider,
-     the webhook is just a free bonus if DaisySim happens to send it.
-3. Test it: go to `/admin/us-only`, turn it on, set a markup, save. Check `/products/us-only` as a
-   customer — a flat priced list should show. Buy a test number and confirm the sidebar/dashboard
-   sections both reflect it, and that `/admin/providers` toggling "US Only" off hides all of it
-   immediately.
+   - Remove `DAISYSIM_USA_API_KEY` / `DAISYSIM_USA_BASE_URL` from your env vars if you had them set
+     — they're no longer read anywhere.
+   - Paste this exact URL into your Getatext profile's webhook field, using the same
+     `GETATEXT_WEBHOOK_SECRET` value you set above:
+     ```
+     https://www.nexaverify.org/api/getatext/webhook?secret=YOUR_GETATEXT_WEBHOOK_SECRET
+     ```
+     Getatext has no separate request-signing scheme (their docs just say to secure the endpoint
+     yourself), so the secret is embedded directly in the URL you register rather than in a signature
+     header — same convention as the DaisySim/DaisySMS webhooks. This is a bonus, not a requirement:
+     polling already covers "US Only" on its own, so a missing/wrong secret here just means codes
+     arrive a few seconds slower, never that they're missed.
+3. Test it: go to `/admin/us-only`, turn it on, set a markup, save (the catalog/favorites section
+   should list Getatext's live services). Check `/products/us-only` as a customer — a flat priced
+   list should show. Buy a test number and confirm the sidebar/dashboard sections both reflect it,
+   and that `/admin/providers` toggling "US Only" off hides all of it immediately.
 
 ## 18. Telegram Premium & Stars — a FOURTH provider (iStar), opt-in customer visibility
 
@@ -623,7 +637,7 @@ currency, no webhook (this panel is poll-only; status is refreshed on demand, no
 ## What NOT to do
 
 - Don't add an `update` policy on `profiles` for the `authenticated` role, and don't hand-edit `balance` from the Table Editor in production — always go through `adjust_balance()` (either via the admin UI or by calling it from SQL Editor) so the `transactions` ledger stays accurate. Editing the column directly from the Table Editor works, but it silently breaks the audit trail.
-- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `DAISYSIM_USA_API_KEY`, `ISTAR_API_KEY`, `ISTAR_WEBHOOK_SECRET`, `SOCIAL_BOOST_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
+- Don't expose `SUPABASE_SERVICE_ROLE_KEY`, `DAISYSMS_API_KEY`, `DAISYSIM_API_KEY`, `GETATEXT_API_KEY`, `GETATEXT_WEBHOOK_SECRET`, `ISTAR_API_KEY`, `ISTAR_WEBHOOK_SECRET`, `SOCIAL_BOOST_API_KEY`, `POCKETFI_PUBLIC_KEY`, or `POCKETFI_SECRET_KEY` in any client-side code, screenshots, or support tickets — despite the name, `POCKETFI_PUBLIC_KEY` is the live Bearer token and just as sensitive as a secret key.
 - Don't refer to "DaisySim", "iStar", or the SMM panel's own name anywhere in customer-facing UI — only the admin pages may name them; customers only ever see "International Numbers"/"All countries", "Telegram Premium", and "Social Boost".
 - Don't confuse `istar_config.enabled`/`social_boost_config.enabled` with their respective `customer_visible` columns — the first is your own admin test-ordering access, the second (separate, off by default) is what actually opens the buy flow to real customers. See sections 18–19.
 - Don't show the TON/USDT wallet picker or a raw `istar_order_id` to a non-admin on `/products/telegram-premium` — `TelegramGiftBuyForm`'s `isAdminView` prop controls this; it's not a customer-facing decision or something they should see.

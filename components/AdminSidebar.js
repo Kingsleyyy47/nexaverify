@@ -23,6 +23,9 @@ const LINKS = [
   { href: "/admin/us-only", label: "US Only" },
   { href: "/admin/telegram-premium", label: "Telegram Premium" },
   { href: "/admin/social-boost", label: "Social Boost" },
+  { href: "/admin/digital-accounts/categories", label: "Categories" },
+  { href: "/admin/digital-accounts/templates", label: "Product Templates" },
+  { href: "/admin/digital-accounts/upload", label: "Bulk Account Upload" },
   { href: "/admin/pocketfi", label: "PocketFi funding" },
   { href: "/admin/onboarding", label: "Welcome popup" },
 ];

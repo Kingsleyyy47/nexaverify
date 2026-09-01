@@ -3,7 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStatus, DaisyError } from "@/lib/daisy";
 import { checkSms, DaisySimError } from "@/lib/daisysim";
-import { checkSms as checkSmsUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { checkSms as checkSmsUsa, GetatextError } from "@/lib/getatext";
 
 export async function GET(request) {
   const { user, supabase } = await getSessionProfile();
@@ -87,7 +87,7 @@ export async function GET(request) {
 
       return NextResponse.json({ rental }); // still waiting
     } catch (err) {
-      if (err instanceof DaisySimUsaError && err.code === "NOT_FOUND") {
+      if (err instanceof GetatextError && err.code === "NOT_FOUND") {
         return NextResponse.json({ rental }); // transient — just report current state
       }
       return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });

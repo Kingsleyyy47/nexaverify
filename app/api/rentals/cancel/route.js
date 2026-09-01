@@ -3,7 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelRental, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
-import { cancelActivation as cancelActivationUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
 
 export async function POST(request) {
   const { user, supabase } = await getSessionProfile();
@@ -19,15 +19,15 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  // Set below for daisysim/daisysim_usa only — their /cancel response
-  // includes an explicit `refund` boolean confirming THEIR side actually
-  // credited our master balance back, separate from the cancel itself
-  // succeeding. DaisySMS's cancelRental has no equivalent field; its single
-  // ACCESS_CANCEL response IS the full confirmation for that provider (see
-  // lib/daisy.js — anything else throws). We must not credit the customer's
-  // wallet unless the upstream provider has actually confirmed a refund,
-  // otherwise NexaVerify eats the cost of every cancel the provider quietly
-  // declines to refund.
+  // Set below for daisysim only — its /cancel response includes an explicit
+  // `refund` boolean confirming THEIR side actually credited our master
+  // balance back, separate from the cancel itself succeeding. Neither
+  // DaisySMS's cancelRental nor Getatext's cancel-rental (backing
+  // "daisysim_usa" now — see lib/getatext.js) has an equivalent field; a
+  // single successful response IS full confirmation for both of those. We
+  // must not credit the customer's wallet unless the upstream provider has
+  // actually confirmed a refund, otherwise NexaVerify eats the cost of every
+  // cancel the provider quietly declines to refund.
   let providerRefundConfirmed = true;
 
   if (rental.provider === "daisysim") {
@@ -64,35 +64,19 @@ export async function POST(request) {
       return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
     }
   } else if (rental.provider === "daisysim_usa") {
+    // "daisysim_usa" is the historical provider tag for the "US Only"
+    // product slot — it's backed by Getatext now (lib/getatext.js), not
+    // DaisySim. Getatext's cancel-rental has no `refund` boolean and no
+    // documented distinct error for "too early" or "code already arrived"
+    // the way DaisySim's did (see lib/getatext.js's header comment) — a
+    // successful call is treated as full refund confirmation on its own,
+    // and any failure just falls through to the generic message below.
     try {
       const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
       providerRefundConfirmed = Boolean(result.refund);
     } catch (err) {
-      if (err instanceof DaisySimUsaError && err.code === "TOO_EARLY") {
-        return NextResponse.json(
-          { error: "This number was just purchased — wait a couple of minutes before cancelling." },
-          { status: 400 }
-        );
-      }
-      if (err instanceof DaisySimUsaError && err.code === "CODE_RECEIVED") {
-        // Rejects the cancel but includes the code in the response body
-        // since one arrived right as we tried — surface it instead of
-        // leaving the customer with neither a cancellation nor a code.
-        const code = err.raw?.data?.code || err.raw?.code || null;
-        const { data: updated } = await admin
-          .from("rentals")
-          .update({
-            status: "received",
-            sms_code: code,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", rentalId)
-          .select()
-          .single();
-        return NextResponse.json({
-          rental: updated,
-          error: "A code arrived just as you cancelled — this number wasn't cancelled.",
-        });
+      if (err instanceof GetatextError) {
+        return NextResponse.json({ error: err.message || "Could not cancel right now" }, { status: 502 });
       }
       return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
     }

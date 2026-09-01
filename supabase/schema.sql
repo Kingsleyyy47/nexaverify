@@ -229,8 +229,12 @@ create policy "daisysim_overrides_select_all" on public.daisysim_overrides
 
 -- ============================================================================
 -- daisysim_usa_config: site-wide settings for the "US Only" provider (see
--- lib/daisysimUsa.js) — a THIRD, separate phone-number provider alongside
+-- lib/getatext.js) — a THIRD, separate phone-number provider alongside
 -- DaisySMS (USA & Canada) and the "All countries" DaisySim product above.
+-- Table/column names still say "daisysim_usa" for historical reasons (this
+-- product used to be backed by DaisySim's server7 API before switching to
+-- Getatext) — purely internal, never shown to customers, not worth the
+-- migration risk to rename.
 -- Despite the similar name this is a different API/product line on
 -- DaisySim's side (their "server7" base path, USA-only, flat catalog with
 -- prices already attached — no country picker, no price tiers). Same
@@ -1133,6 +1137,263 @@ create policy "onboarding_config_select_all" on public.onboarding_config
 
 -- No client insert/update policy on purpose — only
 -- /api/admin/onboarding/config (service role key) writes this.
+
+-- ============================================================================
+-- Digital Accounts — "Bulk Account Upload" feature. A completely separate
+-- product line from the phone-number/SMS providers above: pre-made account
+-- credentials (Discord logs, Twitter accounts, IG accounts, etc.), organized
+-- into admin-created categories -> product templates, stocked by uploading a
+-- CSV of individual accounts per template, and sold one CSV row per unit —
+-- a customer buying quantity 3 gets exactly 3 distinct, never-before-sold
+-- rows, and the template shows "out of stock" the instant available rows
+-- hit 0. See lib/digitalAccountsCsv.js for the CSV parsing/validation and
+-- app/api/digital-accounts/orders/route.js for the purchase flow.
+--
+-- digital_categories: just a name + optional description (e.g. "Discord").
+-- Not archivable/hideable itself — deleting one cascades its templates (and
+-- therefore their stock and, via template_id set null on digital_orders,
+-- unlinks but does NOT delete past orders — see digital_orders below).
+-- ============================================================================
+create table if not exists public.digital_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  description text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.digital_categories enable row level security;
+
+drop policy if exists "digital_categories_select_all" on public.digital_categories;
+create policy "digital_categories_select_all" on public.digital_categories
+  for select using (true);
+
+-- No client insert/update/delete policy on purpose — only
+-- /api/admin/digital-accounts/categories/* (service role key) writes this.
+
+-- ============================================================================
+-- digital_product_templates: one row per sellable product (e.g. "4 YEARS OLD
+-- DISCORD LOGS"), scoped to a category, with its own flat NGN price and
+-- description — the price/description live here, NOT per stock unit, so
+-- editing them never touches already-uploaded (or already-sold) stock rows.
+--   favorite: pins it to the top, same semantics as every other catalog's
+--     favorite flag in this schema.
+--   archived: an admin's "take this off sale" switch, independent of stock
+--     count — customers never see an archived template and can't buy it even
+--     if it still has stock; unlike running out of stock (which is
+--     temporary/self-healing on re-upload), archiving is a deliberate choice.
+-- Selecting is public/select-all (like every catalog table here) since the
+-- name/price/description aren't sensitive — the actual account credentials
+-- live in digital_stock_items below, which is NOT publicly selectable.
+-- ============================================================================
+create table if not exists public.digital_product_templates (
+  id uuid primary key default gen_random_uuid(),
+  category_id uuid not null references public.digital_categories(id) on delete cascade,
+  name text not null,
+  price_ngn numeric(12,2) not null check (price_ngn >= 0),
+  description text,
+  favorite boolean not null default false,
+  archived boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists digital_product_templates_category_idx on public.digital_product_templates(category_id);
+
+alter table public.digital_product_templates enable row level security;
+
+drop policy if exists "digital_product_templates_select_all" on public.digital_product_templates;
+create policy "digital_product_templates_select_all" on public.digital_product_templates
+  for select using (true);
+
+-- No client insert/update/delete policy on purpose — only
+-- /api/admin/digital-accounts/templates/* (service role key) writes this.
+
+-- ============================================================================
+-- digital_orders: one row per purchase (a customer buying quantity 3 of a
+-- template is ONE order row, not three) — see
+-- app/api/digital-accounts/orders/route.js and public.purchase_digital_product
+-- below, which is the only thing that ever inserts here.
+--   template_name / category_name: denormalized snapshots taken at purchase
+--     time, same reasoning as social_boost_orders.service_name — so a past
+--     order's Order Details page still shows the right product name even if
+--     the admin later renames/deletes the template or category (template_id
+--     goes null via ON DELETE SET NULL rather than deleting order history).
+--   unit_price_ngn / total_ngn: what was actually charged, frozen at
+--     purchase time — never recomputed if the template's price later changes.
+-- RLS: select_own, same as rentals/telegram_gift_orders/social_boost_orders —
+-- a customer can only ever see their own order rows (which is how the Order
+-- Details page authorizes itself). No select policy at all on the actual
+-- credentials (digital_stock_items) — the Order Details route additionally
+-- re-checks ownership server-side with the service role key before ever
+-- reading a credential row, rather than relying on RLS for that part.
+-- ============================================================================
+create table if not exists public.digital_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  template_id uuid references public.digital_product_templates(id) on delete set null,
+  template_name text not null,
+  category_name text,
+  quantity integer not null check (quantity > 0),
+  unit_price_ngn numeric(12,2) not null,
+  total_ngn numeric(12,2) not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists digital_orders_user_id_idx on public.digital_orders(user_id);
+
+alter table public.digital_orders enable row level security;
+
+drop policy if exists "digital_orders_select_own" on public.digital_orders;
+create policy "digital_orders_select_own" on public.digital_orders
+  for select using (auth.uid() = user_id);
+
+-- No client insert/update policy on purpose — only
+-- public.purchase_digital_product() (called with the service role key from
+-- app/api/digital-accounts/orders) ever writes this.
+
+-- ============================================================================
+-- digital_stock_items: the actual inventory — ONE row per account credential
+-- set, uploaded via CSV to a specific template (see
+-- app/api/admin/digital-accounts/templates/[id]/upload). This is the ONLY
+-- place account credentials are stored, and it deliberately has NO select
+-- policy at all (not even select_own) — every read of this table, by an
+-- admin or by a customer viewing their own Order Details page, goes through
+-- a Route Handler using the service role key that does its own explicit
+-- authorization check, rather than relying on a row-level policy to get this
+-- exactly right for such sensitive data.
+--   status: 'available' until sold. A template's live stock count shown to
+--     customers is just count(status='available') for that template_id —
+--     hits 0 the instant the last row is claimed, which is also exactly when
+--     a purchase for it should start being rejected/greyed out as "Out of
+--     stock".
+--   order_id / sold_at: set atomically by public.purchase_digital_product()
+--     below the moment a row is claimed for a purchase — never set any other
+--     way, so a row's sold state and the order that consumed it can never
+--     drift apart.
+--   Only `password` is NOT NULL — every other credential field is optional,
+--     matching the CSV upload's own required/optional column split (password
+--     required; email OR username required — enforced at upload time in
+--     lib/digitalAccountsCsv.js, not by a DB constraint, since "at least one
+--     of two columns" isn't expressible as a simple NOT NULL).
+-- ============================================================================
+create table if not exists public.digital_stock_items (
+  id uuid primary key default gen_random_uuid(),
+  template_id uuid not null references public.digital_product_templates(id) on delete cascade,
+  username text,
+  email text,
+  password text not null,
+  email_password text,
+  two_fa text,
+  recovery_email text,
+  recovery_email_password text,
+  status text not null default 'available' check (status in ('available', 'sold')),
+  order_id uuid references public.digital_orders(id) on delete set null,
+  sold_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists digital_stock_items_template_status_idx
+  on public.digital_stock_items(template_id, status);
+create index if not exists digital_stock_items_order_id_idx on public.digital_stock_items(order_id);
+
+alter table public.digital_stock_items enable row level security;
+
+-- No select/insert/update/delete policy at all, deliberately — see the big
+-- comment above. Every access goes through a Route Handler with the service
+-- role key that authorizes itself explicitly.
+
+-- ============================================================================
+-- purchase_digital_product(): the ONLY way a digital account purchase ever
+-- happens. Does everything in one atomic transaction so nothing can ever
+-- half-happen:
+--   1. Locks the template row, rejects if missing/archived.
+--   2. Locks + claims exactly p_quantity 'available' stock rows for that
+--      template (FOR UPDATE SKIP LOCKED — so two concurrent purchases of the
+--      same template can never claim the same row twice). If fewer than
+--      p_quantity rows are actually available, raises and rolls back
+--      EVERYTHING below (no order row, no debit, no rows marked sold) — this
+--      is the out-of-stock/oversell guard.
+--   3. Inserts the digital_orders row (with denormalized name snapshots).
+--   4. Marks the claimed stock rows sold, tied to that order.
+--   5. Debits the buyer's wallet via adjust_balance() — which itself raises
+--      (rolling back everything above too) if the balance would go negative,
+--      so an unaffordable purchase never claims stock or creates an order
+--      either.
+-- Locked down to service_role only, same as adjust_balance() itself — see
+-- app/api/digital-accounts/orders/route.js for the one caller.
+-- ============================================================================
+create or replace function public.purchase_digital_product(
+  p_user_id uuid,
+  p_template_id uuid,
+  p_quantity integer
+)
+returns public.digital_orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_template record;
+  v_total numeric(12,2);
+  v_order public.digital_orders;
+  v_ids uuid[];
+begin
+  if p_quantity is null or p_quantity <= 0 then
+    raise exception 'Quantity must be at least 1' using errcode = 'P0001';
+  end if;
+
+  select * into v_template
+    from public.digital_product_templates
+   where id = p_template_id
+   for update;
+
+  if not found or v_template.archived then
+    raise exception 'This product is no longer available' using errcode = 'P0001';
+  end if;
+
+  v_total := round(v_template.price_ngn * p_quantity, 2);
+
+  select array_agg(id) into v_ids
+    from (
+      select id from public.digital_stock_items
+       where template_id = p_template_id and status = 'available'
+       order by created_at
+       limit p_quantity
+       for update skip locked
+    ) s;
+
+  if v_ids is null or array_length(v_ids, 1) is distinct from p_quantity then
+    raise exception 'Only % of the % requested unit(s) are in stock', coalesce(array_length(v_ids, 1), 0), p_quantity
+      using errcode = 'P0001';
+  end if;
+
+  insert into public.digital_orders (user_id, template_id, template_name, category_name, quantity, unit_price_ngn, total_ngn)
+  select p_user_id, v_template.id, v_template.name, c.name, p_quantity, v_template.price_ngn, v_total
+    from public.digital_categories c
+   where c.id = v_template.category_id
+  returning * into v_order;
+
+  update public.digital_stock_items
+     set status = 'sold', order_id = v_order.id, sold_at = now()
+   where id = any(v_ids);
+
+  perform public.adjust_balance(
+    p_user_id,
+    -v_total,
+    'purchase',
+    v_order.id,
+    format('Digital account: %sx %s', p_quantity, v_template.name),
+    null
+  );
+
+  return v_order;
+end;
+$$;
+
+revoke execute on function public.purchase_digital_product(uuid, uuid, integer) from public;
+revoke execute on function public.purchase_digital_product(uuid, uuid, integer) from anon;
+revoke execute on function public.purchase_digital_product(uuid, uuid, integer) from authenticated;
+grant execute on function public.purchase_digital_product(uuid, uuid, integer) to service_role;
 
 -- ============================================================================
 -- One-time: promote yourself to admin after your first signup.

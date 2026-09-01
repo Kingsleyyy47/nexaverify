@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
-import { cancelActivation as cancelActivationUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
 import { RENTAL_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 
 // Kingsley's rule: any rental (any provider) that's gone
@@ -126,14 +126,16 @@ async function processExpiredRental(admin, rental, results) {
   const isDaisySimUsa = rental.provider === "daisysim_usa";
   const now = new Date().toISOString();
 
-  // Set below for daisysim/daisysim_usa only — see the matching comment in
-  // app/api/rentals/cancel/route.js. Their /cancel response includes an
+  // Set below for daisysim only — see the matching comment in
+  // app/api/rentals/cancel/route.js. Its /cancel response includes an
   // explicit `refund` boolean confirming the provider's own side actually
-  // credited our master balance back; DaisySMS's cancelRental has no
-  // equivalent field, so its ACCESS_CANCEL response IS full confirmation
-  // for that provider. `alreadyGone` below (provider has no record of the
-  // rental at all) has no response to check either — treated as confirmed
-  // since there's genuinely nothing more to verify against.
+  // credited our master balance back. Neither DaisySMS's cancelRental nor
+  // Getatext's cancel-rental (backing "daisysim_usa" now — see
+  // lib/getatext.js) has an equivalent field, so a single successful
+  // response IS full confirmation for both of those. `alreadyGone` below
+  // (provider has no record of the rental at all) has no response to check
+  // either — treated as confirmed since there's genuinely nothing more to
+  // verify against.
   let providerRefundConfirmed = true;
 
   try {
@@ -147,15 +149,18 @@ async function processExpiredRental(admin, rental, results) {
       await cancelRental(rental.daisy_id);
     }
   } catch (err) {
-    // A code arrived at the exact moment we tried to cancel — all three
-    // providers reject the cancel in this case. Surface the code instead of
-    // leaving the customer with neither a working number nor a refund.
-    // Guarded by `.eq("status", "waiting")` so this can't clobber a rental
-    // someone else (e.g. a concurrent manual cancel) already moved on from.
-    if (
-      ((isDaisySim && err instanceof DaisySimError) || (isDaisySimUsa && err instanceof DaisySimUsaError)) &&
-      err.code === "CODE_RECEIVED"
-    ) {
+    // A code arrived at the exact moment we tried to cancel — DaisySim and
+    // DaisySMS both reject the cancel in this case and hand back (or let us
+    // separately fetch) the code, so it's surfaced instead of leaving the
+    // customer with neither a working number nor a refund. Getatext doesn't
+    // document an equivalent distinct error for this — a real "code arrived
+    // right as we cancelled" race there just falls through to the generic
+    // failure branch below and retries on the next sweep run, by which point
+    // the customer's own status poll will typically have already caught the
+    // code anyway. Guarded by `.eq("status", "waiting")` so this can't
+    // clobber a rental someone else (e.g. a concurrent manual cancel)
+    // already moved on from.
+    if (isDaisySim && err instanceof DaisySimError && err.code === "CODE_RECEIVED") {
       const code = err.raw?.data?.code || err.raw?.code || null;
       await admin
         .from("rentals")
@@ -190,7 +195,7 @@ async function processExpiredRental(admin, rental, results) {
     // Treat exactly like a successful cancel rather than an error.
     const alreadyGone =
       (isDaisySim && err instanceof DaisySimError && err.code === "NOT_FOUND") ||
-      (isDaisySimUsa && err instanceof DaisySimUsaError && err.code === "NOT_FOUND") ||
+      (isDaisySimUsa && err instanceof GetatextError && err.code === "NOT_FOUND") ||
       (!isDaisySim && !isDaisySimUsa && err instanceof DaisyError && err.code === "NO_ACTIVATION");
 
     if (!alreadyGone) {

@@ -6,7 +6,7 @@ import ToggleSwitch from "./ToggleSwitch";
 
 // One row in the /admin/social-boost catalog manager. `service` already has
 // enabled/favorite/markupNgn merged in by /api/social-boost/services.
-export default function SocialBoostServiceRow({ service }) {
+export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn }) {
   const [enabled, setEnabled] = useState(service.enabled);
   const [favorite, setFavorite] = useState(service.favorite);
   const [markup, setMarkup] = useState(service.markupNgn ?? 0);
@@ -102,7 +102,11 @@ export default function SocialBoostServiceRow({ service }) {
         </div>
       </div>
 
-      <div className="text-sm text-gray-500 dark:text-night-300">${service.rate}/1000</div>
+      <div className="text-sm text-gray-500 dark:text-night-300">
+        {showCostInNgn && usdRate
+          ? `₦${(Number(service.rate) * usdRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}/1000`
+          : `$${service.rate}/1000`}
+      </div>
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1 min-w-0">

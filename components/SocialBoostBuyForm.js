@@ -23,9 +23,10 @@ const SEARCH_INPUT_CLASS =
 // than a single search-everything dropdown — the panel's catalog can run
 // into the thousands, so picking a platform narrows it down before a search
 // box narrows it further. Picking a specific service then reveals the order
-// form (link/quantity/runs/interval) for just that one.
+// form (link, quantity, and a live total-cost preview) for just that one —
+// deliberately no runs/interval fields, per the business owner's request.
 export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) {
-  const { format } = useCurrency();
+  const { format, rateMap } = useCurrency();
   const [services, setServices] = useState(null);
   const [servicesError, setServicesError] = useState("");
   const [loadingServices, setLoadingServices] = useState(true);
@@ -34,8 +35,6 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
   const [selectedId, setSelectedId] = useState(null);
   const [link, setLink] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [runs, setRuns] = useState("");
-  const [interval, setIntervalMinutes] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const [orders, setOrders] = useState(initialOrders);
@@ -81,6 +80,20 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
     [services, selectedId]
   );
 
+  // Mirrors the exact server-side formula in app/api/social-boost/orders —
+  // rate is USD per 1000 units, converted to NGN at the same admin-set USD
+  // rate used everywhere else in the app, plus this service's own flat
+  // markup override. Purely a live preview; the actual charge is always
+  // recomputed server-side at purchase time.
+  const usdRate = rateMap?.USD;
+  const estimatedTotalNgn = useMemo(() => {
+    const qty = Number(quantity);
+    if (!selectedService || !usdRate || !Number.isFinite(qty) || qty <= 0) return null;
+    const costUsd = (Number(selectedService.rate) / 1000) * qty;
+    const markupNgn = Number(selectedService.markupNgn || 0);
+    return Math.max(0, Math.round((costUsd * usdRate + markupNgn) * 100) / 100);
+  }, [selectedService, quantity, usdRate]);
+
   function selectService(service) {
     setSelectedId(service.service);
     setQuantity("");
@@ -103,8 +116,6 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
           serviceId: selectedService.service,
           link,
           quantity: Number(quantity),
-          runs: runs || undefined,
-          interval: interval || undefined,
         }),
       });
       const data = await res.json();
@@ -112,8 +123,6 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
       setOrders((prev) => [data.order, ...prev]);
       setLink("");
       setQuantity("");
-      setRuns("");
-      setIntervalMinutes("");
       setSelectedId(null);
     } catch (err) {
       setError(err.message);
@@ -169,9 +178,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
             <h3 className="font-bold text-[15px] mb-1">{selectedService.name}</h3>
             <div className="text-xs text-gray-500 dark:text-night-300 bg-gray-50 dark:bg-night-800 rounded-lg p-2.5 mb-4">
-              Min {selectedService.min} · Max {selectedService.max} · ${selectedService.rate} per 1000 ·{" "}
-              {selectedService.refill ? "Refill available" : "No refill"} ·{" "}
-              {selectedService.cancel ? "Cancellable" : "Not cancellable"}
+              Min {selectedService.min} · Max {selectedService.max} per order
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -187,38 +194,24 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 dark:text-night-300 block mb-1">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    min={selectedService.min || 1}
-                    max={selectedService.max || undefined}
-                    className={INPUT_CLASS}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 dark:text-night-300 block mb-1">
-                    Runs (optional)
-                  </label>
-                  <input type="number" value={runs} onChange={(e) => setRuns(e.target.value)} className={INPUT_CLASS} />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 dark:text-night-300 block mb-1">
-                    Interval, mins (optional)
-                  </label>
-                  <input
-                    type="number"
-                    value={interval}
-                    onChange={(e) => setIntervalMinutes(e.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-night-300 block mb-1">Quantity</label>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  min={selectedService.min || 1}
+                  max={selectedService.max || undefined}
+                  className={INPUT_CLASS}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-night-800 px-3.5 py-2.5">
+                <span className="text-xs font-semibold text-gray-500 dark:text-night-300">Total cost</span>
+                <span className="font-bold text-sm">
+                  {estimatedTotalNgn != null ? format(estimatedTotalNgn) : "—"}
+                </span>
               </div>
 
               {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
