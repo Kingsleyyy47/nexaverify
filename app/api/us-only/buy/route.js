@@ -35,15 +35,19 @@ export async function POST(request) {
   // Re-check the admin's per-service block list server-side (see
   // /admin/us-only -> UsOnlyOverridesManager, public.daisysim_usa_overrides)
   // — never trust that the client only ever showed services that weren't
-  // disabled, same principle as re-validating price/balance below.
+  // disabled, same principle as re-validating price/balance below. Also
+  // carries this service's own markup override, if an admin has set one —
+  // see the big comment on daisysim_usa_overrides.markup_ngn in schema.sql.
   const { data: override } = await admin
     .from("daisysim_usa_overrides")
-    .select("disabled")
+    .select("disabled, markup_ngn")
     .eq("service_code", serviceCode)
     .maybeSingle();
   if (override?.disabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
+
+  const effectiveMarkupNgn = override?.markup_ngn != null ? Number(override.markup_ngn) : Number(config.markup_amount_ngn || 0);
 
   const { data: usdRateRow } = await admin
     .from("currency_rates")
@@ -60,7 +64,7 @@ export async function POST(request) {
   // Pre-check only — an estimate from whatever the client last saw, used to
   // avoid needlessly spending Getatext balance on an order the customer
   // clearly can't afford. Not what they'll actually be charged.
-  const estimatedPrice = computeNgnPrice(priceUsd, usdRate, config.markup_amount_ngn);
+  const estimatedPrice = computeNgnPrice(priceUsd, usdRate, effectiveMarkupNgn);
   if (!estimatedPrice || estimatedPrice <= 0) {
     return NextResponse.json({ error: "Could not price this number — try again." }, { status: 400 });
   }
@@ -88,7 +92,7 @@ export async function POST(request) {
   // The real, final charge — what Getatext actually debited, which may
   // differ slightly from `estimatedPrice` if the live price moved between
   // the client's last fetch and this purchase.
-  const customerPrice = computeNgnPrice(purchase.amountCharged, usdRate, config.markup_amount_ngn);
+  const customerPrice = computeNgnPrice(purchase.amountCharged, usdRate, effectiveMarkupNgn);
 
   if (!customerPrice || customerPrice <= 0) {
     try {

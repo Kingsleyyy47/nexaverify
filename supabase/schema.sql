@@ -283,6 +283,21 @@ create table if not exists public.daisysim_usa_overrides (
   updated_at timestamptz not null default now()
 );
 
+-- Per-service markup override (see app/admin/us-only ->
+-- UsOnlyOverridesManager, rebuilt to mirror /admin/products' per-product
+-- price control). NULL (the default — no backfill needed) means "no
+-- per-service override yet, keep inheriting daisysim_usa_config's single
+-- global markup_amount_ngn" — this is what every existing service was
+-- already effectively priced at before this column existed, so adding it
+-- doesn't change anyone's live price until an admin explicitly sets one.
+-- Once set (even to the same number the global default already was), that
+-- service's price is computed from THIS value instead, independently of the
+-- global default from then on. Both lib/usOnlyCatalog.js (customer-facing
+-- price) and app/api/us-only/buy/route.js (the actual charge) resolve
+-- effective markup the same way: override.markup_ngn ?? config's global
+-- markup_amount_ngn.
+alter table public.daisysim_usa_overrides add column if not exists markup_ngn numeric(12,2);
+
 alter table public.daisysim_usa_overrides enable row level security;
 
 drop policy if exists "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrides;

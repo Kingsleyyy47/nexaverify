@@ -57,13 +57,16 @@ export default async function AdminUsOnlyPage() {
       </div>
 
       <div className="card card-pad">
-        <h3 className="font-bold text-[15px] mb-1">Catalog — favorites &amp; blocks</h3>
+        <h3 className="font-bold text-[15px] mb-1">Catalog — markup, favorites &amp; enable/disable</h3>
         <p className="text-sm text-gray-400 dark:text-night-400 mb-4 max-w-2xl">
-          Prices are live and set by the provider, so they can't be manually overridden here. What
-          you can do: pin specific services as favorites (they show pinned at the top of the
-          customer's list), disable specific services so customers can't buy them (without touching
-          the global on/off switch above), or toggle the cost display to Naira to see roughly what
-          each service will cost a customer with your current markup applied.
+          Getatext's own cost is live, but the markup on top of it is fully yours to set — per
+          service. Set a markup amount and click "Markup" to apply it to every service currently
+          shown (search narrows that down first); it replaces whatever was in effect before
+          (including the global default set above), so running it again with a new number updates
+          all of them at once. Afterward, tweak any individual service's markup, favorite it (pins it
+          to the top of the customer's list), or disable it — all independently of the bulk action
+          and of the global "Enabled" switch above. Any service left untouched keeps using the
+          global default markup from Settings.
         </p>
         {servicesError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{servicesError}</p>

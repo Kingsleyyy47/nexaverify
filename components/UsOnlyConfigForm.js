@@ -74,7 +74,7 @@ export default function UsOnlyConfigForm({ config }) {
       </div>
 
       <div>
-        <label className="font-bold text-sm block mb-2">Markup (₦ added per number)</label>
+        <label className="font-bold text-sm block mb-2">Default markup (₦ added per number)</label>
         <input
           type="number"
           min="0"
@@ -86,7 +86,9 @@ export default function UsOnlyConfigForm({ config }) {
         />
         <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
           Prices come back in USD. This flat Naira amount is added on top of the USD-to-NGN
-          converted price before it's shown to customers or charged to their wallet.
+          converted price — but only for services that don't have their own markup set in the
+          catalog below. Any service with its own markup uses that instead, independent of this
+          default.
         </p>
       </div>
 
