@@ -369,7 +369,7 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-sm">{m} months</span>
                   <span className="text-xs text-gray-400 dark:text-night-400">
-                    {live ? `Cost now: ₦${live.costNgn.toLocaleString()}` : "Cost unavailable"}
+                    {live ? `Cost now: ₦${live.costNgn.toLocaleString("en-US")}` : "Cost unavailable"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -385,7 +385,7 @@ export default function TelegramPremiumConfigForm({ config, livePricing = {} }) 
                   />
                   {live && (
                     <span className="text-sm font-bold text-brand-700 dark:text-brand-400 shrink-0">
-                      = ₦{(live.costNgn + Number(markups[m] || 0)).toLocaleString()}
+                      = ₦{(live.costNgn + Number(markups[m] || 0)).toLocaleString("en-US")}
                     </span>
                   )}
                 </div>

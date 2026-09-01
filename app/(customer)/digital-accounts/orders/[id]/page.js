@@ -58,11 +58,11 @@ export default async function DigitalOrderDetailsPage({ params }) {
         </div>
         <div className="rounded-xl bg-gray-50 dark:bg-night-800 px-4 py-3">
           <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">Total</div>
-          <div className="font-bold">₦{Number(order.total_ngn).toLocaleString()}</div>
+          <div className="font-bold">₦{Number(order.total_ngn).toLocaleString("en-US")}</div>
         </div>
         <div className="rounded-xl bg-gray-50 dark:bg-night-800 px-4 py-3">
           <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">Date</div>
-          <div className="font-bold">{new Date(order.created_at).toLocaleDateString()}</div>
+          <div className="font-bold">{new Date(order.created_at).toLocaleDateString("en-US")}</div>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export default async function DigitalOrderDetailsPage({ params }) {
       <CredentialsList items={items} />
 
       <p className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-night-500 mt-5">
-        Purchased on {new Date(order.created_at).toLocaleDateString()}. Keep these credentials private
+        Purchased on {new Date(order.created_at).toLocaleDateString("en-US")}. Keep these credentials private
         and update security details after login.
       </p>
     </div>

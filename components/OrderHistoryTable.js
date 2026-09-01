@@ -41,7 +41,7 @@ export default function OrderHistoryTable({ orders, emptyMessage = "No orders ye
               </td>
               <td className="py-3.5 font-mono text-gray-500 dark:text-night-400">{o.phone_number}</td>
               <td className="py-3.5 text-gray-400 dark:text-night-400">
-                {new Date(o.created_at).toLocaleString()}
+                {new Date(o.created_at).toLocaleString("en-US")}
               </td>
               <td className="py-3.5">
                 <span className={`badge ${STATUS_BADGE[o.status] || "badge-neutral"}`}>{o.status}</span>

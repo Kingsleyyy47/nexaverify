@@ -299,8 +299,8 @@ export default function SocialBoostCatalogManager({ usdRate }) {
 
       <ConfirmDialog
         open={pendingAction === "markup"}
-        title={`Set markup to ₦${markupValue.toLocaleString()} for all matching services?`}
-        message={`This sets a flat ₦${markupValue.toLocaleString()} markup (added once per order) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`}
+        title={`Set markup to ₦${markupValue.toLocaleString("en-US")} for all matching services?`}
+        message={`This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added once per order) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`}
         confirmLabel="Yes, apply it"
         cancelLabel="Cancel"
         onConfirm={handleApplyMarkup}

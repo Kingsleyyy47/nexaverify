@@ -160,7 +160,7 @@ export default function DigitalAccountsBrowser() {
                 {t.description && (
                   <p className="text-xs text-gray-400 dark:text-night-400 mb-3 flex-1">{t.description}</p>
                 )}
-                <div className="text-lg font-bold mb-3">₦{Number(t.price_ngn).toLocaleString()}</div>
+                <div className="text-lg font-bold mb-3">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
 
                 {outOfStock ? (
                   <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">

@@ -86,13 +86,13 @@ export default async function AdminNumberHistoryPage({ searchParams }) {
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching purchases" : "Total purchases"}
           </div>
-          <div className="text-2xl font-bold">{(count || 0).toLocaleString()}</div>
+          <div className="text-2xl font-bold">{(count || 0).toLocaleString("en-US")}</div>
         </div>
         <div className="card card-pad">
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching revenue" : "Total revenue"}
           </div>
-          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString()}</div>
+          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString("en-US")}</div>
         </div>
       </div>
 
@@ -140,13 +140,13 @@ export default async function AdminNumberHistoryPage({ searchParams }) {
                       {PROVIDER_LABELS[r.provider] || r.provider}
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                      ₦{Number(r.price).toLocaleString()}
+                      ₦{Number(r.price).toLocaleString("en-US")}
                     </td>
                     <td className="py-2.5 pr-3">
                       <span className={`badge ${STATUS_BADGE[r.status] || "badge-neutral"}`}>{r.status}</span>
                     </td>
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(r.created_at).toLocaleString()}
+                      {new Date(r.created_at).toLocaleString("en-US")}
                     </td>
                   </tr>
                 );

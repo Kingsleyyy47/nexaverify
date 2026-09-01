@@ -62,9 +62,9 @@ export default function UsersList({ users }) {
                       {u.role}
                     </span>
                   </td>
-                  <td className="py-3.5 font-semibold">₦{Number(u.balance).toLocaleString()}</td>
+                  <td className="py-3.5 font-semibold">₦{Number(u.balance).toLocaleString("en-US")}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">
-                    {new Date(u.created_at).toLocaleDateString()}
+                    {new Date(u.created_at).toLocaleDateString("en-US")}
                   </td>
                   <td className="py-3.5">
                     <Link href={`/admin/users/${u.id}`} className="btn-ghost btn-sm">

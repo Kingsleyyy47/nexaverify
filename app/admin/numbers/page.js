@@ -63,11 +63,11 @@ export default async function AdminNumbersPage() {
                   <td className="py-3.5 capitalize">{r.status}</td>
                   <td className="py-3.5 font-mono">{r.sms_code || "—"}</td>
                   <td className="py-3.5 text-gray-500 dark:text-night-400">
-                    {r.paid_until ? new Date(r.paid_until).toLocaleDateString() : "—"}
+                    {r.paid_until ? new Date(r.paid_until).toLocaleDateString("en-US") : "—"}
                   </td>
                   <td className="py-3.5">{r.auto_renew ? "On" : "Off"}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">
-                    {new Date(r.created_at).toLocaleDateString()}
+                    {new Date(r.created_at).toLocaleDateString("en-US")}
                   </td>
                 </tr>
               ))}

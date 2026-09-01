@@ -104,7 +104,7 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
 
       <div className="text-sm text-gray-500 dark:text-night-300">
         {showCostInNgn && usdRate
-          ? `₦${(Number(service.rate) * usdRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}/1000`
+          ? `₦${(Number(service.rate) * usdRate).toLocaleString("en-US", { maximumFractionDigits: 2 })}/1000`
           : `$${service.rate}/1000`}
       </div>
 

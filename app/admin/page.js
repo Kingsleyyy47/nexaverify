@@ -29,7 +29,7 @@ export default async function AdminOverviewPage() {
         </div>
         <div className="card card-pad">
           <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">Total wallet balances held</div>
-          <div className="text-3xl font-bold">₦{totalBalance.toLocaleString()}</div>
+          <div className="text-3xl font-bold">₦{totalBalance.toLocaleString("en-US")}</div>
         </div>
         <div className="card card-pad">
           <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">Enabled services</div>

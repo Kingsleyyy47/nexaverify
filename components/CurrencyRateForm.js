@@ -99,11 +99,11 @@ export default function CurrencyRateForm({ rates }) {
             {isLive ? (
               <div className="rounded-lg border border-gray-200 dark:border-night-600 bg-gray-50 dark:bg-night-950 px-3.5 py-2.5 text-sm">
                 <span className="font-semibold">
-                  {r.autoNgnPerUnit ? `₦${Number(r.autoNgnPerUnit).toLocaleString()}` : "Not fetched yet"}
+                  {r.autoNgnPerUnit ? `₦${Number(r.autoNgnPerUnit).toLocaleString("en-US")}` : "Not fetched yet"}
                 </span>
                 <span className="text-gray-400 dark:text-night-400 ml-2">
                   {r.autoNgnPerUnit
-                    ? `Last refreshed ${new Date(r.updatedAt).toLocaleString()}`
+                    ? `Last refreshed ${new Date(r.updatedAt).toLocaleString("en-US")}`
                     : 'Click "Refresh live rates" above'}
                 </span>
               </div>

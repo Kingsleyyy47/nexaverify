@@ -114,8 +114,8 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
                   <span className="text-xs text-gray-400 dark:text-night-400">
                     {showCostInNgn && usdRate ? (
                       <>
-                        Cost ₦{(Number(s.price || 0) * usdRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        {" · "}Customer pays ₦{computeNgnPrice(s.price).toLocaleString()}
+                        Cost ₦{(Number(s.price || 0) * usdRate).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                        {" · "}Customer pays ₦{computeNgnPrice(s.price).toLocaleString("en-US")}
                       </>
                     ) : (
                       <>Cost ${Number(s.price || 0).toFixed(2)}</>

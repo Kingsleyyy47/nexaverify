@@ -26,7 +26,7 @@ export default function AdjustBalanceForm({ userId }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Adjustment failed");
 
-      setSuccess(`New balance: ₦${Number(data.balance).toLocaleString()}`);
+      setSuccess(`New balance: ₦${Number(data.balance).toLocaleString("en-US")}`);
       setAmount("");
       setNote("");
       router.refresh();

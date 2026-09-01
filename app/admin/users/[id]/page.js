@@ -29,7 +29,7 @@ export default async function AdminUserDetailPage({ params }) {
         <h1 className="text-2xl font-bold">{user.username || user.email}</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
           {user.username ? `${user.email} · ` : ""}Role: {user.role} · Joined{" "}
-          {new Date(user.created_at).toLocaleDateString()}
+          {new Date(user.created_at).toLocaleDateString("en-US")}
         </p>
       </div>
 
@@ -38,7 +38,7 @@ export default async function AdminUserDetailPage({ params }) {
           <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
             Current balance
           </div>
-          <div className="text-3xl font-bold mb-5">₦{Number(user.balance).toLocaleString()}</div>
+          <div className="text-3xl font-bold mb-5">₦{Number(user.balance).toLocaleString("en-US")}</div>
           <AdjustBalanceForm userId={user.id} />
         </div>
 
@@ -96,17 +96,17 @@ export default async function AdminUserDetailPage({ params }) {
                   <td className="py-3.5 capitalize">{t.type.replace("_", " ")}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">{t.note || "—"}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">
-                    {new Date(t.created_at).toLocaleString()}
+                    {new Date(t.created_at).toLocaleString("en-US")}
                   </td>
                   <td
                     className={`py-3.5 text-right font-semibold ${
                       t.amount >= 0 ? "text-brand-600 dark:text-brand-400" : "text-red-500 dark:text-red-400"
                     }`}
                   >
-                    {t.amount >= 0 ? "+" : ""}₦{Number(t.amount).toLocaleString()}
+                    {t.amount >= 0 ? "+" : ""}₦{Number(t.amount).toLocaleString("en-US")}
                   </td>
                   <td className="py-3.5 text-right text-gray-500 dark:text-night-400">
-                    ₦{Number(t.balance_after).toLocaleString()}
+                    ₦{Number(t.balance_after).toLocaleString("en-US")}
                   </td>
                 </tr>
               ))}
@@ -143,7 +143,7 @@ export default async function AdminUserDetailPage({ params }) {
                   <td className="py-3.5">{r.service_id}</td>
                   <td className="py-3.5 capitalize">{r.status}</td>
                   <td className="py-3.5">{r.is_long_term ? "Yes" : "No"}</td>
-                  <td className="py-3.5 text-right">₦{Number(r.price).toLocaleString()}</td>
+                  <td className="py-3.5 text-right">₦{Number(r.price).toLocaleString("en-US")}</td>
                   <td className="py-3.5 text-right text-gray-400 dark:text-night-400">
                     {r.cost_usd != null ? `$${Number(r.cost_usd).toFixed(2)}` : "—"}
                   </td>

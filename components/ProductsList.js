@@ -271,11 +271,11 @@ export default function ProductsList({ services, usdRate }) {
 
       <ConfirmDialog
         open={pendingAction === "markup"}
-        title={`Set price to DaisySMS cost + ₦${markupValue.toLocaleString()} margin?`}
+        title={`Set price to DaisySMS cost + ₦${markupValue.toLocaleString("en-US")} margin?`}
         message={
           (query
-            ? `This recalculates the customer price of all ${filtered.length} product(s) currently shown for "${query}" as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString()} margin — replacing whatever price was set before, not adding on top of it.`
-            : `This recalculates the customer price of all ${filtered.length} products in the catalog as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString()} margin — replacing whatever price was set before, not adding on top of it.`) +
+            ? `This recalculates the customer price of all ${filtered.length} product(s) currently shown for "${query}" as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString("en-US")} margin — replacing whatever price was set before, not adding on top of it.`
+            : `This recalculates the customer price of all ${filtered.length} products in the catalog as DaisySMS's cost (converted to ₦) plus a ₦${markupValue.toLocaleString("en-US")} margin — replacing whatever price was set before, not adding on top of it.`) +
           (markupAuto
             ? " Auto-markup will also be turned ON for these, so future syncs keep re-applying this same margin automatically."
             : " This applies once — prices won't change again until you run Markup or edit them manually.")

@@ -50,9 +50,9 @@ export default function PocketfiPaymentsList({ payments }) {
           className="flex items-center justify-between border-b border-gray-50 dark:border-night-700 last:border-0 pb-3 last:pb-0"
         >
           <div>
-            <div className="font-semibold text-sm">₦{Number(p.amount_ngn).toLocaleString()}</div>
+            <div className="font-semibold text-sm">₦{Number(p.amount_ngn).toLocaleString("en-US")}</div>
             <div className="text-xs text-gray-400 dark:text-night-400">
-              {new Date(p.created_at).toLocaleString()}
+              {new Date(p.created_at).toLocaleString("en-US")}
             </div>
           </div>
           <div className="flex items-center gap-2">

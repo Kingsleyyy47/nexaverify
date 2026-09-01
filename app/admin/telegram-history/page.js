@@ -95,13 +95,13 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching orders" : "Total orders"}
           </div>
-          <div className="text-2xl font-bold">{(count || 0).toLocaleString()}</div>
+          <div className="text-2xl font-bold">{(count || 0).toLocaleString("en-US")}</div>
         </div>
         <div className="card card-pad">
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching spend" : "Total spend"}
           </div>
-          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString()}</div>
+          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString("en-US")}</div>
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
                       {o.order_type === "star" ? o.quantity : `${o.months} mo`}
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                      ₦{Number(o.price).toLocaleString()}
+                      ₦{Number(o.price).toLocaleString("en-US")}
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-gray-500 dark:text-night-300">
                       {o.wallet_type || "—"}
@@ -161,7 +161,7 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
                       {o.refunded_at && <span className="badge badge-neutral ml-1.5 text-[10px]">Refunded</span>}
                     </td>
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(o.created_at).toLocaleString()}
+                      {new Date(o.created_at).toLocaleString("en-US")}
                     </td>
                   </tr>
                 );

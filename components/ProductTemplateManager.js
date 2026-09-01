@@ -322,7 +322,7 @@ export default function ProductTemplateManager() {
                         {t.archived && <span className="badge badge-neutral">Archived</span>}
                       </div>
                       <p className="text-xs text-gray-400 dark:text-night-400 mt-1 max-w-xl">
-                        {t.description ? `${t.description} · ` : ""}₦{Number(t.price_ngn).toLocaleString()}
+                        {t.description ? `${t.description} · ` : ""}₦{Number(t.price_ngn).toLocaleString("en-US")}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

@@ -173,7 +173,7 @@ export default function NumberCard({ rental }) {
 
       {state.is_long_term && state.paid_until && (
         <div className="text-xs text-gray-400 dark:text-night-400 mb-3">
-          Paid until {new Date(state.paid_until).toLocaleString()}
+          Paid until {new Date(state.paid_until).toLocaleString("en-US")}
           {state.daily_price ? ` · ${format(state.daily_price)}/period` : ""}
         </div>
       )}

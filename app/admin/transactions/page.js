@@ -84,13 +84,13 @@ export default async function AdminTransactionsPage({ searchParams }) {
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching deposits" : "Total deposits"}
           </div>
-          <div className="text-2xl font-bold">{(count || 0).toLocaleString()}</div>
+          <div className="text-2xl font-bold">{(count || 0).toLocaleString("en-US")}</div>
         </div>
         <div className="card card-pad">
           <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
             {q ? "Matching amount" : "Total amount"}
           </div>
-          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString()}</div>
+          <div className="text-2xl font-bold">₦{totalAmount.toLocaleString("en-US")}</div>
         </div>
       </div>
 
@@ -126,18 +126,18 @@ export default async function AdminTransactionsPage({ searchParams }) {
                       {user?.username || user?.email || t.user_id}
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                      +₦{Number(t.amount).toLocaleString()}
+                      +₦{Number(t.amount).toLocaleString("en-US")}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300 max-w-xs truncate">
                       {t.note || "—"}
                     </td>
                     {q && (
                       <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                        ₦{Number(t.balance_after).toLocaleString()}
+                        ₦{Number(t.balance_after).toLocaleString("en-US")}
                       </td>
                     )}
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleString()}
+                      {new Date(t.created_at).toLocaleString("en-US")}
                     </td>
                   </tr>
                 );

@@ -232,7 +232,7 @@ export default function InternationalBuyForm({ countries }) {
                   >
                     <span className="text-sm font-semibold">Tier {t.tier}</span>
                     <span className="text-sm text-gray-400 dark:text-night-400">
-                      {t.available.toLocaleString()} available
+                      {t.available.toLocaleString("en-US")} available
                     </span>
                     <span className="font-bold text-brand-700 dark:text-brand-400">
                       {format(t.priceNgn)}

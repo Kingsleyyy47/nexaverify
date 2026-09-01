@@ -169,7 +169,7 @@ export default async function AdminTelegramPremiumPage() {
                   <tbody className="divide-y divide-gray-50 dark:divide-night-800">
                     {[
                       { label: `${EXAMPLE_QTY_UNDER_1000} stars`, qty: EXAMPLE_QTY_UNDER_1000, markup: profile.markupUnder },
-                      { label: `${EXAMPLE_QTY_OVER_1000.toLocaleString()} stars`, qty: EXAMPLE_QTY_OVER_1000, markup: profile.markupOver },
+                      { label: `${EXAMPLE_QTY_OVER_1000.toLocaleString("en-US")} stars`, qty: EXAMPLE_QTY_OVER_1000, markup: profile.markupOver },
                     ].map((row) => {
                       const total = computeStarTotalPriceForWay(
                         {
@@ -192,7 +192,7 @@ export default async function AdminTelegramPremiumPage() {
                             {isTimes ? "×" : "+"} ₦{Number(row.markup || 0).toFixed(2)}
                           </td>
                           <td className="py-1.5 pr-2 font-bold text-brand-700 dark:text-brand-400">
-                            ₦{total.toLocaleString()}
+                            ₦{total.toLocaleString("en-US")}
                           </td>
                         </tr>
                       );
@@ -212,7 +212,7 @@ export default async function AdminTelegramPremiumPage() {
         {config.starLastCostNgn && (
           <p className="text-xs text-gray-400 dark:text-night-400 mt-3">
             Learned from your last completed {config.starLastCostWalletType} order,{" "}
-            {config.starLastCostUpdatedAt ? new Date(config.starLastCostUpdatedAt).toLocaleString() : "recently"}.
+            {config.starLastCostUpdatedAt ? new Date(config.starLastCostUpdatedAt).toLocaleString("en-US") : "recently"}.
           </p>
         )}
 
@@ -224,7 +224,7 @@ export default async function AdminTelegramPremiumPage() {
             <div className="text-xs text-gray-500 dark:text-night-300 space-y-1">
               <p>
                 <span className="font-semibold">When:</span>{" "}
-                {new Date(config.starLearnLastAttemptAt).toLocaleString()}
+                {new Date(config.starLearnLastAttemptAt).toLocaleString("en-US")}
               </p>
               <p>
                 <span className="font-semibold">Result:</span>{" "}
@@ -278,13 +278,13 @@ export default async function AdminTelegramPremiumPage() {
                     <tr key={m}>
                       <td className="py-2.5 pr-3 font-semibold dark:text-night-100">{m} months</td>
                       <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                        {live ? `₦${live.costNgn.toLocaleString()}` : "—"}
+                        {live ? `₦${live.costNgn.toLocaleString("en-US")}` : "—"}
                       </td>
                       <td className="py-2.5 pr-3 text-gray-500 dark:text-night-300">
-                        {live ? `₦${live.markupNgn.toLocaleString()}` : "—"}
+                        {live ? `₦${live.markupNgn.toLocaleString("en-US")}` : "—"}
                       </td>
                       <td className="py-2.5 pr-3 font-bold text-brand-700 dark:text-brand-400">
-                        {live ? `₦${live.priceNgn.toLocaleString()}` : "—"}
+                        {live ? `₦${live.priceNgn.toLocaleString("en-US")}` : "—"}
                       </td>
                     </tr>
                   );
