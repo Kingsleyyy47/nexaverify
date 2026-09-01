@@ -5,9 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Bulk version of /api/admin/social-boost/overrides — used by "Enable all"
 // on /admin/social-boost, scoped to whatever's currently visible (respects
 // the search filter, same as DaisySMS's equivalent). Only touches `enabled`
-// — favorite/markup on any existing override row are preserved, which is
-// why existing rows are fetched first rather than blind-upserting a full row
-// (upsert replaces every column, not just the one being changed).
+// — favorite/markup (including markup_type/markup_percent — see schema.sql)
+// on any existing override row are preserved, which is why existing rows are
+// fetched first rather than blind-upserting a full row (upsert replaces
+// every column, not just the one being changed).
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
@@ -34,7 +35,9 @@ export async function POST(request) {
       service_name: s.serviceName || prior?.service_name || null,
       enabled: true,
       favorite: Boolean(prior?.favorite),
+      markup_type: prior?.markup_type === "percent" ? "percent" : "flat",
       markup_ngn: Number(prior?.markup_ngn || 0),
+      markup_percent: Number(prior?.markup_percent || 0),
       updated_at: now,
     };
   });

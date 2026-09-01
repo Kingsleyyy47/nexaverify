@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Star, ArrowLeft } from "lucide-react";
+import { Search, Star, ArrowLeft, Instagram, Facebook, Twitter, Music2, LayoutGrid } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import { PLATFORMS } from "@/lib/socialboost-platform";
+
+// One icon per platform tile on the entry screen below — falls back to a
+// generic grid icon for "Other" (services that don't keyword-match any named
+// platform — see lib/socialboost-platform.js).
+const PLATFORM_ICONS = {
+  Instagram,
+  TikTok: Music2,
+  Facebook,
+  Twitter,
+  Other: LayoutGrid,
+};
 
 // This app has no global `.input` utility class (checked — every other form
 // in the codebase spells this Tailwind combo out inline, e.g.
@@ -30,7 +41,12 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
   const [services, setServices] = useState(null);
   const [servicesError, setServicesError] = useState("");
   const [loadingServices, setLoadingServices] = useState(true);
-  const [platformTab, setPlatformTab] = useState(PLATFORMS[0]);
+  // null = the entry screen below: one tile per platform ("Facebook — 10
+  // available", etc.) instead of a live product list. Tapping a tile is what
+  // sets this and reveals that platform's full product list — the tab bar
+  // that used to sit above the list on every load is gone, replaced by this
+  // dedicated "pick a platform first" screen per the business owner's request.
+  const [platformTab, setPlatformTab] = useState(null);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [link, setLink] = useState("");
@@ -82,16 +98,23 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
   // Mirrors the exact server-side formula in app/api/social-boost/orders —
   // rate is USD per 1000 units, converted to NGN at the same admin-set USD
-  // rate used everywhere else in the app, plus this service's own flat
-  // markup override. Purely a live preview; the actual charge is always
-  // recomputed server-side at purchase time.
+  // rate used everywhere else in the app, plus this service's own markup
+  // override — either a flat amount added once, or a % of this order's own
+  // cost (see schema.sql's social_boost_overrides.markup_type comment).
+  // Purely a live preview; the actual charge is always recomputed
+  // server-side at purchase time.
   const usdRate = rateMap?.USD;
   const estimatedTotalNgn = useMemo(() => {
     const qty = Number(quantity);
     if (!selectedService || !usdRate || !Number.isFinite(qty) || qty <= 0) return null;
     const costUsd = (Number(selectedService.rate) / 1000) * qty;
+    const costNgn = costUsd * usdRate;
+    if (selectedService.markupType === "percent") {
+      const pct = Number(selectedService.markupPercent || 0);
+      return Math.max(0, Math.round(costNgn * (1 + pct / 100) * 100) / 100);
+    }
     const markupNgn = Number(selectedService.markupNgn || 0);
-    return Math.max(0, Math.round((costUsd * usdRate + markupNgn) * 100) / 100);
+    return Math.max(0, Math.round((costNgn + markupNgn) * 100) / 100);
   }, [selectedService, quantity, usdRate]);
 
   function selectService(service) {
@@ -227,24 +250,53 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
               )}
             </form>
           </div>
+        ) : platformTab === null ? (
+          // Entry screen — one tile per platform, each showing how many
+          // enabled products are behind it. Tapping a tile is the only way
+          // into that platform's product list below.
+          <div>
+            <h3 className="font-bold text-[15px] mb-1">Social Boost</h3>
+            <p className="text-xs text-gray-400 dark:text-night-400 mb-4">
+              Pick a platform to see its available products.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {tabs.map((p) => {
+                const Icon = PLATFORM_ICONS[p] || LayoutGrid;
+                const count = platformCounts[p] || 0;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlatformTab(p)}
+                    disabled={count === 0}
+                    className="card card-pad flex flex-col items-center justify-center gap-2 text-center hover:border-brand-300 dark:hover:border-brand-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Icon size={22} className="text-brand-600 dark:text-brand-400" />
+                    <span className="font-semibold text-sm">{p}</span>
+                    <span className="text-xs text-gray-400 dark:text-night-400">
+                      {count} available
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div>
-            <div className="flex flex-wrap items-center gap-1.5 mb-4">
-              {tabs.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatformTab(p)}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition ${
-                    platformTab === p
-                      ? "bg-brand-600 text-white"
-                      : "bg-gray-100 dark:bg-night-800 text-gray-500 dark:text-night-300 hover:bg-gray-200 dark:hover:bg-night-700"
-                  }`}
-                >
-                  {p} {platformCounts[p] ? `(${platformCounts[p]})` : ""}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPlatformTab(null);
+                setSearch("");
+              }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-night-400 hover:text-brand-700 dark:hover:text-brand-400 mb-4"
+            >
+              <ArrowLeft size={14} /> Back to platforms
+            </button>
+
+            <h3 className="font-bold text-[15px] mb-4">
+              {platformTab} <span className="text-gray-400 dark:text-night-400 font-normal">· {platformCounts[platformTab] || 0} available</span>
+            </h3>
 
             <div className="relative mb-4 max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400" />

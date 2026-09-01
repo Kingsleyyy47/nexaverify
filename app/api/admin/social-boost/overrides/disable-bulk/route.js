@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Mirror of enable-bulk — only touches `enabled`, preserving favorite/markup.
+// Mirror of enable-bulk — only touches `enabled`, preserving favorite/markup
+// (including markup_type/markup_percent — see schema.sql).
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
@@ -29,7 +30,9 @@ export async function POST(request) {
       service_name: s.serviceName || prior?.service_name || null,
       enabled: false,
       favorite: Boolean(prior?.favorite),
+      markup_type: prior?.markup_type === "percent" ? "percent" : "flat",
       markup_ngn: Number(prior?.markup_ngn || 0),
+      markup_percent: Number(prior?.markup_percent || 0),
       updated_at: now,
     };
   });

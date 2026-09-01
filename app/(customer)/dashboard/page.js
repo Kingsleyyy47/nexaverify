@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickBuyList from "@/components/QuickBuyList";
@@ -19,6 +19,8 @@ export default async function DashboardPage() {
     { data: daisysmsConfig },
     { data: daisysimConfig },
     usOnlyCatalog,
+    { data: istarConfig },
+    { data: socialBoostConfig },
   ] = await Promise.all([
     supabase
       .from("services")
@@ -39,12 +41,16 @@ export default async function DashboardPage() {
     supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
     supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
     getUsOnlyCatalog(supabase),
+    supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
+    supabase.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
   ]);
 
   // All fail open/closed to their respective defaults — see /admin/providers.
   const daisysmsEnabled = daisysmsConfig?.enabled ?? true;
   const daisysimEnabled = daisysimConfig?.enabled ?? false;
   const usOnlyEnabled = usOnlyCatalog.enabled;
+  const istarCustomerVisible = istarConfig?.customer_visible ?? false;
+  const socialBoostCustomerVisible = socialBoostConfig?.customer_visible ?? false;
 
   return (
     <div>
@@ -61,28 +67,31 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-5 mb-7 items-stretch">
+      <div className="mb-7">
         <WalletBalanceCard balance={profile?.balance || 0} />
-
-        <div className="card card-pad">
-          <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
-            Active rentals
-          </div>
-          <div className="text-3xl font-bold">{activeRentals?.length || 0}</div>
-          <Link
-            href="/rentals"
-            className="text-xs font-semibold text-brand-700 dark:text-brand-400 mt-2 inline-block"
-          >
-            View rentals →
-          </Link>
-        </div>
       </div>
 
       <QuickLinksGrid
         daisysmsEnabled={daisysmsEnabled}
         daisysimEnabled={daisysimEnabled}
         usOnlyEnabled={usOnlyEnabled}
+        isAdmin={isAdmin(profile)}
+        istarCustomerVisible={istarCustomerVisible}
+        socialBoostCustomerVisible={socialBoostCustomerVisible}
       />
+
+      <div className="card card-pad mb-7">
+        <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
+          Active rentals
+        </div>
+        <div className="text-3xl font-bold">{activeRentals?.length || 0}</div>
+        <Link
+          href="/rentals"
+          className="text-xs font-semibold text-brand-700 dark:text-brand-400 mt-2 inline-block"
+        >
+          View rentals →
+        </Link>
+      </div>
 
       {usOnlyEnabled && !usOnlyCatalog.error && (
         <div className="mb-7">

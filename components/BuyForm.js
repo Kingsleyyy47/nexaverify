@@ -106,6 +106,11 @@ export default function BuyForm({ services }) {
                 <div className="text-brand-700 dark:text-brand-400 font-bold text-lg">
                   {format(s.customer_price)}
                 </div>
+                {s.last_count != null && (
+                  <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
+                    {s.last_count.toLocaleString("en-US")} pcs left
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -123,6 +128,11 @@ export default function BuyForm({ services }) {
             <div className="text-brand-700 dark:text-brand-400 font-bold text-2xl mt-1">
               {selected ? format(selected.customer_price) : "—"}
             </div>
+            {selected?.last_count != null && (
+              <div className="text-xs text-gray-400 dark:text-night-400 mt-1">
+                {selected.last_count.toLocaleString("en-US")} pcs left
+              </div>
+            )}
           </div>
 
           <div className="field">

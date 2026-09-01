@@ -38,8 +38,11 @@ export default function LogsQuickList({ items }) {
               <div className="font-semibold text-sm mt-1 truncate">{t.name}</div>
               <div className="flex items-center justify-between mt-2">
                 <span className="font-bold text-sm">₦{Number(t.price_ngn).toLocaleString("en-US")}</span>
-                <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"} text-[10px]`}>
-                  {outOfStock ? "Out of stock" : `${t.stockCount} in stock`}
+                <span className="flex items-center gap-1">
+                  <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"} text-[10px]`}>
+                    {t.stockCount} pcs
+                  </span>
+                  {outOfStock && <span className="badge badge-danger text-[10px]">Sold out</span>}
                 </span>
               </div>
             </Link>

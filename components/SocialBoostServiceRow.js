@@ -13,6 +13,11 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
   const [busy, setBusy] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Lets an admin drop out of % mode for just this one service without
+  // having to re-run the bulk control — switches the row to the same flat
+  // ₦ input+Save UI as every other service; nothing is saved until Save is
+  // actually pressed.
+  const [editingAsFlat, setEditingAsFlat] = useState(false);
 
   // Bulk actions elsewhere on the page update many rows server-side and then
   // call router.refresh() — rows are keyed by service.service (stable across
@@ -22,7 +27,14 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
   useEffect(() => setEnabled(service.enabled), [service.enabled]);
   useEffect(() => setFavorite(service.favorite), [service.favorite]);
   useEffect(() => setMarkup(service.markupNgn ?? 0), [service.markupNgn]);
+  useEffect(() => {
+    if (service.markupType === "flat") setEditingAsFlat(false);
+  }, [service.markupType]);
 
+  // This row's flat ₦ input+Save always writes markup_type: "flat" server
+  // -side (see the comment on app/api/admin/social-boost/overrides) — saving
+  // it is how an admin opts a service back out of the % markup the bulk
+  // control (SocialBoostCatalogManager) may have set.
   async function save(partial) {
     const res = await fetch("/api/admin/social-boost/overrides", {
       method: "POST",
@@ -108,21 +120,36 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
           : `$${service.rate}/1000`}
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400 text-sm">₦</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={markup}
-            onChange={(e) => setMarkup(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-6 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
-          />
-        </div>
-        <button onClick={handleSaveMarkup} disabled={busy} className="btn-secondary btn-sm shrink-0">
-          {saved ? "Saved" : "Save"}
-        </button>
+      <div>
+        {service.markupType === "percent" && !editingAsFlat ? (
+          <div className="flex items-center gap-2">
+            <span className="badge badge-neutral text-xs shrink-0">{service.markupPercent}% markup</span>
+            <button
+              type="button"
+              onClick={() => setEditingAsFlat(true)}
+              className="text-[11px] text-brand-700 dark:text-brand-400 font-semibold hover:underline"
+            >
+              Edit as flat ₦
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400 text-sm">₦</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={markup}
+                onChange={(e) => setMarkup(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-6 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+              />
+            </div>
+            <button onClick={handleSaveMarkup} disabled={busy} className="btn-secondary btn-sm shrink-0">
+              {saved ? "Saved" : "Save"}
+            </button>
+          </div>
+        )}
       </div>
 
       <ToggleSwitch checked={enabled} disabled={busy} onChange={handleToggleEnabled} />

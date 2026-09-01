@@ -112,8 +112,15 @@ export async function POST(request) {
   }
 
   const costUsd = (Number(matchedService.rate) / 1000) * qty;
-  const markupNgn = Number(override?.markup_ngn || 0);
-  const priceNgn = Math.max(0, Math.round((costUsd * usdRate + markupNgn) * 100) / 100);
+  const costNgn = costUsd * usdRate;
+  // Percent-mode markup scales with the order's own cost (so a bigger
+  // quantity means a bigger markup, same rate); flat mode adds the same
+  // amount once regardless of quantity — see the schema.sql comment on
+  // social_boost_overrides.markup_type for why both exist.
+  const priceNgn =
+    override?.markup_type === "percent"
+      ? Math.max(0, Math.round((costNgn * (1 + Number(override.markup_percent || 0) / 100)) * 100) / 100)
+      : Math.max(0, Math.round((costNgn + Number(override?.markup_ngn || 0)) * 100) / 100);
   if (!priceNgn || priceNgn <= 0) {
     return NextResponse.json({ error: "Could not compute a price for this order." }, { status: 400 });
   }

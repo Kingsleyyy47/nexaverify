@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile, isAdmin } from "@/lib/auth";
 import CustomerSidebar from "@/components/CustomerSidebar";
 import CustomerTopBar from "@/components/CustomerTopBar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 
 export default async function CustomerLayout({ children }) {
@@ -44,11 +45,16 @@ export default async function CustomerLayout({ children }) {
           istarCustomerVisible={istarCustomerVisible}
           socialBoostCustomerVisible={socialBoostCustomerVisible}
         />
-        <main className="flex-1 p-4 md:p-9 max-w-6xl w-full">
+        <main className="flex-1 p-4 pb-24 md:p-9 max-w-6xl w-full">
           <CustomerTopBar balance={profile?.balance || 0} />
           {children}
         </main>
       </div>
+      <MobileBottomNav
+        isAdmin={isAdmin(profile)}
+        istarCustomerVisible={istarCustomerVisible}
+        socialBoostCustomerVisible={socialBoostCustomerVisible}
+      />
     </CurrencyProvider>
   );
 }

@@ -22,6 +22,12 @@ export default function SocialBoostCatalogManager({ usdRate }) {
   const [platform, setPlatform] = useState("All");
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [markupAmount, setMarkupAmount] = useState("");
+  // Which calculation the bulk "Markup" button below writes — flipped by the
+  // ₦/% toggle button right next to the amount input. See the big comment on
+  // markup-bulk/route.js and schema.sql's social_boost_overrides.markup_type
+  // for how the two calculations actually differ (flat = added once per
+  // order; percent = scales with the order's own USD->NGN cost).
+  const [markupMode, setMarkupMode] = useState("flat"); // "flat" | "percent"
   const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "disable" | "markup"
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -124,7 +130,7 @@ export default function SocialBoostCatalogManager({ usdRate }) {
       const res = await fetch("/api/admin/social-boost/overrides/markup-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ services: asServiceRefs(filtered), amount: markupValue }),
+        body: JSON.stringify({ services: asServiceRefs(filtered), amount: markupValue, mode: markupMode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update prices");
@@ -193,23 +199,33 @@ export default function SocialBoostCatalogManager({ usdRate }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search services…"
+            placeholder="Search by name or service ID…"
             className="w-full max-w-xs rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-9 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
           />
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400 text-sm">₦</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400 text-sm">
+              {markupMode === "percent" ? "%" : "₦"}
+            </span>
             <input
               type="number"
               step="0.01"
               value={markupAmount}
               onChange={(e) => setMarkupAmount(e.target.value)}
-              placeholder="e.g. 500"
+              placeholder={markupMode === "percent" ? "e.g. 15" : "e.g. 500"}
               className="w-32 rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-6 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setMarkupMode((m) => (m === "flat" ? "percent" : "flat"))}
+            title="Switch between a flat ₦ markup and a % markup"
+            className="btn-secondary btn-sm"
+          >
+            {markupMode === "percent" ? "% mode" : "₦ mode"}
+          </button>
           <button
             onClick={() => setPendingAction("markup")}
             disabled={busy || !markupIsValid || filtered.length === 0}
@@ -299,8 +315,16 @@ export default function SocialBoostCatalogManager({ usdRate }) {
 
       <ConfirmDialog
         open={pendingAction === "markup"}
-        title={`Set markup to ₦${markupValue.toLocaleString("en-US")} for all matching services?`}
-        message={`This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added once per order) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`}
+        title={
+          markupMode === "percent"
+            ? `Set markup to ${markupValue.toLocaleString("en-US")}% for all matching services?`
+            : `Set markup to ₦${markupValue.toLocaleString("en-US")} for all matching services?`
+        }
+        message={
+          markupMode === "percent"
+            ? `This sets a ${markupValue.toLocaleString("en-US")}% markup (added on top of each order's own cost, so bigger orders get a bigger markup) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service's flat ₦ amount afterward, which switches that one back to flat.`
+            : `This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added once per order) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`
+        }
         confirmLabel="Yes, apply it"
         cancelLabel="Cancel"
         onConfirm={handleApplyMarkup}

@@ -8,6 +8,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // fields are always sent together (not just the one being changed) — same
 // reasoning as /api/admin/us-only/overrides: a partial upsert would silently
 // null out whichever field wasn't included.
+//
+// Always writes markup_type: "flat" — this route is only ever called from
+// SocialBoostServiceRow's individual flat-₦ input+Save, so typing a number
+// there is an explicit choice to stop using whatever percentage the bulk
+// "Markup" control (see markup-bulk/route.js) may have set on this service.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
@@ -33,7 +38,9 @@ export async function POST(request) {
         service_name: serviceName || null,
         enabled: Boolean(enabled),
         favorite: Boolean(favorite),
+        markup_type: "flat",
         markup_ngn: markup,
+        markup_percent: 0,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "service_id" }

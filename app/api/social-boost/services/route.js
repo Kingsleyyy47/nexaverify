@@ -52,7 +52,17 @@ export async function GET() {
         platform: detectPlatform(s),
         enabled: o?.enabled ?? true,
         favorite: Boolean(o?.favorite),
-        markupNgn: Number(o?.markup_ngn || 0),
+        // markupNgn stays the FLAT number (0 when this service is actually in
+        // percent mode — see schema.sql's comment on
+        // social_boost_overrides.markup_type — so the admin row's flat ₦
+        // input never shows a stale/misleading number). markupType/
+        // markupPercent are passed through raw so both the catalog manager
+        // row and the customer buy form's live preview (SocialBoostBuyForm)
+        // can branch on them the same way app/api/social-boost/orders does
+        // at actual purchase time.
+        markupType: o?.markup_type === "percent" ? "percent" : "flat",
+        markupPercent: Number(o?.markup_percent || 0),
+        markupNgn: o?.markup_type === "percent" ? 0 : Number(o?.markup_ngn || 0),
       };
     });
 

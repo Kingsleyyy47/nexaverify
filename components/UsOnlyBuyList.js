@@ -101,7 +101,12 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
                   onClick={() => buy(s)}
                   className="w-full flex items-center px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-night-800 transition disabled:opacity-50"
                 >
-                  <span className="flex-1 font-semibold truncate pr-3 dark:text-night-100">{s.name}</span>
+                  <span className="flex-1 min-w-0 pr-3">
+                    <span className="block font-semibold truncate dark:text-night-100">{s.name}</span>
+                    {s.stock != null && (
+                      <span className="block text-xs text-gray-400 dark:text-night-400">{s.stock.toLocaleString("en-US")} pcs left</span>
+                    )}
+                  </span>
                   <span className="text-brand-700 dark:text-brand-400 font-bold shrink-0">
                     {buyingCode === s.code ? "Purchasing…" : format(s.priceNgn)}
                   </span>

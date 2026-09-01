@@ -616,6 +616,29 @@ create table if not exists public.social_boost_overrides (
   updated_at timestamptz not null default now()
 );
 
+-- markup_type / markup_percent: added so the bulk "Markup" control on
+-- /admin/social-boost can apply a PERCENTAGE markup instead of the flat
+-- markup_ngn amount above — a toggle button next to that control switches
+-- which one a bulk run writes. When markup_type = 'percent', pricing (see
+-- app/api/social-boost/orders and app/api/social-boost/services) computes
+-- the order's markup as markup_percent% of that order's own USD->NGN cost
+-- (so, unlike markup_ngn, it naturally scales with quantity) and ignores
+-- markup_ngn entirely; markup_ngn is left at whatever it was (unused, not
+-- zeroed) purely so switching back to flat later doesn't lose the old
+-- number. Saving an individual row's flat ₦ field (SocialBoostServiceRow)
+-- always resets a service back to markup_type = 'flat', since typing a flat
+-- number into that field is an explicit choice to stop using a percentage.
+alter table public.social_boost_overrides add column if not exists markup_type text not null default 'flat';
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'social_boost_overrides_markup_type_check'
+  ) then
+    alter table public.social_boost_overrides
+      add constraint social_boost_overrides_markup_type_check check (markup_type in ('flat', 'percent'));
+  end if;
+end $$;
+alter table public.social_boost_overrides add column if not exists markup_percent numeric(6,2) not null default 0;
+
 alter table public.social_boost_overrides enable row level security;
 
 drop policy if exists "social_boost_overrides_select_all" on public.social_boost_overrides;

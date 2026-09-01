@@ -10,8 +10,10 @@ const INPUT_CLASS =
 // Category tabs -> product template grid -> buy. Live stock counts come from
 // /api/digital-accounts/templates (computed server-side against
 // digital_stock_items, which has no client-facing select policy at all — see
-// schema.sql), so "Out of stock" always reflects the real, current count
-// rather than something cached on the template row.
+// schema.sql), so the "N pcs" count (and the separate "Sold out" badge next
+// to it once that count hits 0 — kept as its own badge rather than replacing
+// the number, per the business owner's request) always reflects the real,
+// current count rather than something cached on the template row.
 export default function DigitalAccountsBrowser() {
   const router = useRouter();
   const [categories, setCategories] = useState(null);
@@ -153,8 +155,11 @@ export default function DigitalAccountsBrowser() {
                     {t.favorite && <Star size={14} fill="currentColor" className="text-amber-400 shrink-0" />}
                     {t.name}
                   </div>
-                  <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"} shrink-0`}>
-                    {outOfStock ? "Out of stock" : `${t.availableCount} in stock`}
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
+                      {t.availableCount} pcs
+                    </span>
+                    {outOfStock && <span className="badge badge-danger">Sold out</span>}
                   </span>
                 </div>
                 {t.description && (
@@ -164,7 +169,7 @@ export default function DigitalAccountsBrowser() {
 
                 {outOfStock ? (
                   <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">
-                    Out of stock
+                    Sold out
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
