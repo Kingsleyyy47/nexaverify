@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Star, ChevronRight } from "lucide-react";
 
 // Category tabs -> product template grid -> checkout. Live stock counts come
 // from /api/digital-accounts/templates (computed server-side against
@@ -115,34 +115,54 @@ export default function DigitalAccountsBrowser() {
           {templates.map((t) => {
             const outOfStock = t.availableCount <= 0;
             return (
-              <div key={t.id} className="card card-pad flex flex-col">
-                {/* No product name here on purpose — the description below is
-                    the card's only text, per the business owner's request
-                    (the category tab above already gives context, and the
-                    admin-only name is still what the Order Details page and
-                    the admin catalog show). */}
-                <div className="flex items-start justify-end gap-2 mb-1">
-                  {t.favorite && <Star size={14} fill="currentColor" className="text-amber-400 shrink-0" />}
-                </div>
-                {t.description && (
-                  <p className="text-sm text-gray-600 dark:text-night-300 mb-3 flex-1">{t.description}</p>
+              <div key={t.id} className="card card-pad flex items-center gap-3">
+                {/* Logo sits on the left, full card height, matching the
+                    reference layout — one logo per category (set at
+                    Categories, see CategoryManager.js), so it's the same
+                    image across every card under it, not per-product. */}
+                {activeCategory?.logoUrl ? (
+                  <img
+                    src={activeCategory.logoUrl}
+                    alt=""
+                    className="w-14 h-14 rounded-xl object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-xl shrink-0 bg-gray-100 dark:bg-night-800" />
                 )}
-                {/* "X pcs" is always plain, informational text — untouched.
-                    The other pill does double duty instead of adding a new
-                    control: in stock, it's a real "Buy" button straight into
-                    checkout; sold out, it reverts to the same plain, red,
-                    non-clickable "Sold out" text as before. */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-lg font-bold">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
-                      {t.availableCount} pcs
-                    </span>
+
+                <div className="flex-1 min-w-0">
+                  {/* No product name here on purpose — the description is
+                      the card's only text, per the business owner's request
+                      (the category tab above already gives context, and the
+                      admin-only name is still what the Order Details page
+                      and the admin catalog show). */}
+                  <div className="flex items-start justify-between gap-2">
+                    {t.description && (
+                      <p className="text-sm text-gray-600 dark:text-night-300 line-clamp-2">{t.description}</p>
+                    )}
+                    {t.favorite && <Star size={14} fill="currentColor" className="text-amber-400 shrink-0 mt-0.5" />}
+                  </div>
+
+                  {/* "X pcs" is always plain, informational text — untouched.
+                      The right-hand pill does double duty instead of adding a
+                      new control: in stock, it's a real "Buy" button straight
+                      into checkout; sold out, it reverts to the same plain,
+                      red, non-clickable "Sold out" text as before. */}
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
+                        {t.availableCount} pcs
+                      </span>
+                      <span className="badge badge-neutral">₦{Number(t.price_ngn).toLocaleString("en-US")}</span>
+                    </div>
                     {outOfStock ? (
-                      <span className="badge badge-danger">Sold out</span>
+                      <span className="badge badge-danger shrink-0">Sold out</span>
                     ) : (
-                      <Link href={`/digital-accounts/checkout/${t.id}`} className="badge badge-success hover:opacity-80 transition">
-                        Buy
+                      <Link
+                        href={`/digital-accounts/checkout/${t.id}`}
+                        className="badge badge-success shrink-0 flex items-center gap-0.5 hover:opacity-80 transition"
+                      >
+                        Buy <ChevronRight size={12} />
                       </Link>
                     )}
                   </div>

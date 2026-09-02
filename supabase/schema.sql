@@ -1218,13 +1218,22 @@ create policy "digital_accounts_config_select_all" on public.digital_accounts_co
 -- Not archivable/hideable itself — deleting one cascades its templates (and
 -- therefore their stock and, via template_id set null on digital_orders,
 -- unlinks but does NOT delete past orders — see digital_orders below).
+--   logo_url: an admin-pasted image URL (no file-upload/storage bucket in
+--     this app — every image-like field elsewhere is a plain URL too) shown
+--     beside every product card under this category on the customer-facing
+--     Digital Accounts page (see components/DigitalAccountsBrowser.js).
+--     Optional — cards render with no logo slot at all when unset.
 -- ============================================================================
 create table if not exists public.digital_categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   description text,
+  logo_url text,
   created_at timestamptz not null default now()
 );
+
+-- Additive column for installs that ran this schema before logo_url existed.
+alter table public.digital_categories add column if not exists logo_url text;
 
 alter table public.digital_categories enable row level security;
 
@@ -1340,6 +1349,11 @@ create policy "digital_orders_select_own" on public.digital_orders
 --     required; email OR username required — enforced at upload time in
 --     lib/digitalAccountsCsv.js, not by a DB constraint, since "at least one
 --     of two columns" isn't expressible as a simple NOT NULL).
+--   year / friends_count: added for Facebook-style logs (account creation
+--     year, friend count) — optional and irrelevant to most other categories,
+--     same "just another nullable text column" treatment as two_fa/
+--     recovery_email. Stored as text (not integer) since these come straight
+--     off an admin-pasted log line and don't need to be queried numerically.
 -- ============================================================================
 create table if not exists public.digital_stock_items (
   id uuid primary key default gen_random_uuid(),
@@ -1351,11 +1365,18 @@ create table if not exists public.digital_stock_items (
   two_fa text,
   recovery_email text,
   recovery_email_password text,
+  year text,
+  friends_count text,
   status text not null default 'available' check (status in ('available', 'sold')),
   order_id uuid references public.digital_orders(id) on delete set null,
   sold_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+-- Additive columns for installs that ran this schema before year/friends_count
+-- existed — safe to re-run.
+alter table public.digital_stock_items add column if not exists year text;
+alter table public.digital_stock_items add column if not exists friends_count text;
 
 create index if not exists digital_stock_items_template_status_idx
   on public.digital_stock_items(template_id, status);

@@ -14,6 +14,8 @@ const EMPTY_CREDENTIALS = {
   twoFa: "",
   recoveryEmail: "",
   recoveryEmailPassword: "",
+  year: "",
+  friendsCount: "",
 };
 
 // Admin-only "Single Product" section — its own page (see
@@ -279,6 +281,28 @@ export default function SingleProductForm() {
           value={fields.recoveryEmailPassword}
           onChange={(e) => setField("recoveryEmailPassword", e.target.value)}
           placeholder="Password for the recovery email"
+          className={INPUT_CLASS}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold mb-1.5">Year</label>
+        <input
+          type="text"
+          value={fields.year}
+          onChange={(e) => setField("year", e.target.value)}
+          placeholder="e.g., account creation year (Facebook logs)"
+          className={INPUT_CLASS}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold mb-1.5">No. of Friends</label>
+        <input
+          type="text"
+          value={fields.friendsCount}
+          onChange={(e) => setField("friendsCount", e.target.value)}
+          placeholder="e.g., friend count (Facebook logs)"
           className={INPUT_CLASS}
         />
       </div>

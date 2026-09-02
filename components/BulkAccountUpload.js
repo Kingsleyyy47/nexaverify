@@ -3,9 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, KeyRound, AlertTriangle } from "lucide-react";
 
-const SAMPLE_CSV = `username,password,email,email_password,two_fa,recovery_email,recovery_email_password
-john_doe,pass123,john@email.com,emailpass123,123456,recovery@email.com,recpass123
-jane_smith,mypass,jane@email.com,,,,`;
+const SAMPLE_CSV = `username,password,email,email_password,two_fa,recovery_email,recovery_email_password,year,friends_count
+john_doe,pass123,john@email.com,emailpass123,123456,recovery@email.com,recpass123,2019,850
+jane_smith,mypass,jane@email.com,,,,,,`;
+
+// These are pasted in exactly as-is — no header row, no format picker — and
+// the parser (lib/digitalAccountsCsv.js) auto-detects the delimiter and
+// column layout from the column count. Shown here so an admin can match
+// whatever a customer-care-supplied log line looks like.
+const PLATFORM_FORMATS = [
+  { name: "Facebook", sample: "username|password|email|email_password|recovery_email|two_fa|year|friends_count" },
+  { name: "Facebook 2 (no recovery/2FA)", sample: "username|password|email|email_password||year|friends_count" },
+  { name: "Instagram / TikTok", sample: "username:password:email:email_password" },
+  { name: "Twitter", sample: "username|password|email|email_password|two_fa" },
+];
 
 // Admin-only bulk stocker for a product template — see
 // app/admin/digital-accounts/upload/page.js and
@@ -51,7 +62,7 @@ export default function BulkAccountUpload() {
       return;
     }
     if (!file) {
-      setError("Choose a CSV file to upload.");
+      setError("Choose a CSV or TXT file to upload.");
       return;
     }
 
@@ -110,13 +121,15 @@ export default function BulkAccountUpload() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.txt,text/plain"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
           className="hidden"
         />
         <Upload size={32} className="mx-auto mb-3 text-gray-400 dark:text-night-500" />
-        <div className="font-bold text-sm">Upload CSV File</div>
-        <p className="text-sm text-gray-400 dark:text-night-400 mt-1">Choose a CSV file with account credentials</p>
+        <div className="font-bold text-sm">Upload CSV or TXT File</div>
+        <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
+          Choose a CSV or TXT file with account credentials (same comma-separated format either way)
+        </p>
         <span className="btn-secondary btn-sm mt-3 inline-block">
           {file ? file.name : "Choose File"}
         </span>
@@ -124,7 +137,7 @@ export default function BulkAccountUpload() {
       </label>
 
       <div>
-        <h4 className="font-bold text-sm mb-2">CSV Format Requirements:</h4>
+        <h4 className="font-bold text-sm mb-2">CSV/TXT Format Requirements:</h4>
         <div className="rounded-xl bg-gray-50 dark:bg-night-800 p-4 space-y-3 text-sm">
           <div>
             <div className="font-semibold text-xs text-gray-500 dark:text-night-300 mb-1">Required columns:</div>
@@ -155,14 +168,40 @@ export default function BulkAccountUpload() {
               <li>
                 <strong>username</strong> - Account username (if email is primary identifier)
               </li>
+              <li>
+                <strong>year</strong> - Account creation year (Facebook-style logs)
+              </li>
+              <li>
+                <strong>friends_count</strong> or <strong>no_of_friends</strong> - Friend count (Facebook-style logs)
+              </li>
             </ul>
           </div>
 
           <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 p-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800 dark:text-blue-300 mb-1.5">
-              <KeyRound size={13} /> Sample CSV format:
+              <KeyRound size={13} /> Sample format with a header row (works in a .csv or .txt file):
             </div>
             <pre className="text-[11px] text-blue-700 dark:text-blue-400 whitespace-pre-wrap break-all">{SAMPLE_CSV}</pre>
+          </div>
+
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900 p-3">
+            <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-1.5">
+              No header? No problem — paste logs straight in as-is
+            </div>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mb-2">
+              No column names needed and every column doesn't have to be included — the delimiter (comma, "|", or
+              ":") and column layout are auto-detected from the file. These are the formats it recognizes:
+            </p>
+            <div className="space-y-1.5">
+              {PLATFORM_FORMATS.map((f) => (
+                <div key={f.name}>
+                  <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">{f.name}</div>
+                  <pre className="text-[11px] text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap break-all">
+                    {f.sample}
+                  </pre>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

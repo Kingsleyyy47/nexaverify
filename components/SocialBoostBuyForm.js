@@ -91,6 +91,25 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
       .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
   }, [services, platformTab, search]);
 
+  // What the list row shows before a service is even selected — this used to
+  // be the raw provider $rate with no markup applied at all, which is why the
+  // markup an admin sets (flat or %) never appeared to the customer until
+  // after they picked a service and typed a quantity. Flat markup is really a
+  // one-time per-order fee rather than a per-unit price, but showing
+  // "cost + flat markup, per 1000" here still gives an honest, non-zero
+  // preview of what they'll actually be charged, consistent with the ₦/1000
+  // convention used everywhere else (admin catalog's own Rate column, the
+  // selected-service Total cost box).
+  function markedUpRatePer1000(s) {
+    if (!usdRate) return null;
+    const costNgn = (Number(s.rate) || 0) * usdRate;
+    if (s.markupType === "percent") {
+      const pct = Number(s.markupPercent || 0);
+      return costNgn * (1 + pct / 100);
+    }
+    return costNgn + Number(s.markupNgn || 0);
+  }
+
   const selectedService = useMemo(
     () => (services || []).find((s) => String(s.service) === String(selectedId)) || null,
     [services, selectedId]
@@ -329,8 +348,8 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                       </div>
                       <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5 truncate">{s.category}</div>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-night-300 shrink-0">
-                      ${s.rate}/1000 · min {s.min}
+                    <div className="text-xs text-gray-500 dark:text-night-300 shrink-0 text-right">
+                      {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : `$${s.rate}/1000`} · min {s.min}
                     </div>
                   </button>
                 ))}

@@ -33,9 +33,15 @@ export async function POST(request, { params }) {
 
   const file = formData.get("file");
   if (!file || typeof file.text !== "function") {
-    return NextResponse.json({ error: "Choose a CSV file to upload." }, { status: 400 });
+    return NextResponse.json({ error: "Choose a CSV or TXT file to upload." }, { status: 400 });
   }
 
+  // The parser (lib/digitalAccountsCsv.js) only ever cares about the raw
+  // comma-separated text — it never looks at the file's name or MIME type —
+  // so a .txt file with the exact same comma-separated layout works
+  // identically to a .csv one. This route doesn't need its own extension
+  // check; only the client's <input accept> and CSV/TXT copy needed updating
+  // (see components/BulkAccountUpload.js).
   const csvText = await file.text();
   const { items, errors } = parseAndValidateAccountsCsv(csvText);
 

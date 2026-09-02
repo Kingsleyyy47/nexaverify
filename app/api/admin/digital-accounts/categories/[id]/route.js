@@ -8,7 +8,7 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, description } = await request.json();
+  const { name, description, logoUrl } = await request.json();
   const trimmed = (name || "").trim();
   if (!trimmed) {
     return NextResponse.json({ error: "Category name is required" }, { status: 400 });
@@ -17,7 +17,7 @@ export async function PATCH(request, { params }) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("digital_categories")
-    .update({ name: trimmed, description: description?.trim() || null })
+    .update({ name: trimmed, description: description?.trim() || null, logo_url: logoUrl?.trim() || null })
     .eq("id", params.id)
     .select()
     .single();

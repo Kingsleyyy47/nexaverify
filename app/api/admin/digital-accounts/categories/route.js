@@ -33,7 +33,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, description } = await request.json();
+  const { name, description, logoUrl } = await request.json();
   const trimmed = (name || "").trim();
   if (!trimmed) {
     return NextResponse.json({ error: "Category name is required" }, { status: 400 });
@@ -42,7 +42,7 @@ export async function POST(request) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("digital_categories")
-    .insert({ name: trimmed, description: description?.trim() || null })
+    .insert({ name: trimmed, description: description?.trim() || null, logo_url: logoUrl?.trim() || null })
     .select()
     .single();
 

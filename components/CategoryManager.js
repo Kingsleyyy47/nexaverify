@@ -18,12 +18,14 @@ export default function CategoryManager() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editLogoUrl, setEditLogoUrl] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [rowError, setRowError] = useState("");
 
@@ -60,12 +62,13 @@ export default function CategoryManager() {
       const res = await fetch("/api/admin/digital-accounts/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify({ name, description, logoUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create category");
       setName("");
       setDescription("");
+      setLogoUrl("");
       await load();
     } catch (err) {
       setCreateError(err.message);
@@ -79,6 +82,7 @@ export default function CategoryManager() {
     setEditingId(category.id);
     setEditName(category.name);
     setEditDescription(category.description || "");
+    setEditLogoUrl(category.logo_url || "");
   }
 
   async function saveEdit(id) {
@@ -92,7 +96,7 @@ export default function CategoryManager() {
       const res = await fetch(`/api/admin/digital-accounts/categories/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName, description: editDescription }),
+        body: JSON.stringify({ name: editName, description: editDescription, logoUrl: editLogoUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save changes");
@@ -146,6 +150,21 @@ export default function CategoryManager() {
               className={INPUT_CLASS}
             />
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-night-300 mb-1">
+              Logo URL (optional)
+            </label>
+            <input
+              type="text"
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://…/discord-logo.png"
+              className={INPUT_CLASS}
+            />
+            <p className="text-[11px] text-gray-400 dark:text-night-400 mt-1">
+              Shown beside every product card under this category on the customer-facing page.
+            </p>
+          </div>
         </div>
         {createError && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{createError}</p>}
         <button type="submit" disabled={creating} className="btn-primary btn-sm mt-3">
@@ -168,7 +187,7 @@ export default function CategoryManager() {
               className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-100 dark:border-night-700"
             >
               {editingId === c.id ? (
-                <div className="flex-1 grid gap-2 sm:grid-cols-2">
+                <div className="flex-1 grid gap-2 sm:grid-cols-3">
                   <input
                     type="text"
                     value={editName}
@@ -182,13 +201,31 @@ export default function CategoryManager() {
                     placeholder="Description"
                     className={INPUT_CLASS}
                   />
+                  <input
+                    type="text"
+                    value={editLogoUrl}
+                    onChange={(e) => setEditLogoUrl(e.target.value)}
+                    placeholder="Logo URL"
+                    className={INPUT_CLASS}
+                  />
                 </div>
               ) : (
-                <div className="min-w-0">
-                  <div className="font-bold text-sm truncate">{c.name}</div>
-                  <div className="text-xs text-gray-400 dark:text-night-400">
-                    {c.description ? `${c.description} · ` : ""}
-                    {c.templateCount} product {c.templateCount === 1 ? "group" : "groups"}
+                <div className="flex items-center gap-3 min-w-0">
+                  {c.logo_url ? (
+                    <img
+                      src={c.logo_url}
+                      alt=""
+                      className="w-9 h-9 rounded-lg object-cover shrink-0 border border-gray-100 dark:border-night-700"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg shrink-0 bg-gray-100 dark:bg-night-800" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm truncate">{c.name}</div>
+                    <div className="text-xs text-gray-400 dark:text-night-400">
+                      {c.description ? `${c.description} · ` : ""}
+                      {c.templateCount} product {c.templateCount === 1 ? "group" : "groups"}
+                    </div>
                   </div>
                 </div>
               )}

@@ -37,6 +37,8 @@ export async function POST(request, { params }) {
   const twoFa = trim(body.twoFa);
   const recoveryEmail = trim(body.recoveryEmail);
   const recoveryEmailPassword = trim(body.recoveryEmailPassword);
+  const year = trim(body.year);
+  const friendsCount = trim(body.friendsCount);
 
   // Same rule the CSV upload enforces per row — nothing is inserted until
   // both conditions are met, mirrored client-side in SingleProductForm.js so
@@ -57,6 +59,8 @@ export async function POST(request, { params }) {
       two_fa: twoFa || null,
       recovery_email: recoveryEmail || null,
       recovery_email_password: recoveryEmailPassword || null,
+      year: year || null,
+      friends_count: friendsCount || null,
     })
     .select("id")
     .single();

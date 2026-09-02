@@ -123,7 +123,21 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
       <div>
         {service.markupType === "percent" && !editingAsFlat ? (
           <div className="flex items-center gap-2">
-            <span className="badge badge-neutral text-xs shrink-0">{service.markupPercent}% markup</span>
+            <span className="badge badge-neutral text-xs shrink-0">
+              {service.markupPercent}% markup
+              {usdRate && (
+                <>
+                  {" "}
+                  · ≈₦
+                  {(
+                    Number(service.rate) *
+                    usdRate *
+                    (Number(service.markupPercent) / 100)
+                  ).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  /1000
+                </>
+              )}
+            </span>
             <button
               type="button"
               onClick={() => setEditingAsFlat(true)}
