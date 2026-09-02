@@ -2,18 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star, ShoppingCart } from "lucide-react";
+import { Star } from "lucide-react";
 
 const INPUT_CLASS =
   "w-20 rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900";
 
-// Category tabs -> product template grid -> buy. Live stock counts come from
-// /api/digital-accounts/templates (computed server-side against
+// Category tabs -> product template grid -> Buy Now. Live stock counts come
+// from /api/digital-accounts/templates (computed server-side against
 // digital_stock_items, which has no client-facing select policy at all — see
 // schema.sql), so the "N pcs" count (and the separate "Sold out" badge next
 // to it once that count hits 0 — kept as its own badge rather than replacing
 // the number, per the business owner's request) always reflects the real,
 // current count rather than something cached on the template row.
+//
+// Buy Now no longer purchases directly from the card — it navigates to a
+// dedicated checkout page (app/(customer)/digital-accounts/checkout/
+// [templateId]/page.js) that shows the full description and lets the
+// quantity be adjusted one more time before paying, carrying over whatever
+// quantity was picked here as that page's starting value. Checkout is what
+// actually calls /api/digital-accounts/orders now.
 export default function DigitalAccountsBrowser() {
   const router = useRouter();
   const [categories, setCategories] = useState(null);
@@ -23,8 +30,6 @@ export default function DigitalAccountsBrowser() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [quantities, setQuantities] = useState({});
-  const [buyingId, setBuyingId] = useState(null);
-  const [buyError, setBuyError] = useState("");
 
   useEffect(() => {
     async function loadCategories() {
@@ -75,27 +80,9 @@ export default function DigitalAccountsBrowser() {
     setQuantities((q) => ({ ...q, [templateId]: n }));
   }
 
-  async function handleBuy(template) {
-    setBuyError("");
+  function goToCheckout(template) {
     const qty = quantityFor(template.id);
-    if (qty > template.availableCount) {
-      setBuyError("Not enough stock left for that quantity.");
-      return;
-    }
-    setBuyingId(template.id);
-    try {
-      const res = await fetch("/api/digital-accounts/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId: template.id, quantity: qty }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not complete the purchase.");
-      router.push(`/digital-accounts/orders/${data.order.id}`);
-    } catch (err) {
-      setBuyError(err.message);
-      setBuyingId(null);
-    }
+    router.push(`/digital-accounts/checkout/${template.id}?qty=${qty}`);
   }
 
   if (loadingCategories) {
@@ -136,8 +123,6 @@ export default function DigitalAccountsBrowser() {
         <p className="text-sm text-gray-400 dark:text-night-400 mb-4">{activeCategory.description}</p>
       )}
 
-      {buyError && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{buyError}</p>}
-
       {loadingTemplates ? (
         <p className="text-sm text-gray-400 dark:text-night-400">Loading products…</p>
       ) : !templates || templates.length === 0 ? (
@@ -161,15 +146,16 @@ export default function DigitalAccountsBrowser() {
                 {t.description && (
                   <p className="text-sm text-gray-600 dark:text-night-300 mb-3 flex-1">{t.description}</p>
                 )}
-                <div className="text-lg font-bold mb-2">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
-
-                {/* pcs / sold-out badges moved down here, right above the
-                    buy control, instead of the top-right corner. */}
-                <div className="flex items-center gap-1.5 mb-3">
-                  <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
-                    {t.availableCount} pcs
-                  </span>
-                  {outOfStock && <span className="badge badge-danger">Sold out</span>}
+                {/* pcs / sold-out badges sit beside the price, on the
+                    opposite side, instead of stacked on their own row. */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="text-lg font-bold">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
+                      {t.availableCount} pcs
+                    </span>
+                    {outOfStock && <span className="badge badge-danger">Sold out</span>}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -183,12 +169,11 @@ export default function DigitalAccountsBrowser() {
                     className={`${INPUT_CLASS} disabled:opacity-50 disabled:cursor-not-allowed`}
                   />
                   <button
-                    onClick={() => handleBuy(t)}
-                    disabled={outOfStock || buyingId === t.id}
-                    className="btn-primary flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => goToCheckout(t)}
+                    disabled={outOfStock}
+                    className="btn-primary flex-1 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ShoppingCart size={14} />
-                    {buyingId === t.id ? "Buying…" : "Buy Now"}
+                    {outOfStock ? "Sold out" : "Buy Now"}
                   </button>
                 </div>
               </div>
