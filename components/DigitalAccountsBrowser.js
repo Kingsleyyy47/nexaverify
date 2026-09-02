@@ -1,35 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Star } from "lucide-react";
 
-const INPUT_CLASS =
-  "w-20 rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900";
-
-// Category tabs -> product template grid -> Buy Now. Live stock counts come
+// Category tabs -> product template grid -> checkout. Live stock counts come
 // from /api/digital-accounts/templates (computed server-side against
 // digital_stock_items, which has no client-facing select policy at all — see
 // schema.sql), so the "N pcs" count (and the separate "Sold out" badge next
-// to it once that count hits 0 — kept as its own badge rather than replacing
-// the number, per the business owner's request) always reflects the real,
-// current count rather than something cached on the template row.
+// to it once that count hits 0) always reflects the real, current count
+// rather than something cached on the template row.
 //
-// Buy Now no longer purchases directly from the card — it navigates to a
-// dedicated checkout page (app/(customer)/digital-accounts/checkout/
-// [templateId]/page.js) that shows the full description and lets the
-// quantity be adjusted one more time before paying, carrying over whatever
-// quantity was picked here as that page's starting value. Checkout is what
-// actually calls /api/digital-accounts/orders now.
+// The whole card is the tap target — no inline quantity input or Buy Now
+// button here anymore (per the business owner's request: no repeating
+// "Sold out" on a second control, and no asking for quantity twice). Tapping
+// an in-stock card goes straight to its checkout page
+// (app/(customer)/digital-accounts/checkout/[templateId]/page.js), which is
+// where quantity is actually picked and the purchase happens. A sold-out
+// card isn't a link at all — nothing to tap through to.
 export default function DigitalAccountsBrowser() {
-  const router = useRouter();
   const [categories, setCategories] = useState(null);
   const [categoryId, setCategoryId] = useState(null);
   const [templates, setTemplates] = useState(null);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [quantities, setQuantities] = useState({});
 
   useEffect(() => {
     async function loadCategories() {
@@ -70,20 +65,6 @@ export default function DigitalAccountsBrowser() {
   }, [categoryId]);
 
   const activeCategory = useMemo(() => categories?.find((c) => c.id === categoryId), [categories, categoryId]);
-
-  function quantityFor(templateId) {
-    return quantities[templateId] ?? 1;
-  }
-
-  function setQuantity(templateId, value, max) {
-    const n = Math.max(1, Math.min(Number(value) || 1, Math.max(max, 1)));
-    setQuantities((q) => ({ ...q, [templateId]: n }));
-  }
-
-  function goToCheckout(template) {
-    const qty = quantityFor(template.id);
-    router.push(`/digital-accounts/checkout/${template.id}?qty=${qty}`);
-  }
 
   if (loadingCategories) {
     return <p className="text-sm text-gray-400 dark:text-night-400">Loading categories…</p>;
@@ -146,35 +127,25 @@ export default function DigitalAccountsBrowser() {
                 {t.description && (
                   <p className="text-sm text-gray-600 dark:text-night-300 mb-3 flex-1">{t.description}</p>
                 )}
-                {/* pcs / sold-out badges sit beside the price, on the
-                    opposite side, instead of stacked on their own row. */}
-                <div className="flex items-center justify-between gap-2 mb-3">
+                {/* "X pcs" is always plain, informational text — untouched.
+                    The other pill does double duty instead of adding a new
+                    control: in stock, it's a real "Buy" button straight into
+                    checkout; sold out, it reverts to the same plain, red,
+                    non-clickable "Sold out" text as before. */}
+                <div className="flex items-center justify-between gap-2">
                   <div className="text-lg font-bold">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
                       {t.availableCount} pcs
                     </span>
-                    {outOfStock && <span className="badge badge-danger">Sold out</span>}
+                    {outOfStock ? (
+                      <span className="badge badge-danger">Sold out</span>
+                    ) : (
+                      <Link href={`/digital-accounts/checkout/${t.id}`} className="badge badge-success hover:opacity-80 transition">
+                        Buy
+                      </Link>
+                    )}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.max(t.availableCount, 1)}
-                    value={quantityFor(t.id)}
-                    onChange={(e) => setQuantity(t.id, e.target.value, t.availableCount)}
-                    disabled={outOfStock}
-                    className={`${INPUT_CLASS} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  />
-                  <button
-                    onClick={() => goToCheckout(t)}
-                    disabled={outOfStock}
-                    className="btn-primary flex-1 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {outOfStock ? "Sold out" : "Buy Now"}
-                  </button>
                 </div>
               </div>
             );
