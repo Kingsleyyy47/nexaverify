@@ -354,20 +354,23 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                     key={s.service}
                     type="button"
                     onClick={() => selectService(s)}
-                    className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-gray-50 dark:hover:bg-night-800 transition"
+                    className="w-full flex flex-col items-stretch gap-2 px-3.5 py-3 text-left hover:bg-gray-50 dark:hover:bg-night-800 transition sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-start gap-2.5 min-w-0">
                       <AdaptiveLogo logo={logoFor(s.name)} className="w-7 h-7 rounded-lg shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           {s.favorite && <Star size={13} fill="currentColor" className="text-amber-400 shrink-0" />}
-                          <span className="font-semibold text-sm truncate">{s.name}</span>
+                          <span className="block font-semibold text-sm whitespace-normal break-words sm:truncate">{s.name}</span>
                         </div>
-                        <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5 truncate">{s.category}</div>
+                        <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5 whitespace-normal break-words sm:truncate">
+                          {s.category}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-night-300 shrink-0 text-right">
-                      {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : `$${s.rate}/1000`} · min {s.min}
+                    <div className="pl-9 text-xs font-semibold text-brand-700 dark:text-brand-400 shrink-0 sm:pl-0 sm:text-right sm:text-gray-500 sm:dark:text-night-300">
+                      {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : `$${s.rate}/1000`}
+                      <span className="hidden sm:inline"> · min {s.min}</span>
                     </div>
                   </button>
                 ))}
