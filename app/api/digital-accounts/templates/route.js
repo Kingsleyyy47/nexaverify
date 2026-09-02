@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Public (any signed-in customer) catalog for one category — never exposes
-// digital_stock_items rows themselves, just a live count of how many are
-// still 'available' per template, computed here with the service role key
-// (that table has no client-facing select policy at all — see schema.sql).
-// Re-checks digital_accounts_config.customer_visible itself — see the
-// comment on app/api/digital-accounts/categories/route.js for why.
+// Public (any signed-in customer) catalog — either one category
+// (?categoryId=...) or, when that param is omitted/"all", every category at
+// once for the browser's "All" view (see components/DigitalAccountsBrowser.js).
+// Never exposes digital_stock_items rows themselves, just a live count of
+// how many are still 'available' per template, computed here with the
+// service role key (that table has no client-facing select policy at all —
+// see schema.sql). Re-checks digital_accounts_config.customer_visible
+// itself — see the comment on app/api/digital-accounts/categories/route.js
+// for why. Always includes category_id so the "All" view can look up each
+// template's own category (logo/name) client-side without a second request
+// per product.
 export async function GET(request) {
   const { user, profile } = await getSessionProfile();
   if (!user) {
@@ -15,9 +20,7 @@ export async function GET(request) {
   }
 
   const categoryId = request.nextUrl.searchParams.get("categoryId");
-  if (!categoryId) {
-    return NextResponse.json({ error: "categoryId is required" }, { status: 400 });
-  }
+  const wantsAll = !categoryId || categoryId === "all";
 
   const admin = createAdminClient();
 
@@ -32,12 +35,16 @@ export async function GET(request) {
     }
   }
 
-  const { data: templates } = await admin
+  let query = admin
     .from("digital_product_templates")
-    .select("id, name, description, price_ngn, favorite")
-    .eq("category_id", categoryId)
+    .select("id, category_id, name, description, price_ngn, favorite")
     .eq("archived", false)
     .order("created_at", { ascending: true });
+  if (!wantsAll) {
+    query = query.eq("category_id", categoryId);
+  }
+
+  const { data: templates } = await query;
 
   const ids = (templates || []).map((t) => t.id);
   let stockCountByTemplate = {};
