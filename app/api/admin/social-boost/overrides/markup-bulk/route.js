@@ -1,20 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getServices, SocialBoostError } from "@/lib/socialboost";
-
 const CHUNK_SIZE = 500;
 
-// Sets markup for a set of services — used by the "Markup" control on
-// /admin/social-boost. For the page's global markup save, this route fetches
-// the full provider catalog server-side so customer prices show consistently
-// regardless of platform tab/search/browser-render limits. This
-// REPLACES whatever markup was there before for each affected service — it
-// does not add on top of it, matching /admin/products' bulk Markup semantics
-// exactly, so running it twice with the same amount is idempotent. This is
-// what lets an admin set one number that "affects all" the currently visible
-// services in one click, then go tweak any individual one afterward without
-// it being overwritten again until Markup is run a second time.
+// Sets Social Boost markup. The normal /admin/social-boost bulk Save writes
+// one site-wide markup setting to social_boost_config and clears per-service
+// markup_custom flags, so old/toggle-created override rows with ₦0 cannot
+// shadow the site-wide customer price. Filtered/custom callers can still
+// send an explicit services list; those rows are marked custom. Either way,
+// this REPLACES the previous markup instead of adding on top of it, so
+// running it twice with the same amount is idempotent. An admin can still
+// tweak any individual service afterward without that service being pulled
+// back to the global value until the global Save is run again.
 //
 // `mode` picks which of the two markup calculations this run writes — a
 // toggle button next to the amount input on the page switches it:
@@ -44,24 +41,30 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  let serviceRefs = [];
   if (scope === "all") {
-    try {
-      const providerServices = await getServices();
-      serviceRefs = (Array.isArray(providerServices) ? providerServices : []).map((s) => ({
-        serviceId: s.service,
-        serviceName: s.name,
-      }));
-    } catch (err) {
-      if (err instanceof SocialBoostError) {
-        return NextResponse.json({ error: err.message }, { status: err.status || 502 });
-      }
-      throw err;
-    }
-  } else {
-    serviceRefs = Array.isArray(services) ? services : [];
+    const configUpdate = {
+      markup_type: markupType,
+      ...(markupType === "flat" ? { markup_ngn: markup } : { markup_percent: markup }),
+      updated_at: new Date().toISOString(),
+    };
+    const { error: configError } = await admin
+      .from("social_boost_config")
+      .upsert({ id: true, ...configUpdate }, { onConflict: "id" });
+    if (configError) return NextResponse.json({ error: "Could not update prices" }, { status: 500 });
+
+    const { error: clearCustomError } = await admin
+      .from("social_boost_overrides")
+      .update({
+        markup_custom: false,
+        updated_at: new Date().toISOString(),
+      })
+      .neq("service_id", 0);
+    if (clearCustomError) return NextResponse.json({ error: "Could not update prices" }, { status: 500 });
+
+    return NextResponse.json({ ok: true, scope: "all" });
   }
 
+  const serviceRefs = Array.isArray(services) ? services : [];
   if (serviceRefs.length === 0) {
     return NextResponse.json({ error: "No services found to update" }, { status: 400 });
   }
@@ -104,6 +107,7 @@ export async function POST(request) {
       markup_type: markupType,
       markup_ngn: markupType === "flat" ? markup : Number(prior?.markup_ngn || 0),
       markup_percent: markupType === "percent" ? markup : Number(prior?.markup_percent || 0),
+      markup_custom: true,
       updated_at: now,
     };
   });

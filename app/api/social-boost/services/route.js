@@ -57,9 +57,20 @@ export async function GET() {
     ]);
 
     const overrideMap = new Map((overrides || []).map((o) => [o.service_id, o]));
+    const globalMarkupType = config?.markup_type === "percent" ? "percent" : "flat";
+    const globalMarkupNgn = Number(config?.markup_ngn || 0);
+    const globalMarkupPercent = Number(config?.markup_percent || 0);
 
     let merged = (Array.isArray(services) ? services : []).map((s) => {
       const o = overrideMap.get(Number(s.service));
+      const hasCustomMarkup = Boolean(o?.markup_custom);
+      const markupType = hasCustomMarkup
+        ? o?.markup_type === "percent" ? "percent" : "flat"
+        : globalMarkupType;
+      const markupPercent = hasCustomMarkup ? Number(o?.markup_percent || 0) : globalMarkupPercent;
+      const markupNgn = markupType === "percent"
+        ? 0
+        : hasCustomMarkup ? Number(o?.markup_ngn || 0) : globalMarkupNgn;
       return {
         ...s,
         platform: detectPlatform(s),
@@ -73,9 +84,10 @@ export async function GET() {
         // row and the customer buy form's live preview (SocialBoostBuyForm)
         // can branch on them the same way app/api/social-boost/orders does
         // at actual purchase time.
-        markupType: o?.markup_type === "percent" ? "percent" : "flat",
-        markupPercent: Number(o?.markup_percent || 0),
-        markupNgn: o?.markup_type === "percent" ? 0 : Number(o?.markup_ngn || 0),
+        markupType,
+        markupPercent,
+        markupNgn,
+        markupCustom: hasCustomMarkup,
       };
     });
 

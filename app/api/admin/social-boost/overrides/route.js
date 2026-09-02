@@ -29,7 +29,7 @@ export async function POST(request) {
   const admin = createAdminClient();
   const { data: prior, error: priorError } = await admin
     .from("social_boost_overrides")
-    .select("markup_type, markup_ngn, markup_percent")
+    .select("markup_type, markup_ngn, markup_percent, markup_custom")
     .eq("service_id", id)
     .maybeSingle();
   if (priorError) return NextResponse.json({ error: "Could not save" }, { status: 500 });
@@ -45,6 +45,7 @@ export async function POST(request) {
         markup_type: hasMarkupNgn ? "flat" : prior?.markup_type === "percent" ? "percent" : "flat",
         markup_ngn: hasMarkupNgn ? markup : Number(prior?.markup_ngn || 0),
         markup_percent: hasMarkupNgn ? 0 : Number(prior?.markup_percent || 0),
+        markup_custom: hasMarkupNgn ? true : Boolean(prior?.markup_custom),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "service_id" }

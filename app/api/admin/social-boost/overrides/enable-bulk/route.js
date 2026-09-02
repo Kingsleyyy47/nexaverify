@@ -41,6 +41,7 @@ export async function POST(request) {
       markup_type: prior?.markup_type === "percent" ? "percent" : "flat",
       markup_ngn: Number(prior?.markup_ngn || 0),
       markup_percent: Number(prior?.markup_percent || 0),
+      markup_custom: Boolean(prior?.markup_custom),
       updated_at: now,
     };
   });

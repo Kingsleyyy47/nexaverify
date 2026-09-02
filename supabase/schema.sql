@@ -517,18 +517,33 @@ create policy "telegram_gift_orders_select_own" on public.telegram_gift_orders
 --     admins regardless of customer_visible.
 --   customer_visible: separate, off-by-default switch. Customers always see
 --     "Coming soon" on /products/social-boost until this is flipped on.
--- Unlike iStar, there's no admin-set markup here — every service's `rate`
--- (price per 1000 units) comes straight from the provider's live /services
--- list; NexaVerify isn't reselling with its own markup on this provider yet.
+--   markup_type / markup_ngn / markup_percent: the site-wide default markup
+--     applied to every Social Boost service unless that service has an
+--     explicit per-service custom markup row below.
 -- ============================================================================
 create table if not exists public.social_boost_config (
   id boolean primary key default true check (id),
   enabled boolean not null default false,
   customer_visible boolean not null default false,
+  markup_type text not null default 'flat' check (markup_type in ('flat', 'percent')),
+  markup_ngn numeric(12,2) not null default 0,
+  markup_percent numeric(6,2) not null default 0,
   updated_at timestamptz not null default now()
 );
 
 insert into public.social_boost_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.social_boost_config add column if not exists markup_type text not null default 'flat';
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'social_boost_config_markup_type_check'
+  ) then
+    alter table public.social_boost_config
+      add constraint social_boost_config_markup_type_check check (markup_type in ('flat', 'percent'));
+  end if;
+end $$;
+alter table public.social_boost_config add column if not exists markup_ngn numeric(12,2) not null default 0;
+alter table public.social_boost_config add column if not exists markup_percent numeric(6,2) not null default 0;
 
 alter table public.social_boost_config enable row level security;
 
@@ -597,13 +612,10 @@ create policy "social_boost_orders_select_own" on public.social_boost_orders
 --     global on/off switch in social_boost_config.
 --   favorite: pins this service to the top of its platform tab for customers
 --     (see app/api/social-boost/services).
---   markup_ngn: a FLAT Naira amount added once per order for this specific
---     service — set in bulk for many services at once ("Markup" button,
---     replaces whatever was there before, doesn't add on top of it — same
---     behavior as /admin/products' bulk Markup) or edited individually
---     afterward. Defaults to 0 (no markup) until an admin sets one; there's
---     no live per-service cost lookup to compute a percentage from the way
---     DaisySMS's sync does, so this is deliberately a flat admin-set amount.
+--   markup_ngn / markup_type / markup_percent: optional per-service markup,
+--     used only when markup_custom is true. Otherwise pricing falls back to
+--     the site-wide defaults on social_boost_config, so enabled/favorite
+--     rows can never accidentally shadow global markup with ₦0.
 -- Rows are created lazily — only services an admin has actually touched
 -- exist here at all.
 -- ============================================================================
@@ -616,18 +628,10 @@ create table if not exists public.social_boost_overrides (
   updated_at timestamptz not null default now()
 );
 
--- markup_type / markup_percent: added so the bulk "Markup" control on
--- /admin/social-boost can apply a PERCENTAGE markup instead of the flat
--- markup_ngn amount above — a toggle button next to that control switches
--- which one a bulk run writes. When markup_type = 'percent', pricing (see
--- app/api/social-boost/orders and app/api/social-boost/services) computes
--- the order's markup as markup_percent% of that order's own USD->NGN cost
--- (so, unlike markup_ngn, it naturally scales with quantity) and ignores
--- markup_ngn entirely; markup_ngn is left at whatever it was (unused, not
--- zeroed) purely so switching back to flat later doesn't lose the old
--- number. Saving an individual row's flat ₦ field (SocialBoostServiceRow)
--- always resets a service back to markup_type = 'flat', since typing a flat
--- number into that field is an explicit choice to stop using a percentage.
+-- Saving an individual row's flat ₦ field (SocialBoostServiceRow) marks that
+-- service as markup_custom = true and switches it to markup_type = 'flat'.
+-- The global bulk markup save resets markup_custom=false across existing
+-- override rows so the site-wide default becomes authoritative again.
 alter table public.social_boost_overrides add column if not exists markup_type text not null default 'flat';
 do $$ begin
   if not exists (
@@ -638,6 +642,7 @@ do $$ begin
   end if;
 end $$;
 alter table public.social_boost_overrides add column if not exists markup_percent numeric(6,2) not null default 0;
+alter table public.social_boost_overrides add column if not exists markup_custom boolean not null default false;
 
 alter table public.social_boost_overrides enable row level security;
 
