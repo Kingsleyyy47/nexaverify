@@ -5,13 +5,12 @@ import { Smartphone, Globe2, Globe, KeyRound, Send, Rocket } from "lucide-react"
 // below the wallet card — one tap to each product line instead of digging
 // through the sidebar or the "+ Buy a number" dropdown. Whichever
 // phone-number provider is switched off at /admin/providers drops out of the
-// grid entirely, same as everywhere else in the nav; "Buy Logs" (Digital
-// Accounts) has no such switch and always shows. Telegram Premium and Social
-// Boost use the same "coming soon" badge convention as CustomerSidebar —
-// tagged with soonForNonAdmin rather than just true, since they're two
-// independent products with their own visibility switch (see that
-// component's comment for why a shared boolean would clobber one with the
-// other's state).
+// grid entirely, same as everywhere else in the nav. Telegram Premium,
+// Social Boost, and "Buy Logs" (Digital Accounts) all use the same "coming
+// soon" badge convention as CustomerSidebar — tagged with soonForNonAdmin
+// rather than just true, since they're independent products each with their
+// own visibility switch (see that component's comment for why a shared
+// boolean would clobber one with another's state).
 const TILES = [
   {
     key: "daisysms",
@@ -30,6 +29,7 @@ const TILES = [
     href: "/digital-accounts",
     label: "Buy Logs",
     icon: KeyRound,
+    soonForNonAdmin: "digitalAccounts",
   },
   {
     key: "daisysim",
@@ -60,6 +60,7 @@ export default function QuickLinksGrid({
   isAdmin = false,
   istarCustomerVisible = false,
   socialBoostCustomerVisible = false,
+  digitalAccountsCustomerVisible = false,
 }) {
   const enabledFlags = {
     daisysms: daisysmsEnabled,
@@ -69,7 +70,11 @@ export default function QuickLinksGrid({
     telegramPremium: true,
     socialBoost: true,
   };
-  const customerVisibleByTag = { istar: istarCustomerVisible, socialBoost: socialBoostCustomerVisible };
+  const customerVisibleByTag = {
+    istar: istarCustomerVisible,
+    socialBoost: socialBoostCustomerVisible,
+    digitalAccounts: digitalAccountsCustomerVisible,
+  };
   const visible = TILES.filter((t) => enabledFlags[t.key]);
 
   if (visible.length === 0) return null;

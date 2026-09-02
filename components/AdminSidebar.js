@@ -25,6 +25,7 @@ const LINKS = [
   { href: "/admin/social-boost", label: "Social Boost" },
   { href: "/admin/digital-accounts/categories", label: "Categories" },
   { href: "/admin/digital-accounts/templates", label: "Product Templates" },
+  { href: "/admin/digital-accounts/single-product", label: "Single Product" },
   { href: "/admin/digital-accounts/upload", label: "Bulk Account Upload" },
   { href: "/admin/pocketfi", label: "PocketFi funding" },
   { href: "/admin/onboarding", label: "Welcome popup" },

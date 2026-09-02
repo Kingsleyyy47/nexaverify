@@ -16,6 +16,7 @@ export default async function CustomerLayout({ children }) {
     { data: usOnlyConfig },
     { data: istarConfig },
     { data: socialBoostConfig },
+    { data: digitalAccountsConfig },
   ] = await Promise.all([
     supabase.from("currency_rates").select("*"),
     supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
@@ -23,6 +24,7 @@ export default async function CustomerLayout({ children }) {
     supabase.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle(),
     supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
     supabase.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
+    supabase.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
   ]);
 
   // All fail open/closed to their respective defaults (see /admin/providers)
@@ -33,6 +35,7 @@ export default async function CustomerLayout({ children }) {
   const usOnlyEnabled = usOnlyConfig?.enabled ?? false;
   const istarCustomerVisible = istarConfig?.customer_visible ?? false;
   const socialBoostCustomerVisible = socialBoostConfig?.customer_visible ?? false;
+  const digitalAccountsCustomerVisible = digitalAccountsConfig?.customer_visible ?? false;
 
   return (
     <CurrencyProvider rates={rates}>
@@ -44,6 +47,7 @@ export default async function CustomerLayout({ children }) {
           usOnlyEnabled={usOnlyEnabled}
           istarCustomerVisible={istarCustomerVisible}
           socialBoostCustomerVisible={socialBoostCustomerVisible}
+          digitalAccountsCustomerVisible={digitalAccountsCustomerVisible}
         />
         <main className="flex-1 p-4 pb-24 md:p-9 max-w-6xl w-full">
           <CustomerTopBar balance={profile?.balance || 0} />
@@ -54,6 +58,7 @@ export default async function CustomerLayout({ children }) {
         isAdmin={isAdmin(profile)}
         istarCustomerVisible={istarCustomerVisible}
         socialBoostCustomerVisible={socialBoostCustomerVisible}
+        digitalAccountsCustomerVisible={digitalAccountsCustomerVisible}
       />
     </CurrencyProvider>
   );

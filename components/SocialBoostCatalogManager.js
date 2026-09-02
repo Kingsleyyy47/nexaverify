@@ -37,7 +37,12 @@ export default function SocialBoostCatalogManager({ usdRate }) {
     setLoading(true);
     setLoadError("");
     try {
-      const res = await fetch("/api/social-boost/services");
+      // no-store: without this, some mobile browsers (Safari especially)
+      // serve a cached copy of this exact URL instead of re-hitting the
+      // server after a bulk Enable/Disable — the list then still shows the
+      // pre-change state even though the change actually saved. See the big
+      // comment on app/api/social-boost/services/route.js.
+      const res = await fetch("/api/social-boost/services", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load the service list.");
       setServices(data.services || []);

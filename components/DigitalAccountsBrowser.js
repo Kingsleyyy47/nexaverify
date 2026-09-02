@@ -150,47 +150,47 @@ export default function DigitalAccountsBrowser() {
             const outOfStock = t.availableCount <= 0;
             return (
               <div key={t.id} className="card card-pad flex flex-col">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="font-bold text-sm flex items-center gap-1.5">
-                    {t.favorite && <Star size={14} fill="currentColor" className="text-amber-400 shrink-0" />}
-                    {t.name}
-                  </div>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
-                      {t.availableCount} pcs
-                    </span>
-                    {outOfStock && <span className="badge badge-danger">Sold out</span>}
-                  </span>
+                {/* No product name here on purpose — the description below is
+                    the card's only text, per the business owner's request
+                    (the category tab above already gives context, and the
+                    admin-only name is still what the Order Details page and
+                    the admin catalog show). */}
+                <div className="flex items-start justify-end gap-2 mb-1">
+                  {t.favorite && <Star size={14} fill="currentColor" className="text-amber-400 shrink-0" />}
                 </div>
                 {t.description && (
-                  <p className="text-xs text-gray-400 dark:text-night-400 mb-3 flex-1">{t.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-night-300 mb-3 flex-1">{t.description}</p>
                 )}
-                <div className="text-lg font-bold mb-3">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
+                <div className="text-lg font-bold mb-2">₦{Number(t.price_ngn).toLocaleString("en-US")}</div>
 
-                {outOfStock ? (
-                  <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">
-                    Sold out
+                {/* pcs / sold-out badges moved down here, right above the
+                    buy control, instead of the top-right corner. */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
+                    {t.availableCount} pcs
+                  </span>
+                  {outOfStock && <span className="badge badge-danger">Sold out</span>}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(t.availableCount, 1)}
+                    value={quantityFor(t.id)}
+                    onChange={(e) => setQuantity(t.id, e.target.value, t.availableCount)}
+                    disabled={outOfStock}
+                    className={`${INPUT_CLASS} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  />
+                  <button
+                    onClick={() => handleBuy(t)}
+                    disabled={outOfStock || buyingId === t.id}
+                    className="btn-primary flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ShoppingCart size={14} />
+                    {buyingId === t.id ? "Buying…" : "Buy Now"}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={t.availableCount}
-                      value={quantityFor(t.id)}
-                      onChange={(e) => setQuantity(t.id, e.target.value, t.availableCount)}
-                      className={INPUT_CLASS}
-                    />
-                    <button
-                      onClick={() => handleBuy(t)}
-                      disabled={buyingId === t.id}
-                      className="btn-primary flex-1 flex items-center justify-center gap-1.5"
-                    >
-                      <ShoppingCart size={14} />
-                      {buyingId === t.id ? "Buying…" : "Buy"}
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
             );
           })}

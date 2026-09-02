@@ -16,16 +16,21 @@ const TABS = [
   { key: "socialBoost", href: "/products/social-boost", label: "Social Boost", icon: Rocket, soonForNonAdmin: "socialBoost" },
   { key: "wallet", href: "/wallet", label: "Wallet", icon: Wallet },
   { key: "telegram", href: "/products/telegram-premium", label: "Telegram", icon: Send, soonForNonAdmin: "istar" },
-  { key: "logs", href: "/digital-accounts", label: "Logs", icon: KeyRound },
+  { key: "logs", href: "/digital-accounts", label: "Logs", icon: KeyRound, soonForNonAdmin: "digitalAccounts" },
 ];
 
 export default function MobileBottomNav({
   isAdmin = false,
   istarCustomerVisible = false,
   socialBoostCustomerVisible = false,
+  digitalAccountsCustomerVisible = false,
 }) {
   const pathname = usePathname();
-  const customerVisibleByTag = { istar: istarCustomerVisible, socialBoost: socialBoostCustomerVisible };
+  const customerVisibleByTag = {
+    istar: istarCustomerVisible,
+    socialBoost: socialBoostCustomerVisible,
+    digitalAccounts: digitalAccountsCustomerVisible,
+  };
 
   function isActive(tab) {
     if (tab.key === "sms") {

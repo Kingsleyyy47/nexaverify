@@ -1187,6 +1187,33 @@ create policy "onboarding_config_select_all" on public.onboarding_config
 -- hit 0. See lib/digitalAccountsCsv.js for the CSV parsing/validation and
 -- app/api/digital-accounts/orders/route.js for the purchase flow.
 --
+-- digital_accounts_config: a single customer_visible switch — off by
+-- default, so the feature starts as "Coming soon" everywhere a customer
+-- would see it (nav sidebar, the dashboard's quick-links tile, the mobile
+-- bottom nav, and /digital-accounts itself), exactly like istar_config /
+-- social_boost_config's own customer_visible switch (see the big comment on
+-- istar_config for the original reasoning). No separate `enabled` switch
+-- here unlike those two — there's no external provider API to test against,
+-- so an admin's own "test purchase" IS just browsing /digital-accounts
+-- directly, which this table's bypass-for-admins rule (enforced in the
+-- Route Handlers, not here) already allows regardless of this flag.
+create table if not exists public.digital_accounts_config (
+  id boolean primary key default true check (id),
+  customer_visible boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.digital_accounts_config (id) values (true) on conflict (id) do nothing;
+
+alter table public.digital_accounts_config enable row level security;
+
+drop policy if exists "digital_accounts_config_select_all" on public.digital_accounts_config;
+create policy "digital_accounts_config_select_all" on public.digital_accounts_config
+  for select using (true);
+
+-- No client insert/update policy on purpose — only
+-- /api/admin/digital-accounts/config (service role key) writes this.
+
 -- digital_categories: just a name + optional description (e.g. "Discord").
 -- Not archivable/hideable itself — deleting one cascades its templates (and
 -- therefore their stock and, via template_id set null on digital_orders,

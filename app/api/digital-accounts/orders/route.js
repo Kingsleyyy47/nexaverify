@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Places a digital-account purchase. All of the actual work — locking the
@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // window where stock could be double-sold or a wallet debited without stock
 // actually being claimed. See that function's comment in schema.sql.
 export async function POST(request) {
-  const { user } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -25,6 +25,20 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
+
+  // Blocks the purchase itself regardless of caller — see the comment on
+  // app/api/digital-accounts/categories/route.js for why every route here
+  // re-checks this rather than trusting the page's own "Coming soon" gate.
+  if (!isAdmin(profile)) {
+    const { data: config } = await admin
+      .from("digital_accounts_config")
+      .select("customer_visible")
+      .eq("id", true)
+      .maybeSingle();
+    if (!config?.customer_visible) {
+      return NextResponse.json({ error: "This isn't available yet." }, { status: 403 });
+    }
+  }
 
   // Pre-flight checks purely for a friendlier error message — the RPC itself
   // is the real, race-safe source of truth for both of these and will

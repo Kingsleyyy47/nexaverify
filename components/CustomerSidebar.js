@@ -21,7 +21,7 @@ const BASE_LINKS = [
   { href: "/get-a-website", label: "Website" },
   { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: "istar" },
   { href: "/products/social-boost", label: "Social Boost", soonForNonAdmin: "socialBoost" },
-  { href: "/digital-accounts", label: "Digital Accounts" },
+  { href: "/digital-accounts", label: "Digital Accounts", soonForNonAdmin: "digitalAccounts" },
   { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
@@ -32,6 +32,7 @@ export default function CustomerSidebar({
   usOnlyEnabled = false,
   istarCustomerVisible = false,
   socialBoostCustomerVisible = false,
+  digitalAccountsCustomerVisible = false,
 }) {
   // Keyed by each link's `soonForNonAdmin` value (a provider tag, not just
   // `true`) — this used to be one shared boolean when Telegram Premium was
@@ -42,6 +43,7 @@ export default function CustomerSidebar({
   const customerVisibleByTag = {
     istar: istarCustomerVisible,
     socialBoost: socialBoostCustomerVisible,
+    digitalAccounts: digitalAccountsCustomerVisible,
   };
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);

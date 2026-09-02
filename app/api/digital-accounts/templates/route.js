@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Public (any signed-in customer) catalog for one category — never exposes
 // digital_stock_items rows themselves, just a live count of how many are
 // still 'available' per template, computed here with the service role key
 // (that table has no client-facing select policy at all — see schema.sql).
+// Re-checks digital_accounts_config.customer_visible itself — see the
+// comment on app/api/digital-accounts/categories/route.js for why.
 export async function GET(request) {
-  const { user } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -18,6 +20,18 @@ export async function GET(request) {
   }
 
   const admin = createAdminClient();
+
+  if (!isAdmin(profile)) {
+    const { data: config } = await admin
+      .from("digital_accounts_config")
+      .select("customer_visible")
+      .eq("id", true)
+      .maybeSingle();
+    if (!config?.customer_visible) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const { data: templates } = await admin
     .from("digital_product_templates")
     .select("id, name, description, price_ngn, favorite")

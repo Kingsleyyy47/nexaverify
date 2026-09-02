@@ -21,6 +21,7 @@ export default async function DashboardPage() {
     usOnlyCatalog,
     { data: istarConfig },
     { data: socialBoostConfig },
+    { data: digitalAccountsConfig },
   ] = await Promise.all([
     supabase
       .from("services")
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
     getUsOnlyCatalog(supabase),
     supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
     supabase.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
+    supabase.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
   ]);
 
   // All fail open/closed to their respective defaults — see /admin/providers.
@@ -51,6 +53,7 @@ export default async function DashboardPage() {
   const usOnlyEnabled = usOnlyCatalog.enabled;
   const istarCustomerVisible = istarConfig?.customer_visible ?? false;
   const socialBoostCustomerVisible = socialBoostConfig?.customer_visible ?? false;
+  const digitalAccountsCustomerVisible = digitalAccountsConfig?.customer_visible ?? false;
 
   return (
     <div>
@@ -78,6 +81,7 @@ export default async function DashboardPage() {
         isAdmin={isAdmin(profile)}
         istarCustomerVisible={istarCustomerVisible}
         socialBoostCustomerVisible={socialBoostCustomerVisible}
+        digitalAccountsCustomerVisible={digitalAccountsCustomerVisible}
       />
 
       <div className="card card-pad mb-7">

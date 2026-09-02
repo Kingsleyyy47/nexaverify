@@ -61,7 +61,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
       setLoadingServices(true);
       setServicesError("");
       try {
-        const res = await fetch("/api/social-boost/services");
+        const res = await fetch("/api/social-boost/services", { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not load services");
         setServices(data.services || []);

@@ -17,6 +17,19 @@ import { detectPlatform } from "@/lib/socialboost-platform";
 // lib/socialboost-platform.js) for the customer buy form's tab bar. Admins
 // see EVERY service including ones an admin has disabled (so the catalog
 // manager can re-enable them); non-admins only ever see enabled ones.
+//
+// force-dynamic + the explicit no-store header below exist because this is
+// the one catalog in the app fetched client-side by URL (every other
+// catalog — Products, US Only, International — comes down as server-rendered
+// props instead), which makes it the one route a mobile browser's own HTTP
+// cache can serve stale: after "Disable all"/"Enable all" on
+// /admin/social-boost, SocialBoostCatalogManager re-fetches this same exact
+// URL to refresh the list, and without these two hints some mobile browsers
+// (Safari in particular) will happily hand back their last cached response
+// instead of re-hitting the server — which looks exactly like the bulk
+// action silently not having worked, even though it did.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -70,7 +83,7 @@ export async function GET() {
       merged = merged.filter((s) => s.enabled);
     }
 
-    return NextResponse.json({ services: merged });
+    return NextResponse.json({ services: merged }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
