@@ -12,6 +12,9 @@ jane_smith,mypass,jane@email.com,,,,,,`;
 // column layout from the column count. Shown here so an admin can match
 // whatever a customer-care-supplied log line looks like.
 const PLATFORM_FORMATS = [
+  { name: "Simple CSV/TXT", sample: "username_or_email,password" },
+  { name: "Default stock order", sample: "username,password,2fa,email,email_password,recovery_email,recovery_email_password,year,friends_count" },
+  { name: "Default order with blanks", sample: "username,password,,email,email_password,,," },
   { name: "Facebook", sample: "username|password|email|email_password|recovery_email|two_fa|year|friends_count" },
   { name: "Facebook 2 (no recovery/2FA)", sample: "username|password|email|email_password||year|friends_count" },
   { name: "Instagram / TikTok", sample: "username:password:email:email_password" },
@@ -41,8 +44,9 @@ export default function BulkAccountUpload() {
         const res = await fetch("/api/admin/digital-accounts/templates");
         const data = await res.json();
         if (res.ok) {
-          setTemplates(data.templates || []);
-          if (data.templates?.length) setTemplateId(data.templates[0].id);
+          const activeTemplates = (data.templates || []).filter((t) => !t.archived);
+          setTemplates(activeTemplates);
+          setTemplateId(activeTemplates[0]?.id || "");
         }
       } finally {
         setLoadingTemplates(false);
@@ -112,7 +116,7 @@ export default function BulkAccountUpload() {
         </select>
         {!loadingTemplates && templates.length === 0 && (
           <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
-            No product templates yet — create one at Product Templates first.
+            No active product templates yet — create or unarchive one at Product Templates first.
           </p>
         )}
       </div>
@@ -128,7 +132,7 @@ export default function BulkAccountUpload() {
         <Upload size={32} className="mx-auto mb-3 text-gray-400 dark:text-night-500" />
         <div className="font-bold text-sm">Upload CSV or TXT File</div>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
-          Choose a CSV or TXT file with account credentials (same comma-separated format either way)
+          Choose a CSV or TXT file with account credentials. Comma, pipe, and colon-delimited logs are supported.
         </p>
         <span className="btn-secondary btn-sm mt-3 inline-block">
           {file ? file.name : "Choose File"}
@@ -179,7 +183,7 @@ export default function BulkAccountUpload() {
 
           <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 p-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800 dark:text-blue-300 mb-1.5">
-              <KeyRound size={13} /> Sample format with a header row (works in a .csv or .txt file):
+              <KeyRound size={13} /> Header-row format (works in a .csv or .txt file):
             </div>
             <pre className="text-[11px] text-blue-700 dark:text-blue-400 whitespace-pre-wrap break-all">{SAMPLE_CSV}</pre>
           </div>

@@ -26,7 +26,9 @@ export default function SocialBoostCatalogManager({ usdRate }) {
   // ₦/% toggle button right next to the amount input. See the big comment on
   // markup-bulk/route.js and schema.sql's social_boost_overrides.markup_type
   // for how the two calculations actually differ (flat = added once per
-  // order; percent = scales with the order's own USD->NGN cost).
+  // order; percent = scales with the order's own USD->NGN cost). Markup is
+  // intentionally saved across the whole loaded catalog, independent of the
+  // current platform/search filter, so the customer price shows everywhere.
   const [markupMode, setMarkupMode] = useState("flat"); // "flat" | "percent"
   const [pendingAction, setPendingAction] = useState(null); // null | "enable" | "disable" | "markup"
   const [busy, setBusy] = useState(false);
@@ -80,6 +82,7 @@ export default function SocialBoostCatalogManager({ usdRate }) {
 
   const markupValue = Number(markupAmount);
   const markupIsValid = markupAmount !== "" && Number.isFinite(markupValue) && markupValue >= 0;
+  const markupTargets = services || [];
 
   function asServiceRefs(list) {
     return list.map((s) => ({ serviceId: s.service, serviceName: s.name }));
@@ -135,7 +138,7 @@ export default function SocialBoostCatalogManager({ usdRate }) {
       const res = await fetch("/api/admin/social-boost/overrides/markup-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ services: asServiceRefs(filtered), amount: markupValue, mode: markupMode }),
+        body: JSON.stringify({ services: asServiceRefs(markupTargets), amount: markupValue, mode: markupMode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update prices");
@@ -233,10 +236,10 @@ export default function SocialBoostCatalogManager({ usdRate }) {
           </button>
           <button
             onClick={() => setPendingAction("markup")}
-            disabled={busy || !markupIsValid || filtered.length === 0}
+            disabled={busy || !markupIsValid || markupTargets.length === 0}
             className="btn-secondary btn-sm"
           >
-            Markup
+            {markupMode === "percent" ? "Save % markup to all" : "Save ₦ markup to all"}
           </button>
         </div>
 
@@ -278,8 +281,8 @@ export default function SocialBoostCatalogManager({ usdRate }) {
 
       <div className="hidden md:grid md:grid-cols-[1.6fr_0.7fr_1fr_auto] gap-4 pb-3 mb-1 border-b border-gray-100 dark:border-night-700 text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">
         <div>Service</div>
-        <div>Rate</div>
-        <div>Markup (₦)</div>
+        <div>Rate / Customer</div>
+        <div>Markup</div>
         <div>Enabled</div>
       </div>
 
@@ -322,15 +325,15 @@ export default function SocialBoostCatalogManager({ usdRate }) {
         open={pendingAction === "markup"}
         title={
           markupMode === "percent"
-            ? `Set markup to ${markupValue.toLocaleString("en-US")}% for all matching services?`
-            : `Set markup to ₦${markupValue.toLocaleString("en-US")} for all matching services?`
+            ? `Set markup to ${markupValue.toLocaleString("en-US")}% for all services?`
+            : `Set markup to ₦${markupValue.toLocaleString("en-US")} for all services?`
         }
         message={
           markupMode === "percent"
-            ? `This sets a ${markupValue.toLocaleString("en-US")}% markup (added on top of each order's own cost, so bigger orders get a bigger markup) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service's flat ₦ amount afterward, which switches that one back to flat.`
-            : `This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added once per order) on all ${filtered.length} service(s) currently shown — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`
+            ? `This sets a ${markupValue.toLocaleString("en-US")}% markup (added on top of each order's own cost, so bigger orders get a bigger markup) on all ${markupTargets.length} loaded service(s), regardless of the current platform tab or search — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service's flat ₦ amount afterward, which switches that one back to flat.`
+            : `This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added once per order) on all ${markupTargets.length} loaded service(s), regardless of the current platform tab or search — replacing whatever markup was set before on each, not adding on top of it. You can still edit any individual service afterward.`
         }
-        confirmLabel="Yes, apply it"
+        confirmLabel="Yes, save it"
         cancelLabel="Cancel"
         onConfirm={handleApplyMarkup}
         onCancel={() => setPendingAction(null)}

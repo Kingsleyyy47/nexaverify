@@ -1215,9 +1215,10 @@ create policy "digital_accounts_config_select_all" on public.digital_accounts_co
 -- /api/admin/digital-accounts/config (service role key) writes this.
 
 -- digital_categories: just a name + optional description (e.g. "Discord").
--- Not archivable/hideable itself — deleting one cascades its templates (and
--- therefore their stock and, via template_id set null on digital_orders,
--- unlinks but does NOT delete past orders — see digital_orders below).
+-- Not archivable/hideable itself — deleting one cascades its templates and
+-- their stock. The admin API blocks hard deletion once sold stock exists so
+-- past Order Details pages can still show bought credentials; archive
+-- templates instead when taking a product off sale.
 --   logo_url: an admin-pasted image URL (no file-upload/storage bucket in
 --     this app — every image-like field elsewhere is a plain URL too) shown
 --     beside every product card under this category on the customer-facing
@@ -1294,9 +1295,9 @@ create policy "digital_product_templates_select_all" on public.digital_product_t
 -- below, which is the only thing that ever inserts here.
 --   template_name / category_name: denormalized snapshots taken at purchase
 --     time, same reasoning as social_boost_orders.service_name — so a past
---     order's Order Details page still shows the right product name even if
---     the admin later renames/deletes the template or category (template_id
---     goes null via ON DELETE SET NULL rather than deleting order history).
+--     the admin later renames/deletes the template or category. Admin route
+--     handlers block hard deletion once sold stock exists so the credential
+--     rows behind past Order Details pages are not removed.
 --   unit_price_ngn / total_ngn: what was actually charged, frozen at
 --     purchase time — never recomputed if the template's price later changes.
 -- RLS: select_own, same as rentals/telegram_gift_orders/social_boost_orders —

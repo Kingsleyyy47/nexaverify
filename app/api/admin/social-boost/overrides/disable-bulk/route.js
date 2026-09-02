@@ -16,7 +16,10 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
-  const ids = services.map((s) => Number(s.serviceId)).filter((id) => Number.isInteger(id));
+  const ids = services.map((s) => Number(s.serviceId)).filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length !== services.length) {
+    return NextResponse.json({ error: "Every service needs a valid service ID" }, { status: 400 });
+  }
 
   const { data: existing } = await admin.from("social_boost_overrides").select("*").in("service_id", ids);
   const existingMap = new Map((existing || []).map((o) => [o.service_id, o]));

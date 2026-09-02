@@ -83,7 +83,8 @@ export default function ProductTemplateManager() {
       setCreateError("Enter a product name.");
       return;
     }
-    if (!price || Number(price) < 0) {
+    const priceValue = Number(price);
+    if (price === "" || !Number.isFinite(priceValue) || priceValue < 0) {
       setCreateError("Enter a valid price.");
       return;
     }
@@ -361,7 +362,7 @@ export default function ProductTemplateManager() {
         open={Boolean(pendingDelete)}
         danger
         title={`Delete "${pendingDelete?.name}"?`}
-        message="This also deletes every uploaded (unsold) account under this template. Past orders already placed are kept, just unlinked. This can't be undone."
+        message="This deletes this template and any unsold uploaded accounts under it. If accounts have already been sold, deletion will be blocked; archive the template instead to take it off sale."
         confirmLabel="Yes, delete it"
         cancelLabel="Cancel"
         onConfirm={handleDelete}

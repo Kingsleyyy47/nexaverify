@@ -35,10 +35,9 @@ export async function PATCH(request, { params }) {
   return NextResponse.json({ category: data });
 }
 
-// Cascades to that category's templates and (via template deletion) their
-// stock — see the on delete cascade chain in schema.sql. Past orders survive
-// this (template_id set null, template_name/category_name already
-// denormalized), so a customer's Order Details page keeps working.
+// Cascades to that category's templates and their unsold stock. If any sold
+// credentials exist under the category, reject hard deletion so customers'
+// past Order Details pages can still show the credentials they bought.
 export async function DELETE(_request, { params }) {
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
@@ -46,6 +45,33 @@ export async function DELETE(_request, { params }) {
   }
 
   const admin = createAdminClient();
+  const { data: templates, error: templateLookupError } = await admin
+    .from("digital_product_templates")
+    .select("id")
+    .eq("category_id", params.id);
+  if (templateLookupError) {
+    return NextResponse.json({ error: "Could not delete category." }, { status: 400 });
+  }
+
+  const templateIds = (templates || []).map((t) => t.id);
+  if (templateIds.length > 0) {
+    const { data: soldItems, error: soldLookupError } = await admin
+      .from("digital_stock_items")
+      .select("id")
+      .in("template_id", templateIds)
+      .eq("status", "sold")
+      .limit(1);
+    if (soldLookupError) {
+      return NextResponse.json({ error: "Could not delete category." }, { status: 400 });
+    }
+    if ((soldItems || []).length > 0) {
+      return NextResponse.json(
+        { error: "This category has sold accounts. Archive its templates instead so past order credentials stay available." },
+        { status: 409 }
+      );
+    }
+  }
+
   const { error } = await admin.from("digital_categories").delete().eq("id", params.id);
   if (error) {
     return NextResponse.json({ error: "Could not delete category." }, { status: 400 });

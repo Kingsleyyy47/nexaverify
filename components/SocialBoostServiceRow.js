@@ -31,10 +31,8 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
     if (service.markupType === "flat") setEditingAsFlat(false);
   }, [service.markupType]);
 
-  // This row's flat ₦ input+Save always writes markup_type: "flat" server
-  // -side (see the comment on app/api/admin/social-boost/overrides) — saving
-  // it is how an admin opts a service back out of the % markup the bulk
-  // control (SocialBoostCatalogManager) may have set.
+  // Row toggles should not touch markup mode. Only the flat ₦ input's Save
+  // sends markupNgn, which is how an admin opts this service out of % mode.
   async function save(partial) {
     const res = await fetch("/api/admin/social-boost/overrides", {
       method: "POST",
@@ -44,7 +42,6 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
         serviceName: service.name,
         enabled,
         favorite,
-        markupNgn: markup,
         ...partial,
       }),
     });
@@ -92,6 +89,16 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
     }
   }
 
+  const costNgnPer1000 = usdRate ? (Number(service.rate) || 0) * usdRate : null;
+  const percentMarkup = Number(service.markupPercent || 0);
+  const percentMarkupNgnPer1000 = costNgnPer1000 != null ? costNgnPer1000 * (percentMarkup / 100) : null;
+  const customerRateNgnPer1000 =
+    costNgnPer1000 == null
+      ? null
+      : service.markupType === "percent"
+        ? costNgnPer1000 + Number(percentMarkupNgnPer1000 || 0)
+        : costNgnPer1000 + Number(service.markupNgn || 0);
+
   return (
     <div className="flex flex-col gap-3 md:grid md:grid-cols-[1.6fr_0.7fr_1fr_auto] md:items-center md:gap-4 py-3 border-b border-gray-50 dark:border-night-700 last:border-0">
       <div className="flex items-start gap-1.5 min-w-0">
@@ -115,25 +122,28 @@ export default function SocialBoostServiceRow({ service, usdRate, showCostInNgn 
       </div>
 
       <div className="text-sm text-gray-500 dark:text-night-300">
-        {showCostInNgn && usdRate
-          ? `₦${(Number(service.rate) * usdRate).toLocaleString("en-US", { maximumFractionDigits: 2 })}/1000`
-          : `$${service.rate}/1000`}
+        <div>
+          {showCostInNgn && usdRate
+            ? `Cost ₦${costNgnPer1000.toLocaleString("en-US", { maximumFractionDigits: 2 })}/1000`
+            : `Cost $${service.rate}/1000`}
+        </div>
+        {customerRateNgnPer1000 != null && (
+          <div className="mt-1 text-xs font-bold text-brand-700 dark:text-brand-400">
+            Customer ₦{customerRateNgnPer1000.toLocaleString("en-US", { maximumFractionDigits: 2 })}/1000
+          </div>
+        )}
       </div>
 
       <div>
         {service.markupType === "percent" && !editingAsFlat ? (
           <div className="flex items-center gap-2">
             <span className="badge badge-neutral text-xs shrink-0">
-              {service.markupPercent}% markup
-              {usdRate && (
+              {percentMarkup}% markup
+              {percentMarkupNgnPer1000 != null && (
                 <>
                   {" "}
-                  · ≈₦
-                  {(
-                    Number(service.rate) *
-                    usdRate *
-                    (Number(service.markupPercent) / 100)
-                  ).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  · +≈₦
+                  {percentMarkupNgnPer1000.toLocaleString("en-US", { maximumFractionDigits: 2 })}
                   /1000
                 </>
               )}

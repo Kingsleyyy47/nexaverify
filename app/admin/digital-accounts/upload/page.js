@@ -6,7 +6,7 @@ export default function AdminDigitalUploadPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">Bulk Account Upload</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1 max-w-lg">
-          Upload CSV files with account credentials to an existing product template.
+          Upload CSV or TXT files with account credentials to an existing product template.
         </p>
       </div>
 

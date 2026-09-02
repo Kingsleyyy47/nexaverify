@@ -3,8 +3,8 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Sets markup for a set of services — used by the "Markup" control on
-// /admin/social-boost, scoped to whatever's currently visible (respects the
-// search filter and platform tab), same as "Enable all"/"Disable all". This
+// /admin/social-boost. The admin page sends the full loaded catalog so
+// customer prices show consistently regardless of platform tab/search. This
 // REPLACES whatever markup was there before for each affected service — it
 // does not add on top of it, matching /admin/products' bulk Markup semantics
 // exactly, so running it twice with the same amount is idempotent. This is
@@ -42,7 +42,10 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
-  const ids = services.map((s) => Number(s.serviceId)).filter((id) => Number.isInteger(id));
+  const ids = services.map((s) => Number(s.serviceId)).filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length !== services.length) {
+    return NextResponse.json({ error: "Every service needs a valid service ID" }, { status: 400 });
+  }
 
   const { data: existing } = await admin.from("social_boost_overrides").select("*").in("service_id", ids);
   const existingMap = new Map((existing || []).map((o) => [o.service_id, o]));

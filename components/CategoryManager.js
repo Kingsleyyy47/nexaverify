@@ -294,7 +294,7 @@ export default function CategoryManager() {
         open={Boolean(pendingDelete)}
         danger
         title={`Delete "${pendingDelete?.name}"?`}
-        message="This also deletes every product template (and its uploaded stock) under this category. Past orders already placed are kept, just unlinked. This can't be undone."
+        message="This deletes the category, its product templates, and any unsold uploaded stock under them. If accounts have already been sold, deletion will be blocked; archive those templates instead."
         confirmLabel="Yes, delete it"
         cancelLabel="Cancel"
         onConfirm={handleDelete}

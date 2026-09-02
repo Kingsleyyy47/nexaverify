@@ -4,32 +4,36 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Upserts a single service override (favorite / enabled / markup) — see
 // public.social_boost_overrides. One row per provider service id, created
-// lazily the first time an admin touches any of its three fields. All three
-// fields are always sent together (not just the one being changed) — same
-// reasoning as /api/admin/us-only/overrides: a partial upsert would silently
-// null out whichever field wasn't included.
-//
-// Always writes markup_type: "flat" — this route is only ever called from
-// SocialBoostServiceRow's individual flat-₦ input+Save, so typing a number
-// there is an explicit choice to stop using whatever percentage the bulk
-// "Markup" control (see markup-bulk/route.js) may have set on this service.
+// lazily the first time an admin touches any of its fields. Enabled/favorite
+// toggles preserve whichever markup mode is already saved; only sending
+// markupNgn writes markup_type: "flat", because typing a row-level Naira
+// amount is an explicit choice to stop using the bulk percentage markup.
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceId, serviceName, enabled, favorite, markupNgn } = await request.json();
+  const payload = await request.json();
+  const { serviceId, serviceName, enabled, favorite } = payload;
   const id = Number(serviceId);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "serviceId is required" }, { status: 400 });
   }
-  const markup = Number(markupNgn);
-  if (!Number.isFinite(markup) || markup < 0) {
+  const hasMarkupNgn = Object.prototype.hasOwnProperty.call(payload, "markupNgn");
+  const markup = hasMarkupNgn ? Number(payload.markupNgn) : null;
+  if (hasMarkupNgn && (!Number.isFinite(markup) || markup < 0)) {
     return NextResponse.json({ error: "Enter a valid markup amount" }, { status: 400 });
   }
 
   const admin = createAdminClient();
+  const { data: prior, error: priorError } = await admin
+    .from("social_boost_overrides")
+    .select("markup_type, markup_ngn, markup_percent")
+    .eq("service_id", id)
+    .maybeSingle();
+  if (priorError) return NextResponse.json({ error: "Could not save" }, { status: 500 });
+
   const { data: updated, error } = await admin
     .from("social_boost_overrides")
     .upsert(
@@ -38,9 +42,9 @@ export async function POST(request) {
         service_name: serviceName || null,
         enabled: Boolean(enabled),
         favorite: Boolean(favorite),
-        markup_type: "flat",
-        markup_ngn: markup,
-        markup_percent: 0,
+        markup_type: hasMarkupNgn ? "flat" : prior?.markup_type === "percent" ? "percent" : "flat",
+        markup_ngn: hasMarkupNgn ? markup : Number(prior?.markup_ngn || 0),
+        markup_percent: hasMarkupNgn ? 0 : Number(prior?.markup_percent || 0),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "service_id" }

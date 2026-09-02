@@ -20,11 +20,14 @@ export async function POST(request, { params }) {
   const admin = createAdminClient();
   const { data: template } = await admin
     .from("digital_product_templates")
-    .select("id")
+    .select("id, archived")
     .eq("id", params.id)
     .maybeSingle();
   if (!template) {
     return NextResponse.json({ error: "Product template not found." }, { status: 404 });
+  }
+  if (template.archived) {
+    return NextResponse.json({ error: "Unarchive this product template before adding stock to it." }, { status: 400 });
   }
 
   const body = await request.json();

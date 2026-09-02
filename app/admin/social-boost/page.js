@@ -71,9 +71,9 @@ export default async function AdminSocialBoostPage() {
       <div className="card card-pad">
         <h3 className="font-bold text-[15px] mb-1">Catalog — markup, favorites &amp; enable/disable</h3>
         <p className="text-sm text-gray-400 dark:text-night-400 mb-4 max-w-2xl">
-          Set a markup amount and click "Markup" to apply it to every service currently shown (a
-          platform tab and/or search narrows that down) — it replaces each service's existing markup,
-          so running it again with a new number updates all of them at once. Afterward, tweak any
+          Set a markup amount and save it to apply across the whole Social Boost catalog — it replaces
+          each service's existing markup, so running it again with a new number updates all of them at once.
+          Afterward, tweak any
           individual service's markup, favorite it (pins it to the top of its platform tab for
           customers), or disable it — all independently of the bulk action and of the global
           "Enabled" switch above.

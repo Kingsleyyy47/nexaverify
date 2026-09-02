@@ -65,8 +65,9 @@ export async function PATCH(request, { params }) {
   return NextResponse.json({ template: data });
 }
 
-// Cascades its stock (see schema.sql) — past orders survive via the
-// template_name/category_name snapshot already taken on digital_orders.
+// Cascades its unsold stock (see schema.sql). If any sold credential rows
+// exist, reject hard deletion so customers' past Order Details pages can
+// still show the credentials they bought; use Archive to take it off sale.
 export async function DELETE(_request, { params }) {
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
@@ -74,6 +75,22 @@ export async function DELETE(_request, { params }) {
   }
 
   const admin = createAdminClient();
+  const { data: soldItems, error: soldLookupError } = await admin
+    .from("digital_stock_items")
+    .select("id")
+    .eq("template_id", params.id)
+    .eq("status", "sold")
+    .limit(1);
+  if (soldLookupError) {
+    return NextResponse.json({ error: "Could not delete product template." }, { status: 400 });
+  }
+  if ((soldItems || []).length > 0) {
+    return NextResponse.json(
+      { error: "This template has sold accounts. Archive it instead so past order credentials stay available." },
+      { status: 409 }
+    );
+  }
+
   const { error } = await admin.from("digital_product_templates").delete().eq("id", params.id);
   if (error) {
     return NextResponse.json({ error: "Could not delete product template." }, { status: 400 });
