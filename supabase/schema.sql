@@ -1537,6 +1537,31 @@ create policy "platform_logos_select_all" on public.platform_logos
 -- /api/admin/platform-logos/* (service role key) writes this.
 
 -- ============================================================================
+-- Storage: "logos" bucket — lets an admin upload a logo file straight from
+-- their phone/computer (see app/api/admin/logo-upload/route.js) instead of
+-- only being able to paste an already-hosted image URL. The URL field on
+-- every logo form (Platform Logos, Digital Accounts Categories) still works
+-- exactly as before — uploading just fills that same field with the file's
+-- new public URL, so it's a convenience on top of the URL field, not a
+-- replacement for it. Public bucket (logos aren't sensitive, same as every
+-- other publicly-selectable catalog row in this schema) with reads open to
+-- everyone and writes restricted to the service role key, mirroring the
+-- select-all/write-via-admin-route pattern used everywhere else here.
+-- ============================================================================
+insert into storage.buckets (id, name, public)
+values ('logos', 'logos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "logos_bucket_select_all" on storage.objects;
+create policy "logos_bucket_select_all" on storage.objects
+  for select using (bucket_id = 'logos');
+
+-- No insert/update/delete policy on storage.objects for this bucket on
+-- purpose — only app/api/admin/logo-upload/route.js (service role key,
+-- which bypasses storage RLS the same way it bypasses table RLS) ever
+-- writes to it.
+
+-- ============================================================================
 -- One-time: promote yourself to admin after your first signup.
 -- Replace the email before running.
 -- ============================================================================

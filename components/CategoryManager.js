@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2, X, Check } from "lucide-react";
 import ConfirmDialog from "./ConfirmDialog";
 import AdaptiveLogo from "./AdaptiveLogo";
+import ImageUploadField from "./ImageUploadField";
 
 const INPUT_CLASS =
   "w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900";
@@ -164,28 +165,25 @@ export default function CategoryManager() {
             <label className="block text-xs font-semibold text-gray-500 dark:text-night-300 mb-1">
               Logo URL (optional)
             </label>
-            <input
-              type="text"
+            <ImageUploadField
               value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://…/discord-logo.png"
-              className={INPUT_CLASS}
+              onChange={setLogoUrl}
+              placeholder="https://…/discord-logo.png or upload a file"
             />
             <p className="text-[11px] text-gray-400 dark:text-night-400 mt-1">
-              Shown beside every product card under this category, on a small white backdrop so it
-              stays legible in dark mode too — no second upload needed for the usual case.
+              Upload an image from your phone or computer, or paste a URL directly. Shown beside every
+              product card under this category, on a small white backdrop so it stays legible in dark
+              mode too.
             </p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 dark:text-night-300 mb-1">
               Dark mode logo URL (optional)
             </label>
-            <input
-              type="text"
+            <ImageUploadField
               value={logoUrlDark}
-              onChange={(e) => setLogoUrlDark(e.target.value)}
-              placeholder="https://…/discord-logo-white.png"
-              className={INPUT_CLASS}
+              onChange={setLogoUrlDark}
+              placeholder="https://…/discord-logo-white.png or upload a file"
             />
             <p className="text-[11px] text-gray-400 dark:text-night-400 mt-1">
               Only needed for pixel-perfect control — swaps in a different image in dark mode instead
@@ -228,19 +226,15 @@ export default function CategoryManager() {
                     placeholder="Description"
                     className={INPUT_CLASS}
                   />
-                  <input
-                    type="text"
+                  <ImageUploadField
                     value={editLogoUrl}
-                    onChange={(e) => setEditLogoUrl(e.target.value)}
+                    onChange={setEditLogoUrl}
                     placeholder="Logo URL"
-                    className={INPUT_CLASS}
                   />
-                  <input
-                    type="text"
+                  <ImageUploadField
                     value={editLogoUrlDark}
-                    onChange={(e) => setEditLogoUrlDark(e.target.value)}
+                    onChange={setEditLogoUrlDark}
                     placeholder="Dark mode logo URL (optional)"
-                    className={INPUT_CLASS}
                   />
                 </div>
               ) : (
