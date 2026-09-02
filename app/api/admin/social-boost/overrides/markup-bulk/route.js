@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getServices, SocialBoostError } from "@/lib/socialboost";
+
+const CHUNK_SIZE = 500;
 
 // Sets markup for a set of services — used by the "Markup" control on
-// /admin/social-boost. The admin page sends the full loaded catalog so
-// customer prices show consistently regardless of platform tab/search. This
+// /admin/social-boost. For the page's global markup save, this route fetches
+// the full provider catalog server-side so customer prices show consistently
+// regardless of platform tab/search/browser-render limits. This
 // REPLACES whatever markup was there before for each affected service — it
 // does not add on top of it, matching /admin/products' bulk Markup semantics
 // exactly, so running it twice with the same amount is idempotent. This is
@@ -27,13 +31,10 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { services, amount, mode } = await request.json();
+  const { services, amount, mode, scope } = await request.json();
   const markup = Number(amount);
   const markupType = mode === "percent" ? "percent" : "flat";
 
-  if (!Array.isArray(services) || services.length === 0) {
-    return NextResponse.json({ error: "services must be a non-empty array" }, { status: 400 });
-  }
   if (!Number.isFinite(markup) || markup < 0) {
     return NextResponse.json({ error: "Enter a valid amount" }, { status: 400 });
   }
@@ -42,16 +43,57 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
-  const ids = services.map((s) => Number(s.serviceId)).filter((id) => Number.isInteger(id) && id > 0);
-  if (ids.length !== services.length) {
+
+  let serviceRefs = [];
+  if (scope === "all") {
+    try {
+      const providerServices = await getServices();
+      serviceRefs = (Array.isArray(providerServices) ? providerServices : []).map((s) => ({
+        serviceId: s.service,
+        serviceName: s.name,
+      }));
+    } catch (err) {
+      if (err instanceof SocialBoostError) {
+        return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      }
+      throw err;
+    }
+  } else {
+    serviceRefs = Array.isArray(services) ? services : [];
+  }
+
+  if (serviceRefs.length === 0) {
+    return NextResponse.json({ error: "No services found to update" }, { status: 400 });
+  }
+
+  const refsById = new Map();
+  for (const s of serviceRefs) {
+    const id = Number(s.serviceId);
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json({ error: "Every service needs a valid service ID" }, { status: 400 });
+    }
+    if (!refsById.has(id)) {
+      refsById.set(id, { serviceId: id, serviceName: s.serviceName || null });
+    }
+  }
+
+  const refs = [...refsById.values()];
+  const ids = refs.map((s) => s.serviceId);
+  if (ids.length === 0) {
     return NextResponse.json({ error: "Every service needs a valid service ID" }, { status: 400 });
   }
 
-  const { data: existing } = await admin.from("social_boost_overrides").select("*").in("service_id", ids);
-  const existingMap = new Map((existing || []).map((o) => [o.service_id, o]));
+  const existing = [];
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await admin.from("social_boost_overrides").select("*").in("service_id", chunk);
+    if (error) return NextResponse.json({ error: "Could not update prices" }, { status: 500 });
+    existing.push(...(data || []));
+  }
+  const existingMap = new Map(existing.map((o) => [o.service_id, o]));
 
   const now = new Date().toISOString();
-  const updates = services.map((s) => {
+  const updates = refs.map((s) => {
     const id = Number(s.serviceId);
     const prior = existingMap.get(id);
     return {
@@ -66,8 +108,11 @@ export async function POST(request) {
     };
   });
 
-  const { error } = await admin.from("social_boost_overrides").upsert(updates, { onConflict: "service_id" });
-  if (error) return NextResponse.json({ error: "Could not update prices" }, { status: 500 });
+  for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+    const chunk = updates.slice(i, i + CHUNK_SIZE);
+    const { error } = await admin.from("social_boost_overrides").upsert(chunk, { onConflict: "service_id" });
+    if (error) return NextResponse.json({ error: "Could not update prices" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, updated: updates.length });
 }
