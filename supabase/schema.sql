@@ -1223,17 +1223,22 @@ create policy "digital_accounts_config_select_all" on public.digital_accounts_co
 --     beside every product card under this category on the customer-facing
 --     Digital Accounts page (see components/DigitalAccountsBrowser.js).
 --     Optional — cards render with no logo slot at all when unset.
+--   logo_url_dark: optional dark-mode variant of the same logo — see the
+--     matching comment on public.platform_logos.logo_url_dark for how the
+--     light/dark swap actually works (components/AdaptiveLogo.js).
 -- ============================================================================
 create table if not exists public.digital_categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   description text,
   logo_url text,
+  logo_url_dark text,
   created_at timestamptz not null default now()
 );
 
--- Additive column for installs that ran this schema before logo_url existed.
+-- Additive columns for installs that ran this schema before these existed.
 alter table public.digital_categories add column if not exists logo_url text;
+alter table public.digital_categories add column if not exists logo_url_dark text;
 
 alter table public.digital_categories enable row level security;
 
@@ -1480,6 +1485,56 @@ revoke execute on function public.purchase_digital_product(uuid, uuid, integer) 
 revoke execute on function public.purchase_digital_product(uuid, uuid, integer) from anon;
 revoke execute on function public.purchase_digital_product(uuid, uuid, integer) from authenticated;
 grant execute on function public.purchase_digital_product(uuid, uuid, integer) to service_role;
+
+-- ============================================================================
+-- platform_logos: ONE admin-managed place for "what does a TikTok/WhatsApp/
+-- Facebook/etc icon look like" — instead of setting a logo per category per
+-- feature (which is what Digital Accounts' own digital_categories.logo_url
+-- does, and still does independently of this table), an admin adds one row
+-- here per platform name and every buy surface across the whole site —
+-- DaisySMS Products, US Only, International, Social Boost, and any future
+-- provider — looks it up by matching this platform_name as a keyword inside
+-- whatever service/product name it's rendering (see
+-- lib/platformLogoMatch.js), the same keyword-substring approach
+-- lib/socialboost-platform.js already used just for Social Boost's own
+-- platform tabs. So uploading one "TikTok" logo here makes it show up next
+-- to every service whose name contains "tiktok", on every page, with no
+-- further wiring needed when a new provider/service is added later.
+--   platform_name: what's matched against service/product names
+--     (case-insensitive substring) — e.g. "TikTok", "WhatsApp", "Instagram".
+--     Unique so there's exactly one logo per keyword.
+--   logo_url: an admin-pasted image URL — same "no file-upload/storage
+--     bucket in this app, everything image-like is a plain URL" convention
+--     as digital_categories.logo_url.
+--   logo_url_dark: optional separate image for dark mode (e.g. a white/light
+--     version of a logo that's otherwise invisible on a dark background).
+--     When set, every render site shows logo_url in light mode and
+--     logo_url_dark in dark mode automatically via a pure-CSS Tailwind
+--     `dark:` swap (see components/AdaptiveLogo.js) — no theme lookup in
+--     JS, so it can never get out of sync with the site's actual dark-mode
+--     class toggle (ThemeToggle.js). Left null, logo_url is used for both.
+-- ============================================================================
+create table if not exists public.platform_logos (
+  id uuid primary key default gen_random_uuid(),
+  platform_name text not null unique,
+  logo_url text not null,
+  logo_url_dark text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Additive column for installs that ran this schema before logo_url_dark
+-- existed.
+alter table public.platform_logos add column if not exists logo_url_dark text;
+
+alter table public.platform_logos enable row level security;
+
+drop policy if exists "platform_logos_select_all" on public.platform_logos;
+create policy "platform_logos_select_all" on public.platform_logos
+  for select using (true);
+
+-- No client insert/update/delete policy on purpose — only
+-- /api/admin/platform-logos/* (service role key) writes this.
 
 -- ============================================================================
 -- One-time: promote yourself to admin after your first signup.

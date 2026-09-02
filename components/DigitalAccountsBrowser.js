@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Star, ChevronRight } from "lucide-react";
+import { Star, ChevronRight, Search } from "lucide-react";
+import AdaptiveLogo from "./AdaptiveLogo";
 
 // Category tabs -> product template grid -> checkout. Live stock counts come
 // from /api/digital-accounts/templates (computed server-side against
@@ -25,6 +26,12 @@ export default function DigitalAccountsBrowser() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [loadError, setLoadError] = useState("");
+  // Searches the currently selected category's products by description —
+  // there's no product "name" shown to customers here (see the comment
+  // below on the card itself), so description is the only text there is to
+  // match against. Cleared whenever the category changes, same as every
+  // other search box in the app that resets per-tab.
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     async function loadCategories() {
@@ -66,6 +73,18 @@ export default function DigitalAccountsBrowser() {
 
   const activeCategory = useMemo(() => categories?.find((c) => c.id === categoryId), [categories, categoryId]);
 
+  const filteredTemplates = useMemo(() => {
+    if (!templates) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter((t) => t.description?.toLowerCase().includes(q));
+  }, [templates, query]);
+
+  function selectCategory(id) {
+    setCategoryId(id);
+    setQuery("");
+  }
+
   if (loadingCategories) {
     return <p className="text-sm text-gray-400 dark:text-night-400">Loading categories…</p>;
   }
@@ -88,7 +107,7 @@ export default function DigitalAccountsBrowser() {
         {categories.map((c) => (
           <button
             key={c.id}
-            onClick={() => setCategoryId(c.id)}
+            onClick={() => selectCategory(c.id)}
             className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${
               categoryId === c.id
                 ? "bg-brand-600 text-white"
@@ -104,15 +123,32 @@ export default function DigitalAccountsBrowser() {
         <p className="text-sm text-gray-400 dark:text-night-400 mb-4">{activeCategory.description}</p>
       )}
 
+      {templates && templates.length > 0 && (
+        <div className="relative mb-4 max-w-sm">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-night-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search products…"
+            className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 pl-9 pr-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
+          />
+        </div>
+      )}
+
       {loadingTemplates ? (
         <p className="text-sm text-gray-400 dark:text-night-400">Loading products…</p>
       ) : !templates || templates.length === 0 ? (
         <div className="card card-pad text-sm text-gray-500 dark:text-night-400">
           No products in this category yet.
         </div>
+      ) : filteredTemplates.length === 0 ? (
+        <div className="card card-pad text-sm text-gray-500 dark:text-night-400">
+          No products match &quot;{query}&quot;.
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((t) => {
+          {filteredTemplates.map((t) => {
             const outOfStock = t.availableCount <= 0;
             return (
               <div key={t.id} className="card card-pad flex items-center gap-3">
@@ -121,10 +157,9 @@ export default function DigitalAccountsBrowser() {
                     Categories, see CategoryManager.js), so it's the same
                     image across every card under it, not per-product. */}
                 {activeCategory?.logoUrl ? (
-                  <img
-                    src={activeCategory.logoUrl}
-                    alt=""
-                    className="w-14 h-14 rounded-xl object-cover shrink-0"
+                  <AdaptiveLogo
+                    logo={{ logoUrl: activeCategory.logoUrl, logoUrlDark: activeCategory.logoUrlDark }}
+                    className="w-14 h-14 rounded-xl shrink-0"
                   />
                 ) : (
                   <div className="w-14 h-14 rounded-xl shrink-0 bg-gray-100 dark:bg-night-800" />

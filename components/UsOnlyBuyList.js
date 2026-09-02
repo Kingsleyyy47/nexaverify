@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
+import { usePlatformLogos } from "./usePlatformLogos";
+import AdaptiveLogo from "./AdaptiveLogo";
 
 // Tap-to-buy widget for the "US Only" provider — mirrors QuickBuyList.js's
 // pattern (services list with price passed in already priced, tap a row to
@@ -15,6 +17,7 @@ import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
 export default function UsOnlyBuyList({ services, title = "US virtual numbers", compact = false }) {
   const router = useRouter();
   const { format } = useCurrency();
+  const { logoFor } = usePlatformLogos();
   const [query, setQuery] = useState("");
   const [buyingCode, setBuyingCode] = useState(null);
   const [error, setError] = useState("");
@@ -99,8 +102,9 @@ export default function UsOnlyBuyList({ services, title = "US virtual numbers", 
                   type="button"
                   disabled={buyingCode !== null}
                   onClick={() => buy(s)}
-                  className="w-full flex items-center px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-night-800 transition disabled:opacity-50"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-night-800 transition disabled:opacity-50"
                 >
+                  <AdaptiveLogo logo={logoFor(s.name)} className="w-7 h-7 rounded-lg shrink-0" />
                   <span className="flex-1 min-w-0 pr-3">
                     <span className="block font-semibold truncate dark:text-night-100">{s.name}</span>
                     {s.stock != null && (

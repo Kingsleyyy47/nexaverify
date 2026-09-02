@@ -11,6 +11,7 @@ import NavLogo from "./NavLogo";
 const LINKS = [
   { href: "/admin", label: "Overview", exact: true },
   { href: "/admin/providers", label: "APIs & Providers" },
+  { href: "/admin/platform-logos", label: "Platform Logos" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/topups", label: "Top-up requests" },

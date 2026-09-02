@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Star, ArrowLeft, Instagram, Facebook, Twitter, Music2, LayoutGrid } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import { PLATFORMS } from "@/lib/socialboost-platform";
+import { usePlatformLogos } from "./usePlatformLogos";
+import AdaptiveLogo from "./AdaptiveLogo";
 
 // One icon per platform tile on the entry screen below — falls back to a
 // generic grid icon for "Other" (services that don't keyword-match any named
@@ -38,6 +40,7 @@ const SEARCH_INPUT_CLASS =
 // deliberately no runs/interval fields, per the business owner's request.
 export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) {
   const { format, rateMap } = useCurrency();
+  const { logoFor } = usePlatformLogos();
   const [services, setServices] = useState(null);
   const [servicesError, setServicesError] = useState("");
   const [loadingServices, setLoadingServices] = useState(true);
@@ -218,7 +221,10 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
               <ArrowLeft size={14} /> Back to {platformTab}
             </button>
 
-            <h3 className="font-bold text-[15px] mb-1">{selectedService.name}</h3>
+            <div className="flex items-center gap-2 mb-1">
+              <AdaptiveLogo logo={logoFor(selectedService.name)} className="w-6 h-6 rounded shrink-0" />
+              <h3 className="font-bold text-[15px]">{selectedService.name}</h3>
+            </div>
             <div className="text-xs text-gray-500 dark:text-night-300 bg-gray-50 dark:bg-night-800 rounded-lg p-2.5 mb-4">
               Min {selectedService.min} · Max {selectedService.max} per order
             </div>
@@ -282,6 +288,11 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
               {tabs.map((p) => {
                 const Icon = PLATFORM_ICONS[p] || LayoutGrid;
                 const count = platformCounts[p] || 0;
+                // An admin-uploaded logo (see /admin/platform-logos) takes
+                // priority over the built-in lucide icon — falls back to the
+                // icon so this tile never renders empty for a platform no
+                // one has added a logo for yet.
+                const logo = logoFor(p);
                 return (
                   <button
                     key={p}
@@ -290,7 +301,11 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                     disabled={count === 0}
                     className="card card-pad flex flex-col items-center justify-center gap-2 text-center hover:border-brand-300 dark:hover:border-brand-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Icon size={22} className="text-brand-600 dark:text-brand-400" />
+                    {logo ? (
+                      <AdaptiveLogo logo={logo} className="w-7 h-7 rounded-lg" />
+                    ) : (
+                      <Icon size={22} className="text-brand-600 dark:text-brand-400" />
+                    )}
                     <span className="font-semibold text-sm">{p}</span>
                     <span className="text-xs text-gray-400 dark:text-night-400">
                       {count} available
@@ -341,12 +356,15 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                     onClick={() => selectService(s)}
                     className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-gray-50 dark:hover:bg-night-800 transition"
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {s.favorite && <Star size={13} fill="currentColor" className="text-amber-400 shrink-0" />}
-                        <span className="font-semibold text-sm truncate">{s.name}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <AdaptiveLogo logo={logoFor(s.name)} className="w-7 h-7 rounded-lg shrink-0" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {s.favorite && <Star size={13} fill="currentColor" className="text-amber-400 shrink-0" />}
+                          <span className="font-semibold text-sm truncate">{s.name}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5 truncate">{s.category}</div>
                       </div>
-                      <div className="text-xs text-gray-400 dark:text-night-400 mt-0.5 truncate">{s.category}</div>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-night-300 shrink-0 text-right">
                       {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : `$${s.rate}/1000`} · min {s.min}

@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
+import { usePlatformLogos } from "./usePlatformLogos";
+import AdaptiveLogo from "./AdaptiveLogo";
 
 export default function InternationalBuyForm({ countries }) {
   const router = useRouter();
   const { format } = useCurrency();
+  const { logoFor } = usePlatformLogos();
 
   const [countryQuery, setCountryQuery] = useState("");
   const [country, setCountry] = useState(null); // { id, name }
@@ -177,13 +180,14 @@ export default function InternationalBuyForm({ countries }) {
                   <button
                     key={s.code}
                     onClick={() => handleSelectService(s)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
                       service?.code === s.code
                         ? "bg-brand-50 dark:bg-brand-950 text-brand-800 dark:text-brand-300"
                         : "hover:bg-gray-50 dark:hover:bg-night-800"
                     }`}
                   >
-                    {s.name}
+                    <AdaptiveLogo logo={logoFor(s.name)} className="w-5 h-5 rounded shrink-0" />
+                    <span className="truncate">{s.name}</span>
                   </button>
                 ))}
               </div>
@@ -204,12 +208,15 @@ export default function InternationalBuyForm({ countries }) {
           <p className="text-sm text-red-600">{tiersError}</p>
         ) : (
           <div className="space-y-4">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
-                Selected
-              </div>
-              <div className="font-bold">
-                {service.name} — {country.name}
+            <div className="flex items-start gap-3">
+              <AdaptiveLogo logo={logoFor(service.name)} className="w-10 h-10 rounded-lg shrink-0" />
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 mb-1">
+                  Selected
+                </div>
+                <div className="font-bold">
+                  {service.name} — {country.name}
+                </div>
               </div>
             </div>
 
