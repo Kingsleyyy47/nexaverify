@@ -29,7 +29,7 @@ export async function POST(request) {
   }
 
   const supabase = createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -52,6 +52,24 @@ export async function POST(request) {
 
   if (error) {
     return NextResponse.json({ error: error.message || "Could not create account" }, { status: 400 });
+  }
+
+  if (data.user?.id) {
+    const { error: profileError } = await admin.from("profiles").upsert(
+      {
+        id: data.user.id,
+        email,
+        username,
+      },
+      { onConflict: "id" }
+    );
+
+    if (profileError) {
+      return NextResponse.json(
+        { error: "Account was created, but the user profile could not be saved." },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -79,7 +79,7 @@ export function OrderTopActions({ order, items }) {
   );
 }
 
-function FieldRow({ label, value, color }) {
+function FieldRow({ label, value, color, compact = false }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -93,10 +93,10 @@ function FieldRow({ label, value, color }) {
   }
 
   return (
-    <div className="min-w-0 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-      <span className={`text-[11px] uppercase tracking-wide font-bold shrink-0 ${color}`}>{label}</span>
+    <div className={`min-w-0 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between ${compact ? "sm:gap-2" : "sm:gap-3"}`}>
+      <span className={`${compact ? "text-[10px]" : "text-[11px]"} uppercase tracking-wide font-bold shrink-0 ${color}`}>{label}</span>
       <div className="flex w-full min-w-0 items-start gap-1.5 sm:justify-end">
-        <span className="block min-w-0 flex-1 whitespace-pre-wrap break-all text-sm font-mono text-gray-700 dark:text-night-200">
+        <span className={`block min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-gray-700 dark:text-night-200 ${compact ? "text-xs" : "text-sm"}`}>
           {value}
         </span>
         <button
@@ -104,16 +104,16 @@ function FieldRow({ label, value, color }) {
           aria-label={`Copy ${label}`}
           className="shrink-0 -mt-1 p-1 rounded text-gray-400 dark:text-night-500 hover:text-brand-600 dark:hover:text-brand-400"
         >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={compact ? 12 : 13} /> : <Copy size={compact ? 12 : 13} />}
         </button>
       </div>
     </div>
   );
 }
 
-export function CredentialsList({ items }) {
+export function CredentialsList({ items, compact = false }) {
   return (
-    <div className="space-y-3">
+    <div className={compact ? "space-y-2" : "space-y-3"}>
       {items.map((item, idx) => {
         const fields = [
           { label: "Username", value: item.username, color: "text-gray-900 dark:text-night-100" },
@@ -132,13 +132,13 @@ export function CredentialsList({ items }) {
         ].filter((f) => f.value);
 
         return (
-          <div key={item.id} className="min-w-0 rounded-xl border border-gray-100 dark:border-night-700 p-4">
-            <span className="inline-flex w-6 h-6 rounded-full bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300 text-xs font-bold items-center justify-center mb-2">
+          <div key={item.id} className={`min-w-0 rounded-lg border border-gray-100 dark:border-night-700 ${compact ? "p-3" : "p-4"}`}>
+            <span className={`inline-flex rounded-full bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300 text-xs font-bold items-center justify-center ${compact ? "mb-1.5 h-5 w-5" : "mb-2 h-6 w-6"}`}>
               {idx + 1}
             </span>
-            <div className="space-y-1.5">
+            <div className={compact ? "space-y-1" : "space-y-1.5"}>
               {fields.map((f) => (
-                <FieldRow key={f.label} label={f.label} value={f.value} color={f.color} />
+                <FieldRow key={f.label} label={f.label} value={f.value} color={f.color} compact={compact} />
               ))}
             </div>
           </div>

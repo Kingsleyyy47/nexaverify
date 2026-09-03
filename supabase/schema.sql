@@ -88,6 +88,17 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Repair older auth accounts if the trigger was added after users already
+-- existed, or if a previous signup created an auth.users row before profile
+-- insertion was reliable. Admin user counts and balance tools read profiles,
+-- so every auth user needs a profile row.
+insert into public.profiles (id, email)
+select u.id, u.email
+from auth.users u
+left join public.profiles p on p.id = u.id
+where p.id is null
+on conflict (id) do nothing;
+
 -- ============================================================================
 -- services: local cache of DaisySMS services + the admin's on/off switch and
 -- resale price. NexaVerify is priced in Naira (NGN) for customers, while

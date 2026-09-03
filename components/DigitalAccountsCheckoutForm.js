@@ -149,9 +149,9 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
       </div>
 
       {purchased && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-modal dark:bg-night-900 sm:rounded-2xl sm:p-5">
-            <div className="mb-3 flex justify-end">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-3 shadow-modal dark:bg-night-900 sm:p-4">
+            <div className="mb-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setPurchased(null)}
@@ -163,7 +163,7 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
             </div>
 
             {purchased.credentials.length > 0 ? (
-              <CredentialsList items={purchased.credentials} />
+              <CredentialsList items={purchased.credentials} compact />
             ) : (
               <p className="rounded-lg bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
                 No credentials were returned in this popup. Check History for the saved order.
