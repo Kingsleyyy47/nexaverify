@@ -36,6 +36,7 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
   );
   const walletBalance = Number(template.walletBalanceNgn || 0);
   const insufficientBalance = totalNgn != null && walletBalance < totalNgn;
+  const balanceAfter = totalNgn != null ? walletBalance - totalNgn : walletBalance;
   const canBuy = !outOfStock && quantityIsValid && !exceedsStock && !insufficientBalance && !buying;
   const buttonLabel = outOfStock
     ? "Sold out"
@@ -238,9 +239,18 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
               </div>
               <div className="flex items-center justify-between bg-gray-50 px-3 py-2.5 dark:bg-night-800">
                 <span className="text-sm font-bold text-gray-700 dark:text-night-200">You pay</span>
-                <span className="text-lg font-bold text-brand-700 dark:text-brand-300">
-                  {totalNgn == null ? "₦0" : `₦${totalNgn.toLocaleString("en-US")}`}
-                </span>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-brand-700 dark:text-brand-300">
+                    {totalNgn == null ? "₦0" : `₦${totalNgn.toLocaleString("en-US")}`}
+                  </div>
+                  <div
+                    className={`text-[10px] font-semibold leading-3 ${
+                      balanceAfter < 0 ? "text-red-600 dark:text-red-400" : "text-gray-400 dark:text-night-400"
+                    }`}
+                  >
+                    Balance after ₦{balanceAfter.toLocaleString("en-US")}
+                  </div>
+                </div>
               </div>
             </div>
 

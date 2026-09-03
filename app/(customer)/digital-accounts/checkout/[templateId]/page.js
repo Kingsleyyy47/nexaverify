@@ -1,6 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutForm";
@@ -54,15 +52,6 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
 
   return (
     <div className="mx-auto max-w-xl">
-      <div className="mb-3">
-        <Link
-          href="/digital-accounts"
-          className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 dark:text-night-400 dark:hover:text-night-100"
-        >
-          <ArrowLeft size={16} /> Back to products
-        </Link>
-      </div>
-
       <DigitalAccountsCheckoutForm
         template={{
           id: template.id,

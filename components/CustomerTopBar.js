@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import CurrencySwitcher from "./CurrencySwitcher";
 import ThemeToggle from "./ThemeToggle";
@@ -15,6 +18,27 @@ import ThemeToggle from "./ThemeToggle";
 // breakpoint and only show at md+ where there's room for both.
 export default function CustomerTopBar({ balance }) {
   const { format } = useCurrency();
+  const pathname = usePathname();
+  const isDigitalCheckout = pathname.startsWith("/digital-accounts/checkout");
+
+  if (isDigitalCheckout) {
+    return (
+      <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-100 pb-3 dark:border-night-800">
+        <Link
+          href="/digital-accounts"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 dark:text-night-400 dark:hover:text-night-100"
+        >
+          <ArrowLeft size={16} /> Back to products
+        </Link>
+        <div className="text-right">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-night-400">
+            Wallet balance
+          </div>
+          <div className="text-sm font-bold dark:text-night-100">{format(balance)}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-night-800">
