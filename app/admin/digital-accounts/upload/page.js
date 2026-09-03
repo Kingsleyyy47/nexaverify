@@ -1,4 +1,5 @@
 import BulkAccountUpload from "@/components/BulkAccountUpload";
+import FixLegacyCookiesPanel from "@/components/FixLegacyCookiesPanel";
 
 export default function AdminDigitalUploadPage() {
   return (
@@ -12,6 +13,10 @@ export default function AdminDigitalUploadPage() {
 
       <div className="card card-pad">
         <BulkAccountUpload />
+      </div>
+
+      <div className="card card-pad">
+        <FixLegacyCookiesPanel />
       </div>
     </div>
   );
