@@ -35,6 +35,7 @@ function buildCredentialsText(order, items) {
     add("Recovery Email Pass", item.recovery_email_password);
     add("Year", item.year);
     add("Friends", item.friends_count);
+    add("Extra / Cookies", item.extra_data);
     lines.push("");
   });
   return lines.join("\n");
@@ -129,6 +130,11 @@ export function CredentialsList({ items, compact = false }) {
           },
           { label: "Year", value: item.year, color: "text-teal-600 dark:text-teal-400" },
           { label: "Friends", value: item.friends_count, color: "text-indigo-600 dark:text-indigo-400" },
+          {
+            label: "Extra / Cookies",
+            value: item.extra_data,
+            color: "text-gray-500 dark:text-night-400",
+          },
         ].filter((f) => f.value);
 
         return (

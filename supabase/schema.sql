@@ -1397,6 +1397,12 @@ create policy "digital_orders_select_own" on public.digital_orders
 --     same "just another nullable text column" treatment as two_fa/
 --     recovery_email. Stored as text (not integer) since these come straight
 --     off an admin-pasted log line and don't need to be queried numerically.
+--   extra_data: catch-all for leftover browser session/cookie text
+--     (csrftoken, sessionid, etc.) that some log formats paste in alongside
+--     the real credentials. lib/digitalAccountsCsv.js auto-detects fields
+--     that are extremely long or look like cookie data and routes them here
+--     instead of letting them overwrite (or shift) the real email/password
+--     columns next to them — see the parser for the actual detection logic.
 -- ============================================================================
 create table if not exists public.digital_stock_items (
   id uuid primary key default gen_random_uuid(),
@@ -1410,16 +1416,18 @@ create table if not exists public.digital_stock_items (
   recovery_email_password text,
   year text,
   friends_count text,
+  extra_data text,
   status text not null default 'available' check (status in ('available', 'sold')),
   order_id uuid references public.digital_orders(id) on delete set null,
   sold_at timestamptz,
   created_at timestamptz not null default now()
 );
 
--- Additive columns for installs that ran this schema before year/friends_count
--- existed — safe to re-run.
+-- Additive columns for installs that ran this schema before year/friends_count/
+-- extra_data existed — safe to re-run.
 alter table public.digital_stock_items add column if not exists year text;
 alter table public.digital_stock_items add column if not exists friends_count text;
+alter table public.digital_stock_items add column if not exists extra_data text;
 
 create index if not exists digital_stock_items_template_status_idx
   on public.digital_stock_items(template_id, status);
@@ -1451,6 +1459,7 @@ update public.digital_orders o
           'recovery_email_password', recovery_email_password,
           'year', year,
           'friends_count', friends_count,
+          'extra_data', extra_data,
           'created_at', created_at
         )
         order by created_at
@@ -1579,6 +1588,7 @@ begin
       'recovery_email_password', recovery_email_password,
       'year', year,
       'friends_count', friends_count,
+      'extra_data', extra_data,
       'created_at', created_at
     )
     order by created_at

@@ -178,7 +178,23 @@ export default function BulkAccountUpload() {
               <li>
                 <strong>friends_count</strong> or <strong>no_of_friends</strong> - Friend count (Facebook-style logs)
               </li>
+              <li>
+                <strong>extra_data</strong>, <strong>cookies</strong>, or <strong>notes</strong> - Any leftover
+                session/cookie text
+              </li>
             </ul>
+          </div>
+
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900 p-3">
+            <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">
+              Cookies/session text is auto-detected
+            </div>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+              A field that&apos;s extremely long or looks like browser session data (e.g. contains
+              &quot;csrftoken&quot; or &quot;sessionid&quot;) is automatically pulled out into its own
+              &quot;Extra / Cookies&quot; field instead of overwriting or shifting the real email/password
+              columns next to it.
+            </p>
           </div>
 
           <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 p-3">

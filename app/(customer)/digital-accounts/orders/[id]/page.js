@@ -40,6 +40,7 @@ export default async function DigitalOrderDetailsPage({ params }) {
         recovery_email_password: item.recovery_email_password || null,
         year: item.year || null,
         friends_count: item.friends_count || null,
+        extra_data: item.extra_data || null,
         created_at: item.created_at || order.created_at,
       }))
     : [];

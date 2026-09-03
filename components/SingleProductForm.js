@@ -16,6 +16,7 @@ const EMPTY_CREDENTIALS = {
   recoveryEmailPassword: "",
   year: "",
   friendsCount: "",
+  extraData: "",
 };
 
 // Admin-only "Single Product" section — its own page (see
@@ -304,6 +305,17 @@ export default function SingleProductForm() {
           onChange={(e) => setField("friendsCount", e.target.value)}
           placeholder="e.g., friend count (Facebook logs)"
           className={INPUT_CLASS}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold mb-1.5">Extra / Cookies (optional)</label>
+        <textarea
+          value={fields.extraData}
+          onChange={(e) => setField("extraData", e.target.value)}
+          placeholder="Any leftover session/cookie text — paste it here instead of into Email or another field"
+          rows={3}
+          className={`${INPUT_CLASS} font-mono text-xs`}
         />
       </div>
 
