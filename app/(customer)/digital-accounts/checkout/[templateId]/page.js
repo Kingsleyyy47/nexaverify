@@ -8,9 +8,9 @@ import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutFor
 // Dedicated checkout step for a single Digital Accounts product — Buy Now on
 // the card (DigitalAccountsBrowser.js) lands here instead of buying
 // instantly, so the customer sees the full description and picks a quantity
-// on its own screen before paying, then gets sent to their order history
-// (see app/(customer)/digital-accounts/orders/page.js) where the credentials
-// are waiting to view/download — never straight into the purchase itself.
+// on its own screen before paying. The checkout form keeps them on this page
+// and opens the purchased credentials in a modal immediately; the permanent
+// order record remains available from /history afterward.
 export default async function DigitalAccountsCheckoutPage({ params, searchParams }) {
   const { user, profile } = await getSessionProfile();
   if (!user) notFound();
@@ -32,7 +32,7 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
 
   const { data: template } = await admin
     .from("digital_product_templates")
-    .select("id, description, price_ngn, archived")
+    .select("id, name, description, price_ngn, archived")
     .eq("id", params.templateId)
     .maybeSingle();
   if (!template || template.archived) notFound();
@@ -44,7 +44,7 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
     .eq("status", "available");
 
   const requestedQty = Number(searchParams?.qty);
-  const initialQuantity = Number.isInteger(requestedQty) && requestedQty > 0 ? requestedQty : 1;
+  const initialQuantity = Number.isInteger(requestedQty) && requestedQty > 0 ? requestedQty : "";
 
   return (
     <div className="max-w-lg">
@@ -60,9 +60,11 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
       <DigitalAccountsCheckoutForm
         template={{
           id: template.id,
+          name: template.name,
           description: template.description,
           priceNgn: Number(template.price_ngn),
           availableCount: availableCount || 0,
+          walletBalanceNgn: Number(profile?.balance || 0),
         }}
         initialQuantity={initialQuantity}
       />

@@ -1298,13 +1298,20 @@ create policy "digital_product_templates_select_all" on public.digital_product_t
 -- template is ONE order row, not three) — see
 -- app/api/digital-accounts/orders/route.js and public.purchase_digital_product
 -- below, which is the only thing that ever inserts here.
---   template_name / category_name: denormalized snapshots taken at purchase
---     time, same reasoning as social_boost_orders.service_name — so a past
---     the admin later renames/deletes the template or category. Admin route
---     handlers block hard deletion once sold stock exists so the credential
---     rows behind past Order Details pages are not removed.
+--   template_name / template_description / category_name: denormalized
+--     snapshots taken at purchase time, same reasoning as
+--     social_boost_orders.service_name — so a past order still explains what
+--     the customer bought even if an admin later renames/deletes the
+--     template or category. Admin route handlers block hard deletion once
+--     sold stock exists so the credential rows behind past Order Details
+--     pages are not removed.
 --   unit_price_ngn / total_ngn: what was actually charged, frozen at
 --     purchase time — never recomputed if the template's price later changes.
+--   credentials_snapshot: permanent copy of the exact credentials assigned
+--     to this order at purchase time. The source stock rows should also stay
+--     forever, but this snapshot makes the customer Order Details page
+--     resilient even if old data was deleted before the hard guard below was
+--     installed.
 -- RLS: select_own, same as rentals/telegram_gift_orders/social_boost_orders —
 -- a customer can only ever see their own order rows (which is how the Order
 -- Details page authorizes itself). No select policy at all on the actual
@@ -1317,12 +1324,24 @@ create table if not exists public.digital_orders (
   user_id uuid not null references public.profiles(id) on delete cascade,
   template_id uuid references public.digital_product_templates(id) on delete set null,
   template_name text not null,
+  template_description text,
   category_name text,
   quantity integer not null check (quantity > 0),
   unit_price_ngn numeric(12,2) not null,
   total_ngn numeric(12,2) not null,
+  credentials_snapshot jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table public.digital_orders add column if not exists credentials_snapshot jsonb not null default '[]'::jsonb;
+alter table public.digital_orders add column if not exists template_description text;
+
+update public.digital_orders o
+   set template_description = t.description
+  from public.digital_product_templates t
+ where o.template_id = t.id
+   and o.template_description is null
+   and t.description is not null;
 
 create index if not exists digital_orders_user_id_idx on public.digital_orders(user_id);
 
@@ -1355,6 +1374,8 @@ create policy "digital_orders_select_own" on public.digital_orders
 --     below the moment a row is claimed for a purchase — never set any other
 --     way, so a row's sold state and the order that consumed it can never
 --     drift apart.
+--     Sold rows are protected by trigger below: they cannot be deleted by an
+--     admin route, direct SQL, or a cascading template/category delete.
 --   Only `password` is NOT NULL — every other credential field is optional,
 --     matching the CSV upload's own required/optional column split (password
 --     required; email OR username required — enforced at upload time in
@@ -1399,6 +1420,76 @@ alter table public.digital_stock_items enable row level security;
 -- comment above. Every access goes through a Route Handler with the service
 -- role key that authorizes itself explicitly.
 
+-- Backfill credential snapshots for orders that still have their sold stock
+-- rows. This cannot recover credentials already deleted before this migration
+-- runs; it preserves every still-present purchase from here forward.
+update public.digital_orders o
+   set credentials_snapshot = coalesce(s.credentials, '[]'::jsonb)
+  from (
+    select
+      order_id,
+      jsonb_agg(
+        jsonb_build_object(
+          'id', id,
+          'username', username,
+          'email', email,
+          'password', password,
+          'email_password', email_password,
+          'two_fa', two_fa,
+          'recovery_email', recovery_email,
+          'recovery_email_password', recovery_email_password,
+          'year', year,
+          'friends_count', friends_count,
+          'created_at', created_at
+        )
+        order by created_at
+      ) as credentials
+    from public.digital_stock_items
+    where order_id is not null
+    group by order_id
+  ) s
+ where s.order_id = o.id
+   and jsonb_array_length(o.credentials_snapshot) = 0;
+
+create or replace function public.prevent_sold_digital_stock_loss()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' and (old.status = 'sold' or old.order_id is not null) then
+    raise exception 'Purchased digital credentials cannot be deleted'
+      using errcode = 'P0001';
+  end if;
+
+  if tg_op = 'UPDATE'
+     and (old.status = 'sold' or old.order_id is not null)
+     and (
+       new.status is distinct from old.status
+       or new.order_id is distinct from old.order_id
+       or new.sold_at is distinct from old.sold_at
+     ) then
+    raise exception 'Purchased digital credentials cannot be detached from their order'
+      using errcode = 'P0001';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_sold_digital_stock_delete on public.digital_stock_items;
+create trigger prevent_sold_digital_stock_delete
+  before delete on public.digital_stock_items
+  for each row execute function public.prevent_sold_digital_stock_loss();
+
+drop trigger if exists prevent_sold_digital_stock_detach on public.digital_stock_items;
+create trigger prevent_sold_digital_stock_detach
+  before update of status, order_id, sold_at on public.digital_stock_items
+  for each row execute function public.prevent_sold_digital_stock_loss();
+
 -- ============================================================================
 -- purchase_digital_product(): the ONLY way a digital account purchase ever
 -- happens. Does everything in one atomic transaction so nothing can ever
@@ -1434,6 +1525,7 @@ declare
   v_total numeric(12,2);
   v_order public.digital_orders;
   v_ids uuid[];
+  v_credentials jsonb;
 begin
   if p_quantity is null or p_quantity <= 0 then
     raise exception 'Quantity must be at least 1' using errcode = 'P0001';
@@ -1464,8 +1556,46 @@ begin
       using errcode = 'P0001';
   end if;
 
-  insert into public.digital_orders (user_id, template_id, template_name, category_name, quantity, unit_price_ngn, total_ngn)
-  select p_user_id, v_template.id, v_template.name, c.name, p_quantity, v_template.price_ngn, v_total
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', id,
+      'username', username,
+      'email', email,
+      'password', password,
+      'email_password', email_password,
+      'two_fa', two_fa,
+      'recovery_email', recovery_email,
+      'recovery_email_password', recovery_email_password,
+      'year', year,
+      'friends_count', friends_count,
+      'created_at', created_at
+    )
+    order by created_at
+  ) into v_credentials
+    from public.digital_stock_items
+   where id = any(v_ids);
+
+  insert into public.digital_orders (
+    user_id,
+    template_id,
+    template_name,
+    template_description,
+    category_name,
+    quantity,
+    unit_price_ngn,
+    total_ngn,
+    credentials_snapshot
+  )
+  select
+    p_user_id,
+    v_template.id,
+    v_template.name,
+    v_template.description,
+    c.name,
+    p_quantity,
+    v_template.price_ngn,
+    v_total,
+    coalesce(v_credentials, '[]'::jsonb)
     from public.digital_categories c
    where c.id = v_template.category_id
   returning * into v_order;

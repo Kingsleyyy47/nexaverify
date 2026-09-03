@@ -63,9 +63,25 @@ export async function POST(request) {
   }
 
   const total = Math.round(Number(template.price_ngn) * qty * 100) / 100;
-  const { data: buyerProfile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
-  if (Number(buyerProfile?.balance || 0) < total) {
-    return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
+  const { data: buyerProfile, error: balanceError } = await admin
+    .from("profiles")
+    .select("balance")
+    .eq("id", user.id)
+    .single();
+  if (balanceError || !buyerProfile) {
+    return NextResponse.json({ error: "Could not load wallet balance." }, { status: 500 });
+  }
+
+  const walletBalance = Number(buyerProfile.balance || 0);
+  if (walletBalance < total) {
+    return NextResponse.json(
+      {
+        error: `Insufficient wallet balance. Required ₦${total.toLocaleString("en-US")}, wallet ₦${walletBalance.toLocaleString("en-US")}.`,
+        requiredAmount: total,
+        walletBalance,
+      },
+      { status: 402 }
+    );
   }
 
   const { data: order, error } = await admin.rpc("purchase_digital_product", {
@@ -75,13 +91,14 @@ export async function POST(request) {
   });
 
   if (error) {
-    const message = error.message?.includes("stock")
+    const lowerMessage = String(error.message || "").toLowerCase();
+    const message = lowerMessage.includes("stock")
       ? "Not enough stock left for that quantity."
-      : error.message?.includes("Insufficient balance")
-        ? "Insufficient wallet balance"
+      : lowerMessage.includes("insufficient balance")
+        ? `Insufficient wallet balance. Required ₦${total.toLocaleString("en-US")}, wallet ₦${walletBalance.toLocaleString("en-US")}.`
         : error.message || "Could not complete the purchase.";
-    const status = message.includes("stock") ? 409 : message.includes("balance") ? 402 : 400;
-    return NextResponse.json({ error: message }, { status });
+    const status = lowerMessage.includes("stock") ? 409 : lowerMessage.includes("insufficient balance") ? 402 : 400;
+    return NextResponse.json({ error: message, requiredAmount: total, walletBalance }, { status });
   }
 
   // Supabase's rpc() for a function returning a single composite row (not
@@ -89,6 +106,18 @@ export async function POST(request) {
   // for either shape since this is the one place in the app calling an RPC
   // with this particular return type.
   const orderRow = Array.isArray(order) ? order[0] : order;
+  if (!orderRow?.id) {
+    return NextResponse.json({ error: "Could not complete the purchase." }, { status: 500 });
+  }
 
-  return NextResponse.json({ order: orderRow });
+  const { data: stockItems } = await admin
+    .from("digital_stock_items")
+    .select("*")
+    .eq("order_id", orderRow.id)
+    .order("created_at", { ascending: true });
+
+  const snapshotItems = Array.isArray(orderRow.credentials_snapshot) ? orderRow.credentials_snapshot : [];
+  const credentials = (stockItems || []).length > 0 ? stockItems : snapshotItems;
+
+  return NextResponse.json({ order: orderRow, credentials });
 }

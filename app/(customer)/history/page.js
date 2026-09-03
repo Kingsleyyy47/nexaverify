@@ -1,12 +1,20 @@
 import { getSessionProfile } from "@/lib/auth";
-import TransactionsTable from "@/components/TransactionsTable";
-import OrderHistoryTable from "@/components/OrderHistoryTable";
+import CustomerHistorySections from "@/components/CustomerHistorySections";
 
 export default async function HistoryPage() {
   const { supabase } = await getSessionProfile();
 
-  const [{ data: orders }, { data: transactions }] = await Promise.all([
+  const [
+    { data: rentals },
+    { data: digitalOrders },
+    { data: telegramOrders },
+    { data: socialBoostOrders },
+    { data: transactions },
+  ] = await Promise.all([
     supabase.from("rentals").select("*").order("created_at", { ascending: false }),
+    supabase.from("digital_orders").select("*").order("created_at", { ascending: false }),
+    supabase.from("telegram_gift_orders").select("*").order("created_at", { ascending: false }),
+    supabase.from("social_boost_orders").select("*").order("created_at", { ascending: false }),
     supabase.from("transactions").select("*").order("created_at", { ascending: false }),
   ]);
 
@@ -19,19 +27,13 @@ export default async function HistoryPage() {
         </p>
       </div>
 
-      <section>
-        <h3 className="font-bold text-[15px] mb-3">Order history</h3>
-        <div className="card card-pad">
-          <OrderHistoryTable orders={orders} />
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-bold text-[15px] mb-3">Wallet transactions</h3>
-        <div className="card card-pad">
-          <TransactionsTable transactions={transactions} />
-        </div>
-      </section>
+      <CustomerHistorySections
+        rentals={rentals || []}
+        digitalOrders={digitalOrders || []}
+        telegramOrders={telegramOrders || []}
+        socialBoostOrders={socialBoostOrders || []}
+        transactions={transactions || []}
+      />
     </div>
   );
 }

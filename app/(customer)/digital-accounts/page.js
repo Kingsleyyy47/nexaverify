@@ -32,6 +32,9 @@ export default async function DigitalAccountsPage() {
         <div className="card card-pad text-sm text-gray-500 dark:text-night-400">
           Coming soon — check back later.
         </div>
+        <Link href="/history" className="inline-flex mt-4 text-sm font-semibold text-brand-700 dark:text-brand-400">
+          View order history →
+        </Link>
       </div>
     );
   }
@@ -48,7 +51,7 @@ export default async function DigitalAccountsPage() {
           </p>
         </div>
         <Link
-          href="/digital-accounts/orders"
+          href="/history"
           className="text-xs font-semibold text-brand-700 dark:text-brand-400 shrink-0 whitespace-nowrap mt-1"
         >
           Your orders →
