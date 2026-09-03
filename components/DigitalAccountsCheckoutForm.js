@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Minus, PackageCheck, Plus, ShieldCheck, Wallet, X, Zap } from "lucide-react";
+import { Minus, PackageCheck, Plus, ShieldCheck, X, Zap } from "lucide-react";
 import AdaptiveLogo from "./AdaptiveLogo";
 import { CredentialsList } from "./OrderCredentialsActions";
 
@@ -36,7 +36,6 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
   );
   const walletBalance = Number(template.walletBalanceNgn || 0);
   const insufficientBalance = totalNgn != null && walletBalance < totalNgn;
-  const remainingBalance = totalNgn != null ? Math.max(0, walletBalance - totalNgn) : walletBalance;
   const canBuy = !outOfStock && quantityIsValid && !exceedsStock && !insufficientBalance && !buying;
   const buttonLabel = outOfStock
     ? "Sold out"
@@ -106,33 +105,33 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
 
   return (
     <>
-      <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-night-700 dark:bg-night-900">
-          <div className="border-b border-gray-100 bg-gradient-to-br from-brand-50 via-white to-sky-50 p-5 dark:border-night-700 dark:from-night-900 dark:via-night-900 dark:to-night-800 sm:p-6">
-            <div className="flex items-start gap-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.95fr]">
+        <section className="order-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-night-700 dark:bg-night-900 lg:order-1">
+          <div className="border-b border-gray-100 bg-gradient-to-br from-brand-50 via-white to-sky-50 p-4 dark:border-night-700 dark:from-night-900 dark:via-night-900 dark:to-night-800 sm:p-5">
+            <div className="flex items-start gap-3">
               {template.logoUrl ? (
                 <AdaptiveLogo
                   logo={{ logoUrl: template.logoUrl, logoUrlDark: template.logoUrlDark }}
-                  className="h-14 w-14 shrink-0 rounded-xl"
+                  className="h-11 w-11 shrink-0 rounded-lg sm:h-12 sm:w-12"
                 />
               ) : (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700 ring-1 ring-gray-100 dark:bg-night-800 dark:text-brand-300 dark:ring-night-700">
-                  <PackageCheck size={24} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-gray-100 dark:bg-night-800 dark:text-brand-300 dark:ring-night-700 sm:h-12 sm:w-12">
+                  <PackageCheck size={22} />
                 </div>
               )}
 
               <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
                   <span className="badge badge-success">{template.categoryName}</span>
                   <span className={`badge ${outOfStock ? "badge-danger" : "badge-neutral"}`}>
                     {outOfStock ? "Sold out" : `${template.availableCount} available`}
                   </span>
                 </div>
-                <h1 className="break-words text-2xl font-bold leading-tight text-gray-950 dark:text-night-100">
+                <h1 className="break-words text-xl font-bold leading-tight text-gray-950 dark:text-night-100 sm:text-2xl">
                   {template.name}
                 </h1>
                 {template.description && (
-                  <p className="mt-3 break-words text-sm leading-6 text-gray-600 dark:text-night-300">
+                  <p className="mt-2 break-words text-sm leading-5 text-gray-600 dark:text-night-300">
                     {template.description}
                   </p>
                 )}
@@ -140,20 +139,14 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
             </div>
           </div>
 
-          <div className="grid gap-0 border-b border-gray-100 dark:border-night-700 sm:grid-cols-3">
-            <div className="border-b border-gray-100 p-4 dark:border-night-700 sm:border-b-0 sm:border-r">
+          <div className="grid grid-cols-2 gap-0 border-b border-gray-100 dark:border-night-700">
+            <div className="border-r border-gray-100 p-3.5 dark:border-night-700 sm:p-4">
               <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400">
                 <PackageCheck size={14} /> Stock
               </div>
               <div className="text-lg font-bold">{template.availableCount.toLocaleString("en-US")} pcs</div>
             </div>
-            <div className="border-b border-gray-100 p-4 dark:border-night-700 sm:border-b-0 sm:border-r">
-              <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400">
-                <Wallet size={14} /> Wallet
-              </div>
-              <div className="text-lg font-bold">₦{walletBalance.toLocaleString("en-US")}</div>
-            </div>
-            <div className="p-4">
+            <div className="p-3.5 sm:p-4">
               <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-night-400">
                 <Zap size={14} /> Release
               </div>
@@ -161,37 +154,27 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
             </div>
           </div>
 
-          <div className="p-5 sm:p-6">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800 dark:bg-brand-900 dark:text-brand-200">
-                <div className="mb-1 flex items-center gap-2 font-bold">
-                  <ShieldCheck size={16} /> Private credentials
-                </div>
-                <p className="text-xs leading-5 text-brand-700 dark:text-brand-300">
-                  Username, password, 2FA and mail fields appear immediately after purchase.
-                </p>
+          <div className="p-4 sm:p-5">
+            <div className="rounded-lg bg-brand-50 px-3.5 py-3 text-sm text-brand-800 dark:bg-brand-900 dark:text-brand-200">
+              <div className="mb-1 flex items-center gap-2 font-bold">
+                <ShieldCheck size={16} /> Private credentials
               </div>
-              <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                <div className="mb-1 flex items-center gap-2 font-bold">
-                  <CheckCircle2 size={16} /> Saved order
-                </div>
-                <p className="text-xs leading-5 text-amber-700 dark:text-amber-400">
-                  The order stays in History even if product stock changes later.
-                </p>
-              </div>
+              <p className="text-xs leading-5 text-brand-700 dark:text-brand-300">
+                Username, password, 2FA and mail fields appear immediately after purchase.
+              </p>
             </div>
           </div>
         </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-card dark:border-night-700 dark:bg-night-900 sm:p-6 lg:sticky lg:top-6 lg:self-start">
-          <div className="mb-5">
+        <section className="order-1 rounded-xl border border-gray-200 bg-white p-4 shadow-card dark:border-night-700 dark:bg-night-900 sm:p-5 lg:sticky lg:top-6 lg:order-2 lg:self-start">
+          <div className="mb-4">
             <div className="text-sm font-semibold text-gray-500 dark:text-night-400">Price per account</div>
-            <div className="mt-1 text-3xl font-bold text-gray-950 dark:text-night-100">
+            <div className="mt-1 text-2xl font-bold text-gray-950 dark:text-night-100 sm:text-3xl">
               ₦{template.priceNgn.toLocaleString("en-US")}
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold mb-2">Quantity</label>
               <div className="grid grid-cols-[2.75rem_1fr_2.75rem] gap-2">
@@ -250,17 +233,11 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
               )}
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-night-700">
+            <div className="overflow-hidden rounded-lg border border-gray-100 dark:border-night-700">
               <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-night-700">
                 <span className="text-sm font-semibold text-gray-500 dark:text-night-300">Subtotal</span>
                 <span className="text-sm font-bold">
                   {totalNgn == null ? "Enter quantity" : `₦${totalNgn.toLocaleString("en-US")}`}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-night-700">
-                <span className="text-sm font-semibold text-gray-500 dark:text-night-300">Wallet after purchase</span>
-                <span className={`text-sm font-bold ${insufficientBalance ? "text-red-600 dark:text-red-400" : ""}`}>
-                  ₦{remainingBalance.toLocaleString("en-US")}
                 </span>
               </div>
               <div className="flex items-center justify-between bg-gray-50 px-4 py-3 dark:bg-night-800">
