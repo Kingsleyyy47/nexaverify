@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 
-// Dashboard preview of the Digital Accounts ("Buy Logs") catalog, shown
+// Dashboard preview of the Digital Accounts catalog, shown
 // above Phone Verifications. `items` is already decided server-side in
 // app/(customer)/dashboard/page.js: favorited templates if any exist,
 // otherwise a random sample — see that file's comment for why.

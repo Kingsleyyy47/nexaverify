@@ -6,7 +6,7 @@ import { Smartphone, Globe2, Globe, KeyRound, Send, Rocket } from "lucide-react"
 // through the sidebar or the "+ Buy a number" dropdown. Whichever
 // phone-number provider is switched off at /admin/providers drops out of the
 // grid entirely, same as everywhere else in the nav. Telegram Premium,
-// Social Boost, and "Buy Logs" (Digital Accounts) all use the same "coming
+// Social Boost, and Digital Accounts all use the same "coming
 // soon" badge convention as CustomerSidebar — tagged with soonForNonAdmin
 // rather than just true, since they're independent products each with their
 // own visibility switch (see that component's comment for why a shared
@@ -27,7 +27,7 @@ const TILES = [
   {
     key: "logs",
     href: "/digital-accounts",
-    label: "Buy Logs",
+    label: "Digital Accounts",
     icon: KeyRound,
     soonForNonAdmin: "digitalAccounts",
   },

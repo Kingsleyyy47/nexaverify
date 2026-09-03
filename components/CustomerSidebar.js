@@ -22,7 +22,6 @@ const BASE_LINKS = [
   { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: "istar" },
   { href: "/products/social-boost", label: "Social Boost", soonForNonAdmin: "socialBoost" },
   { href: "/digital-accounts", label: "Digital Accounts", soonForNonAdmin: "digitalAccounts" },
-  { href: "https://www.legitstorez.com", label: "Buy Logs", external: true },
 ];
 
 export default function CustomerSidebar({

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutForm";
@@ -32,10 +32,16 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
 
   const { data: template } = await admin
     .from("digital_product_templates")
-    .select("id, name, description, price_ngn, archived")
+    .select("id, category_id, name, description, price_ngn, archived")
     .eq("id", params.templateId)
     .maybeSingle();
   if (!template || template.archived) notFound();
+
+  const { data: category } = await admin
+    .from("digital_categories")
+    .select("id, name, description, logo_url, logo_url_dark")
+    .eq("id", template.category_id)
+    .maybeSingle();
 
   const { count: availableCount } = await admin
     .from("digital_stock_items")
@@ -47,21 +53,28 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
   const initialQuantity = Number.isInteger(requestedQty) && requestedQty > 0 ? requestedQty : "";
 
   return (
-    <div className="max-w-lg">
-      <Link
-        href="/digital-accounts"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-night-400 hover:text-gray-800 dark:hover:text-night-100 mb-4"
-      >
-        <ArrowLeft size={16} /> Back
-      </Link>
+    <div className="max-w-5xl">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/digital-accounts"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 dark:text-night-400 dark:hover:text-night-100"
+        >
+          <ArrowLeft size={16} /> Back to products
+        </Link>
 
-      <h1 className="text-xl font-bold mb-5">Checkout</h1>
+        <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:border-night-700 dark:bg-night-900 dark:text-brand-300">
+          <ShoppingBag size={14} /> Digital checkout
+        </div>
+      </div>
 
       <DigitalAccountsCheckoutForm
         template={{
           id: template.id,
           name: template.name,
           description: template.description,
+          categoryName: category?.name || "Digital account",
+          logoUrl: category?.logo_url || "",
+          logoUrlDark: category?.logo_url_dark || "",
           priceNgn: Number(template.price_ngn),
           availableCount: availableCount || 0,
           walletBalanceNgn: Number(profile?.balance || 0),

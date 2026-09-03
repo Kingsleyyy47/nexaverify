@@ -16,7 +16,7 @@ const TABS = [
   { key: "socialBoost", href: "/products/social-boost", label: "Social Boost", icon: Rocket, soonForNonAdmin: "socialBoost" },
   { key: "wallet", href: "/wallet", label: "Wallet", icon: Wallet },
   { key: "telegram", href: "/products/telegram-premium", label: "Telegram", icon: Send, soonForNonAdmin: "istar" },
-  { key: "logs", href: "/digital-accounts", label: "Logs", icon: KeyRound, soonForNonAdmin: "digitalAccounts" },
+  { key: "logs", href: "/digital-accounts", label: "Accounts", icon: KeyRound, soonForNonAdmin: "digitalAccounts" },
 ];
 
 export default function MobileBottomNav({
