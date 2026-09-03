@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShoppingBag } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutForm";
@@ -53,18 +53,14 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
   const initialQuantity = Number.isInteger(requestedQty) && requestedQty > 0 ? requestedQty : "";
 
   return (
-    <div className="max-w-5xl">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-xl">
+      <div className="mb-3">
         <Link
           href="/digital-accounts"
           className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 dark:text-night-400 dark:hover:text-night-100"
         >
           <ArrowLeft size={16} /> Back to products
         </Link>
-
-        <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:border-night-700 dark:bg-night-900 dark:text-brand-300">
-          <ShoppingBag size={14} /> Digital checkout
-        </div>
       </div>
 
       <DigitalAccountsCheckoutForm
