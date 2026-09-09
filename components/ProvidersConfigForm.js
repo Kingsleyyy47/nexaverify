@@ -48,10 +48,11 @@ function ToggleRow({ title, description, detailHref, detailLabel, checked, onCha
 }
 
 // `config` comes from admin/providers/page.js as:
-// { daisysmsEnabled, daisysimEnabled, usOnlyEnabled, pocketfiVirtualAccountEnabled }
+// { daisysmsEnabled, daisysmsLongTermEnabled, daisysimEnabled, usOnlyEnabled, pocketfiVirtualAccountEnabled }
 export default function ProvidersConfigForm({ config }) {
   const router = useRouter();
   const [daisysmsEnabled, setDaisysmsEnabled] = useState(config.daisysmsEnabled);
+  const [daisysmsLongTermEnabled, setDaisysmsLongTermEnabled] = useState(config.daisysmsLongTermEnabled);
   const [daisysimEnabled, setDaisysimEnabled] = useState(config.daisysimEnabled);
   const [usOnlyEnabled, setUsOnlyEnabled] = useState(config.usOnlyEnabled);
   const [pocketfiVirtualAccountEnabled, setPocketfiVirtualAccountEnabled] = useState(
@@ -75,6 +76,7 @@ export default function ProvidersConfigForm({ config }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           daisysmsEnabled,
+          daisysmsLongTermEnabled,
           daisysimEnabled,
           usOnlyEnabled,
           pocketfiVirtualAccountEnabled,
@@ -111,6 +113,12 @@ export default function ProvidersConfigForm({ config }) {
         detailLabel="Manage products & pricing"
         checked={daisysmsEnabled}
         onChange={setDaisysmsEnabled}
+      />
+      <ToggleRow
+        title="Long-term rentals (USA & Canada)"
+        description="The 1 day / 7 day / 1 month duration options on /products (DaisySMS only — International and US Only never offer long-term). Off hides those options from customers and rejects a duration server-side too, leaving only the standard short-term rental."
+        checked={daisysmsLongTermEnabled}
+        onChange={setDaisysmsLongTermEnabled}
       />
       <ToggleRow
         title="All countries (DaisySim)"

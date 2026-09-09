@@ -151,14 +151,28 @@ create policy "services_select_all" on public.services
 -- daisysim_config) since DaisySMS is the original, already-live provider —
 -- defaults to enabled=true so existing installs aren't silently broken by
 -- re-running this file.
+--   long_term_enabled: DaisySMS is the only provider (of USA & Canada,
+--     International, US Only) that ever offers a long-term (1D/7D/1M)
+--     rental option to customers — International and US Only always insert
+--     is_long_term=false regardless, so there's nothing to gate there.
+--     Defaults to true (unchanged behavior) so existing installs keep
+--     working until an admin explicitly flips it off from /admin/providers;
+--     off hides the long-term duration options on /products
+--     (components/BuyForm.js) and rejects a duration server-side too (see
+--     app/api/rentals/buy), leaving only the standard short-term rental.
 -- ============================================================================
 create table if not exists public.daisysms_config (
   id boolean primary key default true check (id),
   enabled boolean not null default true,
+  long_term_enabled boolean not null default true,
   updated_at timestamptz not null default now()
 );
 
 insert into public.daisysms_config (id) values (true) on conflict (id) do nothing;
+
+-- Additive column for installs that ran this schema before long_term_enabled
+-- existed — safe to re-run.
+alter table public.daisysms_config add column if not exists long_term_enabled boolean not null default true;
 
 alter table public.daisysms_config enable row level security;
 
@@ -736,7 +750,9 @@ alter table public.rentals add constraint rentals_provider_check
 alter table public.rentals add column if not exists daisysim_usa_activation_id text;
 
 -- ----------------------------------------------------------------------------
--- 3-minute no-code timeout (both providers) — see
+-- No-code timeout (both providers) — 15 minutes server-side (see
+-- lib/rentalTimeout.js#RENTAL_BACKEND_TIMEOUT_MINUTES), independent of the
+-- shorter countdown shown to the customer on NumberCard.js — see
 -- app/api/admin/rentals/sweep-timeouts and app/api/rentals/cancel.
 --   refunded_at: set the instant a refund is actually issued for this
 --     rental, and used as an atomic claim guard (UPDATE ... WHERE

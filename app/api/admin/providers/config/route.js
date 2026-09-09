@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Single route for the /admin/providers overview page's master switches.
 // Each one writes to the SAME config table/column its own dedicated settings
-// page already uses (public.daisysms_config.enabled,
+// page already uses (public.daisysms_config.enabled/long_term_enabled,
 // public.daisysim_config.enabled, public.daisysim_usa_config.enabled,
 // public.pocketfi_config.virtual_account_enabled, public.istar_config.enabled,
 // public.social_boost_config.enabled) — this is just a second, faster place
@@ -22,6 +22,7 @@ export async function POST(request) {
 
   const {
     daisysmsEnabled,
+    daisysmsLongTermEnabled,
     daisysimEnabled,
     usOnlyEnabled,
     pocketfiVirtualAccountEnabled,
@@ -35,7 +36,11 @@ export async function POST(request) {
   const [daisysms, daisysim, usOnly, pocketfi, istar, socialBoost] = await Promise.all([
     admin
       .from("daisysms_config")
-      .update({ enabled: Boolean(daisysmsEnabled), updated_at: now })
+      .update({
+        enabled: Boolean(daisysmsEnabled),
+        long_term_enabled: Boolean(daisysmsLongTermEnabled),
+        updated_at: now,
+      })
       .eq("id", true)
       .select()
       .single(),

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OrderTopActions, CredentialsList } from "@/components/OrderCredentialsActions";
+import LocalDateTime from "@/components/LocalDateTime";
 
 // Server Component so ownership can be checked against the service role
 // key BEFORE any credential ever leaves the server — digital_stock_items has
@@ -83,7 +84,7 @@ export default async function DigitalOrderDetailsPage({ params }) {
         </div>
         <div className="rounded-xl bg-gray-50 dark:bg-night-800 px-4 py-3">
           <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">Date</div>
-          <div className="font-bold">{new Date(order.created_at).toLocaleDateString("en-US")}</div>
+          <div className="font-bold"><LocalDateTime value={order.created_at} mode="date" /></div>
         </div>
       </div>
 
@@ -105,7 +106,7 @@ export default async function DigitalOrderDetailsPage({ params }) {
       <CredentialsList items={items} />
 
       <p className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-night-500 mt-5">
-        Purchased on {new Date(order.created_at).toLocaleDateString("en-US")}. Keep these credentials private
+        Purchased on <LocalDateTime value={order.created_at} mode="date" />. Keep these credentials private
         and update security details after login.
       </p>
     </div>

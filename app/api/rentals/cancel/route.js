@@ -122,7 +122,7 @@ export async function POST(request) {
   // Claims the cancellation AND the refund together in one atomic UPDATE —
   // both conditions (status still 'waiting', refunded_at still null) have to
   // hold, so this can never fire twice for the same rental even if the
-  // 3-minute timeout sweep (see app/api/admin/rentals/sweep-timeouts) is
+  // 15-minute backend timeout sweep (see app/api/admin/rentals/sweep-timeouts) is
   // racing this exact same rental at the same moment. Whichever request wins
   // the UPDATE is the only one that refunds; the loser sees 0 rows back and
   // does nothing further.

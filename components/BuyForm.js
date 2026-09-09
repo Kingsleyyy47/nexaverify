@@ -8,8 +8,10 @@ import PurchasedNumberDropdown from "./PurchasedNumberDropdown";
 import { usePlatformLogos } from "./usePlatformLogos";
 import AdaptiveLogo from "./AdaptiveLogo";
 
-const DURATIONS = [
-  { value: "", label: "Short-term (5-15 min, standard rental)" },
+const SHORT_TERM_ONLY = [{ value: "", label: "Short-term (5-15 min, standard rental)" }];
+
+const ALL_DURATIONS = [
+  ...SHORT_TERM_ONLY,
   { value: "1D", label: "1 day (long-term)" },
   { value: "7D", label: "7 days (long-term)" },
   { value: "1M", label: "1 month (long-term)" },
@@ -24,10 +26,15 @@ const DURATIONS = [
 // checkout pattern as SocialBoostBuyForm's platform tiles and the Digital
 // Accounts card -> checkout page flow, just without a separate route since
 // this purchase is instant (no quantity/description step needed).
-export default function BuyForm({ services }) {
+export default function BuyForm({ services, longTermEnabled = true }) {
   const router = useRouter();
   const { format } = useCurrency();
   const { logoFor } = usePlatformLogos();
+  // Admin-controlled — see /admin/providers, public.daisysms_config.long_term_enabled.
+  // Off drops the 1D/7D/1M options entirely, leaving just the standard
+  // short-term rental (also enforced server-side in /api/rentals/buy, so
+  // this isn't just a UI-level hide).
+  const DURATIONS = longTermEnabled ? ALL_DURATIONS : SHORT_TERM_ONLY;
   const [serviceId, setServiceId] = useState(null);
   const [duration, setDuration] = useState("");
   const [loading, setLoading] = useState(false);
@@ -120,20 +127,26 @@ export default function BuyForm({ services }) {
               </div>
             </div>
 
-            <div className="field">
-              <label htmlFor="duration">Rental duration</label>
-              <select id="duration" value={duration} onChange={(e) => setDuration(e.target.value)}>
-                {DURATIONS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-              <span className="hint">
-                Long-term numbers stay on the Rentals page for repeated use. You&apos;ll need to
-                receive one message within the short-term window to activate the long-term hold.
-              </span>
-            </div>
+            {longTermEnabled ? (
+              <div className="field">
+                <label htmlFor="duration">Rental duration</label>
+                <select id="duration" value={duration} onChange={(e) => setDuration(e.target.value)}>
+                  {DURATIONS.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="hint">
+                  Long-term numbers stay on the Rentals page for repeated use. You&apos;ll need to
+                  receive one message within the short-term window to activate the long-term hold.
+                </span>
+              </div>
+            ) : (
+              <div className="field">
+                <span className="hint">Short-term rental — 5-15 minutes, standard.</span>
+              </div>
+            )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -77,10 +77,11 @@ select cron.schedule(
   $$
 );
 
--- 5. Cancel + refund any short-term rental (either provider) that's gone 3
---    minutes with no code — see app/api/admin/rentals/sweep-timeouts. Runs
---    every minute so the worst-case delay past the 3-minute mark is ~1
---    minute. Long-term rentals are excluded by the route itself.
+-- 5. Cancel + refund any short-term rental (either provider) that's gone 15
+--    minutes with no code — see app/api/admin/rentals/sweep-timeouts
+--    (lib/rentalTimeout.js#RENTAL_BACKEND_TIMEOUT_MINUTES). Runs every
+--    minute so the worst-case delay past the 15-minute mark is ~1 minute.
+--    Long-term rentals are excluded by the route itself.
 select cron.schedule(
   'nexaverify-sweep-timeouts',
   '* * * * *', -- every minute

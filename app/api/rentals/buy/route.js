@@ -27,9 +27,24 @@ export async function POST(request) {
   // buy while DaisySMS is switched off, even if the customer-facing UI is
   // hidden. Fails OPEN (missing row = still enabled) so a schema.sql that
   // hasn't been re-run yet doesn't silently break every purchase.
-  const { data: providerConfig } = await admin.from("daisysms_config").select("enabled").eq("id", true).maybeSingle();
+  const { data: providerConfig } = await admin
+    .from("daisysms_config")
+    .select("enabled, long_term_enabled")
+    .eq("id", true)
+    .maybeSingle();
   if (providerConfig && !providerConfig.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
+  }
+
+  // Same fail-open reasoning as `enabled` above (missing row = still allowed,
+  // so an un-migrated install isn't silently broken) — but once the column
+  // exists and is explicitly off, reject a duration server-side too, not
+  // just hide it in the UI (see /admin/providers, components/BuyForm.js).
+  if (isLongTerm && providerConfig && providerConfig.long_term_enabled === false) {
+    return NextResponse.json(
+      { error: "Long-term rentals are currently unavailable — choose the short-term option instead." },
+      { status: 403 }
+    );
   }
 
   const { data: service } = await admin.from("services").select("*").eq("id", serviceId).single();

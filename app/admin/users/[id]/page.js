@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import AdjustBalanceForm from "@/components/AdjustBalanceForm";
 import SetUsernameForm from "@/components/SetUsernameForm";
 import ResetPasswordForm from "@/components/ResetPasswordForm";
+import LocalDateTime from "@/components/LocalDateTime";
 
 export default async function AdminUserDetailPage({ params }) {
   const admin = createAdminClient();
@@ -29,7 +30,7 @@ export default async function AdminUserDetailPage({ params }) {
         <h1 className="text-2xl font-bold">{user.username || user.email}</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
           {user.username ? `${user.email} · ` : ""}Role: {user.role} · Joined{" "}
-          {new Date(user.created_at).toLocaleDateString("en-US")}
+          <LocalDateTime value={user.created_at} mode="date" />
         </p>
       </div>
 
@@ -96,7 +97,7 @@ export default async function AdminUserDetailPage({ params }) {
                   <td className="py-3.5 capitalize">{t.type.replace("_", " ")}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">{t.note || "—"}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">
-                    {new Date(t.created_at).toLocaleString("en-US")}
+                    <LocalDateTime value={t.created_at} />
                   </td>
                   <td
                     className={`py-3.5 text-right font-semibold ${

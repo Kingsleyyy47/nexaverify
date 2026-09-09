@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
@@ -46,7 +47,20 @@ function EmptyState({ children }) {
   return <p className="py-5 text-center text-sm text-gray-400 dark:text-night-400">{children}</p>;
 }
 
-function OrderCard({ title, subtitle, description, date, status, statusMap, amount, actionHref, actionLabel }) {
+function OrderCard({
+  title,
+  subtitle,
+  description,
+  date,
+  status,
+  statusMap,
+  amount,
+  actionHref,
+  actionLabel,
+  onCancel,
+  cancelling,
+  cancelError,
+}) {
   const { format } = useCurrency();
 
   return (
@@ -64,13 +78,31 @@ function OrderCard({ title, subtitle, description, date, status, statusMap, amou
           {amount != null && <span className="text-sm font-bold dark:text-night-100">{format(amount)}</span>}
         </div>
       </div>
+      {cancelError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{cancelError}</p>}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400 dark:text-night-400">
         <span>{formatDate(date)}</span>
-        {actionHref && (
-          <Link href={actionHref} className="inline-flex items-center gap-1 font-semibold text-brand-700 dark:text-brand-400">
-            {actionLabel || "Order details"} <ExternalLink size={13} />
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Rentals still waiting for a code (or, equivalently, still
+              "loading" on screen) can be cancelled straight from history —
+              same atomic cancel+refund route the dashboard's active-number
+              card uses (app/api/rentals/cancel), just reachable from here
+              too instead of only from the still-open purchase screen. */}
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={cancelling}
+              className="btn-secondary btn-sm"
+            >
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </button>
+          )}
+          {actionHref && (
+            <Link href={actionHref} className="inline-flex items-center gap-1 font-semibold text-brand-700 dark:text-brand-400">
+              {actionLabel || "Order details"} <ExternalLink size={13} />
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -94,27 +126,38 @@ function TransactionRow({ transaction }) {
   );
 }
 
-function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoostOrders }) {
+function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoostOrders, rentalCancelState = {}, onCancelRental }) {
   return [
-    ...(rentals || []).map((order) => ({
-      id: `rental-${order.id}`,
-      date: order.created_at,
-      node: (
-        <OrderCard
-          title={order.service_name || order.service_id || "SMS rental"}
-          subtitle={[
-            order.phone_number,
-            order.country_name,
-            order.is_long_term ? "Long-term" : "Short-term",
-          ].filter(Boolean).join(" · ")}
-          description={order.full_text || (order.sms_code ? `Code: ${order.sms_code}` : null)}
-          date={order.created_at}
-          status={order.status}
-          statusMap={RENTAL_STATUS_BADGE}
-          amount={order.price}
-        />
-      ),
-    })),
+    ...(rentals || []).map((order) => {
+      const cancelState = rentalCancelState[order.id] || {};
+      // Only ever offered while still "waiting" (i.e. still loading/no code
+      // yet) — once a code has arrived, is done, or is already
+      // cancelled/expired, the provider cancel call itself would just reject
+      // it (see app/api/rentals/cancel), so the button doesn't even render.
+      const canCancel = order.status === "waiting";
+      return {
+        id: `rental-${order.id}`,
+        date: order.created_at,
+        node: (
+          <OrderCard
+            title={order.service_name || order.service_id || "SMS rental"}
+            subtitle={[
+              order.phone_number,
+              order.country_name,
+              order.is_long_term ? "Long-term" : "Short-term",
+            ].filter(Boolean).join(" · ")}
+            description={order.full_text || (order.sms_code ? `Code: ${order.sms_code}` : null)}
+            date={order.created_at}
+            status={order.status}
+            statusMap={RENTAL_STATUS_BADGE}
+            amount={order.price}
+            onCancel={canCancel ? () => onCancelRental(order.id) : null}
+            cancelling={cancelState.cancelling}
+            cancelError={cancelState.error}
+          />
+        ),
+      };
+    }),
     ...(digitalOrders || []).map((order) => ({
       id: `digital-${order.id}`,
       date: order.created_at,
@@ -180,7 +223,40 @@ export default function CustomerHistorySections({
   socialBoostOrders = [],
   transactions = [],
 }) {
-  const unifiedOrders = buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoostOrders });
+  // Local overrides so a cancel here updates the card in place (status badge,
+  // cancel button disappearing) without needing a full page reload — same
+  // rental rows passed in from the server, just patched with whatever
+  // /api/rentals/cancel returns.
+  const [rentalOverrides, setRentalOverrides] = useState({});
+  const [rentalCancelState, setRentalCancelState] = useState({});
+
+  const effectiveRentals = rentals.map((r) => ({ ...r, ...(rentalOverrides[r.id] || {}) }));
+
+  async function handleCancelRental(rentalId) {
+    setRentalCancelState((prev) => ({ ...prev, [rentalId]: { cancelling: true, error: "" } }));
+    try {
+      const res = await fetch("/api/rentals/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rentalId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not cancel this rental.");
+      if (data.rental) setRentalOverrides((prev) => ({ ...prev, [rentalId]: data.rental }));
+      setRentalCancelState((prev) => ({ ...prev, [rentalId]: { cancelling: false, error: data.error || "" } }));
+    } catch (err) {
+      setRentalCancelState((prev) => ({ ...prev, [rentalId]: { cancelling: false, error: err.message } }));
+    }
+  }
+
+  const unifiedOrders = buildUnifiedOrders({
+    rentals: effectiveRentals,
+    digitalOrders,
+    telegramOrders,
+    socialBoostOrders,
+    rentalCancelState,
+    onCancelRental: handleCancelRental,
+  });
 
   return (
     <div className="space-y-4">

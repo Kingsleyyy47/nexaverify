@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeLikePattern } from "@/lib/username";
 import AdminTransactionsFilterBar from "@/components/AdminTransactionsFilterBar";
+import LocalDateTime from "@/components/LocalDateTime";
 
 const PAGE_SIZE = 50;
 
@@ -137,7 +138,7 @@ export default async function AdminTransactionsPage({ searchParams }) {
                       </td>
                     )}
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleString("en-US")}
+                      <LocalDateTime value={t.created_at} />
                     </td>
                   </tr>
                 );

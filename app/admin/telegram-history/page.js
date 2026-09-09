@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeLikePattern } from "@/lib/username";
 import AdminTelegramHistoryFilterBar from "@/components/AdminTelegramHistoryFilterBar";
+import LocalDateTime from "@/components/LocalDateTime";
 
 const PAGE_SIZE = 50;
 
@@ -161,7 +162,7 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
                       {o.refunded_at && <span className="badge badge-neutral ml-1.5 text-[10px]">Refunded</span>}
                     </td>
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(o.created_at).toLocaleString("en-US")}
+                      <LocalDateTime value={o.created_at} />
                     </td>
                   </tr>
                 );

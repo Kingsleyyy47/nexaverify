@@ -5,18 +5,19 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
-import { RENTAL_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
+import { RENTAL_BACKEND_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 
 // Kingsley's rule: any rental (any provider) that's gone
-// RENTAL_TIMEOUT_MINUTES without a code gets cancelled on the provider,
-// cancelled on our side, and fully refunded — automatically, server-side,
-// whether or not the customer still has the page open. Called on a timer
-// (see supabase/cron.sql, 'nexaverify-sweep-timeouts', every minute) via
-// CRON_SECRET, same pattern as the other scheduled admin routes. Also
-// callable by a logged-in admin. The exact minute count lives in
-// lib/rentalTimeout.js — shared with the client-side countdown shown on
-// NumberCard.js so the two can never disagree.
-const TIMEOUT_MINUTES = RENTAL_TIMEOUT_MINUTES;
+// RENTAL_BACKEND_TIMEOUT_MINUTES without a code gets cancelled on the
+// provider, cancelled on our side, and fully refunded — automatically,
+// server-side, whether or not the customer still has the page open. Called
+// on a timer (see supabase/cron.sql, 'nexaverify-sweep-timeouts', every
+// minute) via CRON_SECRET, same pattern as the other scheduled admin routes.
+// Also callable by a logged-in admin. This is deliberately a LONGER window
+// than the countdown shown to the customer on NumberCard.js
+// (RENTAL_TIMEOUT_MINUTES, in lib/rentalTimeout.js) — see that file's
+// comment for why the two are allowed to differ.
+const TIMEOUT_MINUTES = RENTAL_BACKEND_TIMEOUT_MINUTES;
 
 export async function POST(request) {
   if (!isAuthorizedCron(request)) {

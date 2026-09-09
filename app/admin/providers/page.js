@@ -6,7 +6,7 @@ export default async function AdminProvidersPage() {
 
   const [{ data: daisysms }, { data: daisysim }, { data: usOnly }, { data: pocketfi }, { data: istar }, { data: socialBoost }] =
     await Promise.all([
-      admin.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
+      admin.from("daisysms_config").select("enabled, long_term_enabled").eq("id", true).maybeSingle(),
       admin.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
       admin.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle(),
       admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
@@ -16,6 +16,7 @@ export default async function AdminProvidersPage() {
 
   const config = {
     daisysmsEnabled: daisysms?.enabled ?? true,
+    daisysmsLongTermEnabled: daisysms?.long_term_enabled ?? true,
     daisysimEnabled: daisysim?.enabled ?? false,
     usOnlyEnabled: usOnly?.enabled ?? false,
     pocketfiVirtualAccountEnabled: pocketfi?.virtual_account_enabled ?? true,

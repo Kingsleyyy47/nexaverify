@@ -6,12 +6,13 @@ export default async function ProductsPage() {
 
   const { data: providerConfig } = await supabase
     .from("daisysms_config")
-    .select("enabled")
+    .select("enabled, long_term_enabled")
     .eq("id", true)
     .maybeSingle();
   // Fails open (missing row = enabled) so an un-migrated install isn't
   // silently broken — same reasoning as /api/rentals/buy.
   const enabled = providerConfig?.enabled ?? true;
+  const longTermEnabled = providerConfig?.long_term_enabled ?? true;
 
   if (!enabled) {
     return (
@@ -46,7 +47,7 @@ export default async function ProductsPage() {
         </p>
       </div>
 
-      <BuyForm services={services || []} />
+      <BuyForm services={services || []} longTermEnabled={longTermEnabled} />
     </div>
   );
 }

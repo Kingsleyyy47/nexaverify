@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeLikePattern } from "@/lib/username";
 import AdminNumberHistoryFilterBar from "@/components/AdminNumberHistoryFilterBar";
+import LocalDateTime from "@/components/LocalDateTime";
 
 const PAGE_SIZE = 50;
 
@@ -146,7 +147,7 @@ export default async function AdminNumberHistoryPage({ searchParams }) {
                       <span className={`badge ${STATUS_BADGE[r.status] || "badge-neutral"}`}>{r.status}</span>
                     </td>
                     <td className="py-2.5 text-gray-400 dark:text-night-400 whitespace-nowrap">
-                      {new Date(r.created_at).toLocaleString("en-US")}
+                      <LocalDateTime value={r.created_at} />
                     </td>
                   </tr>
                 );

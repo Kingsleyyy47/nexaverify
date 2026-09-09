@@ -338,12 +338,14 @@ backed by `public.onboarding_config` — no code changes needed to update the li
    - `profiles.onboarding_seen_at` is a leftover column from the old one-time-dismissal behavior —
      no longer read anywhere, safe to ignore.
 
-## 15. 3-minute no-code timeout (auto-cancel + refund)
+## 15. 15-minute no-code timeout (auto-cancel + refund)
 
-Any short-term rental (DaisySMS or DaisySim, not long-term ones) that sits 3 minutes with no code
+Any short-term rental (DaisySMS or DaisySim, not long-term ones) that sits 15 minutes with no code
 gets cancelled on the provider, cancelled in NexaVerify, and fully refunded to the customer's
 wallet — automatically, even if they've closed the tab. This runs server-side on a timer, not in
-the browser.
+the browser. (The countdown a customer actually sees on their number is a shorter 7 minutes —
+see `lib/rentalTimeout.js` for why the two numbers are allowed to differ; the customer can always
+cancel manually at any time regardless of either countdown.)
 
 1. Re-run `schema.sql` — it added `rentals.refunded_at` (the idempotency guard so a manual cancel
    and the timeout sweep can never both refund the same rental) and `rentals.cancel_error` (last
@@ -354,7 +356,7 @@ the browser.
    already run the rest) — same `YOUR-DOMAIN.com` / `YOUR_CRON_SECRET` placeholders as the other
    jobs. It calls `/api/admin/rentals/sweep-timeouts` every minute.
 3. **What it actually does, and the ordering that makes it safe:**
-   - Finds every `status = 'waiting'`, non-long-term rental older than 3 minutes.
+   - Finds every `status = 'waiting'`, non-long-term rental older than 15 minutes.
    - Calls the provider's cancel endpoint FIRST, before touching anything locally.
    - If a code arrived at the exact moment of cancelling (both providers can reject a cancel this
      way), the rental is marked `received` with the code instead — no cancellation, no refund. This
@@ -441,7 +443,7 @@ wired up as a faster best-effort bonus on top of it (see `app/api/getatext/webho
      ("US Only (Getatext)").
    - The same billing-safety pattern as "All countries": the customer is billed off Getatext's real
      `price` returned at purchase time, not the price they last saw on screen.
-   - The existing 3-minute no-code timeout sweep (`/api/admin/rentals/sweep-timeouts`) handles this
+   - The existing 15-minute no-code timeout sweep (`/api/admin/rentals/sweep-timeouts`) handles this
      provider too — no separate cron job needed, it's the same route, same schedule. Getatext's
      cancel-rental has no `refund` boolean and no documented distinct "too early"/"code already
      arrived" error the way DaisySim's did — a successful cancel call is treated as full refund

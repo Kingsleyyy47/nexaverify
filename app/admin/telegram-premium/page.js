@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getWalletBalance, getPremiumPackages, buildPremiumPricing, IStarError } from "@/lib/istar";
 import { computeStarTotalPriceForWay } from "@/lib/istar-pricing";
 import TelegramPremiumConfigForm from "@/components/TelegramPremiumConfigForm";
+import LocalDateTime from "@/components/LocalDateTime";
 
 // Example quantities used purely to illustrate each tier's math below — any
 // quantity < 1000 lands in the first row, any >= 1000 in the second; these
@@ -212,7 +213,7 @@ export default async function AdminTelegramPremiumPage() {
         {config.starLastCostNgn && (
           <p className="text-xs text-gray-400 dark:text-night-400 mt-3">
             Learned from your last completed {config.starLastCostWalletType} order,{" "}
-            {config.starLastCostUpdatedAt ? new Date(config.starLastCostUpdatedAt).toLocaleString("en-US") : "recently"}.
+            {config.starLastCostUpdatedAt ? <LocalDateTime value={config.starLastCostUpdatedAt} /> : "recently"}.
           </p>
         )}
 
@@ -224,7 +225,7 @@ export default async function AdminTelegramPremiumPage() {
             <div className="text-xs text-gray-500 dark:text-night-300 space-y-1">
               <p>
                 <span className="font-semibold">When:</span>{" "}
-                {new Date(config.starLearnLastAttemptAt).toLocaleString("en-US")}
+                <LocalDateTime value={config.starLearnLastAttemptAt} />
               </p>
               <p>
                 <span className="font-semibold">Result:</span>{" "}
