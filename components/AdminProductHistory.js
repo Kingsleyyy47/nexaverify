@@ -192,6 +192,9 @@ function SocialBoostOrderRow({ o }) {
           <DetailField label="Status" value={o.status} />
           <DetailField label="Refill status" value={o.refill_status} />
           <DetailField label="Provider order id" value={o.provider_order_id} />
+          <DetailField label="Cancel requested" value={o.cancel_requested_at} />
+          <DetailField label="Refunded" value={o.refunded_at} />
+          {o.refund_needs_review && <DetailField label="Refund needs review" value={o.cancel_error || "yes"} />}
         </div>
       }
     />

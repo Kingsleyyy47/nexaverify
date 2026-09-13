@@ -589,6 +589,17 @@ create policy "social_boost_config_select_all" on public.social_boost_config
 --   status/remains/start_count/charge: the panel's own status fields,
 --     refreshed on demand (no webhook — this panel is poll-only) via
 --     app/api/admin/social-boost/orders/[id]/refresh.
+--   cancel_requested_at / refunded_at / refund_needs_review / cancel_error:
+--     mirrors the exact idempotency-guard pattern rentals uses (see
+--     rentals.refunded_at / cancel_error) — see
+--     app/api/social-boost/orders/[id]/cancel. refunded_at is the atomic
+--     claim guard (UPDATE ... WHERE refunded_at IS NULL) so a double-tapped
+--     Cancel button, or a cancel racing itself from two tabs, can never
+--     credit the wallet twice. refund_needs_review is set instead of
+--     guessing a refund amount when the provider confirms the cancel but a
+--     follow-up status check can't confirm how much of the order was
+--     actually delivered — flagged for admin review rather than either
+--     over- or under-crediting the customer.
 -- ============================================================================
 create table if not exists public.social_boost_orders (
   id uuid primary key default gen_random_uuid(),
@@ -609,9 +620,18 @@ create table if not exists public.social_boost_orders (
   refill_id text,
   refill_status text,
   cancel_requested_at timestamptz,
+  refunded_at timestamptz,
+  refund_needs_review boolean not null default false,
+  cancel_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Additive columns for installs that ran this schema before the cancel
+-- reliability fix — safe to re-run.
+alter table public.social_boost_orders add column if not exists refunded_at timestamptz;
+alter table public.social_boost_orders add column if not exists refund_needs_review boolean not null default false;
+alter table public.social_boost_orders add column if not exists cancel_error text;
 
 create index if not exists social_boost_orders_user_id_idx on public.social_boost_orders(user_id);
 create index if not exists social_boost_orders_provider_order_id_idx on public.social_boost_orders(provider_order_id);

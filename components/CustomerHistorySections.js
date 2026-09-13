@@ -206,7 +206,13 @@ function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoos
         <OrderCard
           title={order.service_name || `Social Boost service #${order.service_id}`}
           subtitle={`${order.quantity} units${order.link ? ` · ${order.link}` : ""}`}
-          description={order.cancel_requested_at ? "Cancel requested" : null}
+          description={
+            order.refund_needs_review
+              ? "Cancelled — refund pending review"
+              : order.cancel_requested_at
+              ? "Cancelled"
+              : null
+          }
           date={order.created_at}
           status={order.status}
           amount={order.price_ngn}

@@ -408,8 +408,11 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                     <td className="py-2 pr-3">{o.quantity}</td>
                     <td className="py-2 pr-3">
                       <span className="badge badge-neutral text-[10px]">{o.status}</span>
-                      {o.cancel_requested_at && (
-                        <span className="badge badge-warning text-[10px] ml-1">Cancel requested</span>
+                      {o.cancel_requested_at && !o.refund_needs_review && (
+                        <span className="badge badge-warning text-[10px] ml-1">Cancelled</span>
+                      )}
+                      {o.refund_needs_review && (
+                        <span className="badge badge-danger text-[10px] ml-1">Refund pending review</span>
                       )}
                     </td>
                     <td className="py-2 pr-3">{o.remains ?? "—"}</td>
