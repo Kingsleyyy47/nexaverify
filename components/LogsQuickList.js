@@ -10,10 +10,12 @@ import AdaptiveLogo from "./AdaptiveLogo";
 // app/(customer)/dashboard/page.js (favorited templates first, then oldest,
 // capped to a small preview — see that file's loadDigitalAccountsPreview()).
 //
-// No product name is shown here, same rule as the full browser
-// (components/DigitalAccountsBrowser.js) — description is the only text,
-// per the business owner's request. Description is shown in full, never
-// truncated, for the same reason it isn't truncated there.
+// No product name AND no category-name label is shown here, same rule as
+// the full browser (components/DigitalAccountsBrowser.js) — description is
+// the card's only text, per the business owner's request. Description is
+// shown in full, never truncated, for the same reason it isn't truncated
+// there. The category logo alone (no text label next to it) is what
+// identifies the platform, same as every product row on the full page.
 export default function LogsQuickList({ items }) {
   if (!items || items.length === 0) return null;
 
@@ -42,11 +44,6 @@ export default function LogsQuickList({ items }) {
                   />
                 ) : (
                   <div className="w-9 h-9 rounded-lg shrink-0 bg-gray-100 dark:bg-night-800" />
-                )}
-                {t.categoryName && (
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-night-400 truncate">
-                    {t.categoryName}
-                  </span>
                 )}
                 {t.favorite && (
                   <Star size={13} fill="currentColor" className="text-amber-400 shrink-0 ml-auto" />
