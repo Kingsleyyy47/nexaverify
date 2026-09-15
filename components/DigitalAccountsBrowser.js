@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { CategoryBanner, ProductCard } from "./DigitalAccountCard";
 
 const ALL = "all";
-// The All view's single banner isn't tied to any real category (it mixes
-// every category's products together — see the comment above the render
-// branch below), so it's a plain display-only stand-in rather than a row
-// from digital_categories. CategoryBanner only needs id/name off it.
-const POPULAR_BANNER = { id: "popular-logs", name: "Popular Logs" };
+// How many products a category section shows before collapsing the rest
+// behind "See More" in the All view (per the reference layout — a handful of
+// rows per category, then a link into that category's full list rather than
+// a wall of products for every category at once).
+const SECTION_PREVIEW_COUNT = 5;
 
 // Category picker -> product rows -> checkout. Live stock counts come from
 // /api/digital-accounts/templates (computed server-side against
@@ -27,11 +27,13 @@ const POPULAR_BANNER = { id: "popular-logs", name: "Popular Logs" };
 // categories here than platforms.
 //
 // The "All" view itself (per the business owner's reference screenshots) is
-// one single generic "Popular Logs" banner followed by every category's
-// products together in one flat grid — not separated into a section per
-// category. Each product card still shows its own category's logo (via the
-// `logo` prop) so it stays identifiable, and its FULL description (never
-// truncated) without repeating the category name as text.
+// one section per category — a colored gradient banner (logo + name, see
+// CategoryBanner/lib/categoryColors.js) plus a capped preview of that
+// category's products, and a "See More" action that switches straight into
+// the single-category view for the rest — rather than one flat grid mixing
+// every category's products together. Each product card shows its FULL
+// description (never truncated) and no longer repeats its own category
+// name, since the banner above it already gives that context.
 //
 // Products render as a 2-column grid of cards (per a later "Marketplace"
 // reference screenshot) — icon, description, then pcs/price/Buy. No inline
@@ -106,14 +108,22 @@ export default function DigitalAccountsBrowser() {
     return templates.filter((t) => t.description?.toLowerCase().includes(q));
   }, [templates, query]);
 
-  // All view only: each ProductCard still needs its own category's logo
-  // even though the products are no longer grouped/sectioned by category —
-  // this is just a lookup table for that per-card icon.
-  const categoryById = useMemo(() => {
-    const map = {};
-    for (const c of categories || []) map[c.id] = c;
-    return map;
-  }, [categories]);
+  // All view only: bucket the flat template list back into one group per
+  // category (in the same order categories were returned), so each category
+  // renders as its own "POPULAR LOGS"-style section instead of one mixed
+  // grid — matching the reference layout. Categories with zero matching
+  // products (e.g. everything filtered out by the search box) are skipped
+  // entirely rather than showing an empty section.
+  const sectionsByCategory = useMemo(() => {
+    if (categoryId !== ALL) return null;
+    const groups = {};
+    for (const t of filteredTemplates) {
+      (groups[t.category_id] ||= []).push(t);
+    }
+    return (categories || [])
+      .filter((c) => groups[c.id]?.length)
+      .map((c) => ({ category: c, items: groups[c.id] }));
+  }, [filteredTemplates, categories, categoryId]);
 
   function selectCategory(id) {
     setCategoryId(id);
@@ -194,15 +204,19 @@ export default function DigitalAccountsBrowser() {
           No products match &quot;{query}&quot;.
         </div>
       ) : categoryId === ALL ? (
-        // All view: one generic banner, then every category's products
-        // together in a single flat grid — matching the reference layout.
-        <div>
-          <CategoryBanner category={POPULAR_BANNER} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filteredTemplates.map((t) => (
-              <ProductCard key={t.id} template={t} logo={categoryById[t.category_id]} />
-            ))}
-          </div>
+        // All view: one section per category (logo + name + "See More" into
+        // that category's own full list), each showing a capped preview of
+        // its products — matching the reference layout instead of one mixed
+        // grid across every category.
+        <div className="space-y-4">
+          {sectionsByCategory.map(({ category, items }) => (
+            <CategorySection
+              key={category.id}
+              category={category}
+              items={items}
+              onSeeMore={() => selectCategory(category.id)}
+            />
+          ))}
         </div>
       ) : (
         // Single-category view: the full, uncapped grid for that category —
@@ -210,7 +224,7 @@ export default function DigitalAccountsBrowser() {
         // the "See More" action (already viewing everything).
         <div>
           <CategoryBanner category={activeCategory} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {filteredTemplates.map((t) => (
               <ProductCard key={t.id} template={t} logo={activeCategory} />
             ))}
@@ -221,3 +235,34 @@ export default function DigitalAccountsBrowser() {
   );
 }
 
+// One category's section: the colored banner (with a "See More" action into
+// that category's own full list) plus a capped preview of its products as a
+// 2-column grid of cards.
+function CategorySection({ category, items, onSeeMore }) {
+  const preview = items.slice(0, SECTION_PREVIEW_COUNT);
+  const hasMore = items.length > preview.length;
+
+  return (
+    <div>
+      <CategoryBanner
+        category={category}
+        action={
+          hasMore && (
+            <button
+              type="button"
+              onClick={onSeeMore}
+              className="flex items-center gap-0.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 rounded-full px-2.5 py-1 shrink-0 transition"
+            >
+              See More <ChevronRight size={13} />
+            </button>
+          )
+        }
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {preview.map((t) => (
+          <ProductCard key={t.id} template={t} logo={category} />
+        ))}
+      </div>
+    </div>
+  );
+}

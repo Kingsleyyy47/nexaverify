@@ -21,7 +21,7 @@ export function CategoryBanner({ category, action, compact = false }) {
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r ${gradient} ${compact ? "px-3.5 py-2" : "px-4 py-3"} mb-3`}
+      className={`flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r ${gradient} ${compact ? "px-3.5 py-2" : "px-4 py-3"} mb-2`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <div className={`${badgeSize} rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden`}>
