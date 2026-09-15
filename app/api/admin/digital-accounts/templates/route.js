@@ -9,19 +9,25 @@ export async function GET() {
   }
 
   const admin = createAdminClient();
-  const [{ data: templates }, { data: categories }, { data: stockItems }] = await Promise.all([
+  // Database-side GROUP BY/COUNT (digital_stock_available_counts() in
+  // schema.sql) instead of pulling every digital_stock_items row (of every
+  // status, for every template — no filter or scoping at all, the worst
+  // case of this bug) into JS and counting it here. That approach silently
+  // truncated at Supabase's default 1000-row PostgREST response cap once a
+  // large bulk upload pushed total stock rows past it, so some templates
+  // showed "0 pcs / Sold out" here in admin even though they had real stock.
+  const [{ data: templates }, { data: categories }, { data: counts }] = await Promise.all([
     admin.from("digital_product_templates").select("*").order("created_at", { ascending: false }),
     admin.from("digital_categories").select("id, name"),
-    admin.from("digital_stock_items").select("template_id, status"),
+    admin.rpc("digital_stock_available_counts"),
   ]);
 
   const categoryById = {};
   for (const c of categories || []) categoryById[c.id] = c.name;
 
   const stockCountByTemplate = {};
-  for (const s of stockItems || []) {
-    if (s.status !== "available") continue;
-    stockCountByTemplate[s.template_id] = (stockCountByTemplate[s.template_id] || 0) + 1;
+  for (const c of counts || []) {
+    stockCountByTemplate[c.template_id] = Number(c.available_count);
   }
 
   const withExtras = (templates || []).map((t) => ({

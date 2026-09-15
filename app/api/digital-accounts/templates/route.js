@@ -49,13 +49,25 @@ export async function GET(request) {
   const ids = (templates || []).map((t) => t.id);
   let stockCountByTemplate = {};
   if (ids.length > 0) {
-    const { data: stockItems } = await admin
-      .from("digital_stock_items")
-      .select("template_id")
-      .eq("status", "available")
-      .in("template_id", ids);
-    for (const s of stockItems || []) {
-      stockCountByTemplate[s.template_id] = (stockCountByTemplate[s.template_id] || 0) + 1;
+    // Database-side GROUP BY/COUNT (see digital_stock_available_counts() in
+    // schema.sql) instead of pulling every matching digital_stock_items row
+    // into JS and counting it here — that approach silently truncated at
+    // Supabase's default 1000-row PostgREST response cap once a large bulk
+    // upload pushed total available stock past it, making some templates'
+    // "N pcs" count read as 0 even though the stock was really there.
+    //
+    // Called with NO p_template_ids filter (same as the admin route) rather
+    // than passing this request's `ids` array through to Postgres — the
+    // filtered-array call was itself coming back empty for some templates
+    // for customers even after the count function was in place, while the
+    // unfiltered call (admin's) was correct. Filtering to just the ids we
+    // need happens here in JS instead, against the one proven-correct call.
+    const { data: counts } = await admin.rpc("digital_stock_available_counts");
+    const idSet = new Set(ids);
+    for (const c of counts || []) {
+      if (idSet.has(c.template_id)) {
+        stockCountByTemplate[c.template_id] = Number(c.available_count);
+      }
     }
   }
 

@@ -1692,6 +1692,54 @@ revoke execute on function public.purchase_digital_product(uuid, uuid, integer) 
 grant execute on function public.purchase_digital_product(uuid, uuid, integer) to service_role;
 
 -- ============================================================================
+-- digital_stock_available_counts: a real database-side GROUP BY/COUNT of
+-- 'available' digital_stock_items rows per template.
+--
+-- Sept 2026 "products disappeared / show 0 pcs after a big bulk upload" bug:
+-- every "N pcs" count on the storefront, dashboard preview, and admin
+-- Product Templates list was computed by pulling raw digital_stock_items
+-- rows into JS (`.select("template_id")...`) and counting them in a loop
+-- instead of asking Postgres for the count. Supabase's PostgREST caps any
+-- .select() response at 1000 rows by default when no .range() is given —
+-- once total 'available' stock across the catalog passed that cap, whichever
+-- templates' rows fell outside the truncated 1000-row window silently
+-- computed as 0, even though the stock genuinely existed (a big bulk upload
+-- is exactly what pushes the total over 1000). This function does the
+-- counting in the database instead, so it's correct at any volume — see
+-- app/api/digital-accounts/templates/route.js,
+-- app/api/admin/digital-accounts/templates/route.js, and
+-- app/(customer)/dashboard/page.js's loadDigitalAccountsPreview() for the
+-- three call sites this replaced.
+--
+-- p_template_ids = null means "every template" (used by the admin list,
+-- which has no id list to scope to up front); passing an explicit array
+-- (the two customer-facing call sites, which already know which templates
+-- they're about to render) keeps the aggregate scoped and cheap.
+-- Locked down to service_role only, same pattern as adjust_balance()/
+-- purchase_digital_product() above — this only ever runs from a Route
+-- Handler/Server Component using the admin client, matching
+-- digital_stock_items having no client-facing select policy at all.
+-- ============================================================================
+create or replace function public.digital_stock_available_counts(p_template_ids uuid[] default null)
+returns table(template_id uuid, available_count bigint)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select template_id, count(*) as available_count
+  from public.digital_stock_items
+  where status = 'available'
+    and (p_template_ids is null or template_id = any(p_template_ids))
+  group by template_id;
+$$;
+
+revoke execute on function public.digital_stock_available_counts(uuid[]) from public;
+revoke execute on function public.digital_stock_available_counts(uuid[]) from anon;
+revoke execute on function public.digital_stock_available_counts(uuid[]) from authenticated;
+grant execute on function public.digital_stock_available_counts(uuid[]) to service_role;
+
+-- ============================================================================
 -- platform_logos: ONE admin-managed place for "what does a TikTok/WhatsApp/
 -- Facebook/etc icon look like" — instead of setting a logo per category per
 -- feature (which is what Digital Accounts' own digital_categories.logo_url
