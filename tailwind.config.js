@@ -4,6 +4,11 @@ module.exports = {
   content: [
     "./app/**/*.{js,jsx}",
     "./components/**/*.{js,jsx}",
+    // lib/categoryColors.js builds Tailwind gradient classes (e.g.
+    // "from-purple-600 to-indigo-600") from a plain JS array rather than a
+    // literal className — without lib/ scanned here, Tailwind's build would
+    // never see those class names anywhere and would purge them entirely.
+    "./lib/**/*.{js,jsx}",
   ],
   theme: {
     extend: {

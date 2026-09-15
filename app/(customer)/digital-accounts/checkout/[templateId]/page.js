@@ -57,7 +57,7 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
           id: template.id,
           name: template.name,
           description: template.description,
-          categoryName: category?.name || "Digital account",
+          categoryName: category?.name || "Log",
           logoUrl: category?.logo_url || "",
           logoUrlDark: category?.logo_url_dark || "",
           priceNgn: Number(template.price_ngn),

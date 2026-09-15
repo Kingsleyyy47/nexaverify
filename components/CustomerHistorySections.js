@@ -163,7 +163,7 @@ function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoos
       date: order.created_at,
       node: (
         <OrderCard
-          title={order.template_name || "Digital account"}
+          title={order.template_name || "Log"}
           subtitle={[
             order.category_name,
             `${order.quantity} credential${order.quantity === 1 ? "" : "s"}`,

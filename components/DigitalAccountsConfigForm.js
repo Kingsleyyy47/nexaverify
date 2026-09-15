@@ -47,7 +47,7 @@ export default function DigitalAccountsConfigForm({ config }) {
         <div className="pr-4">
           <span className="font-bold text-sm block">Let customers see it</span>
           <p className="text-xs text-gray-400 dark:text-night-400 mt-0.5">
-            Off (default): every customer sees "Coming soon" on Digital Accounts. On: the real
+            Off (default): every customer sees "Coming soon" on Logs. On: the real
             catalog and buy flow, billed from their own wallet. You can keep building categories,
             templates, and stock here regardless of this switch.
           </p>

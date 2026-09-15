@@ -24,7 +24,7 @@ export default async function DigitalAccountsPage() {
     return (
       <div>
         <div className="mb-7">
-          <h1 className="text-2xl font-bold">Digital Accounts</h1>
+          <h1 className="text-2xl font-bold">Logs</h1>
           <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
             Ready-made accounts, delivered instantly.
           </p>
@@ -43,7 +43,7 @@ export default async function DigitalAccountsPage() {
     <div>
       <div className="flex items-start justify-between gap-3 mb-7">
         <div>
-          <h1 className="text-2xl font-bold">Digital Accounts</h1>
+          <h1 className="text-2xl font-bold">Logs</h1>
           <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
             {admin && !customerVisible
               ? 'Admin view — customers currently see this as "Coming soon" until you turn on customer visibility in admin settings. Purchases here debit your own wallet balance, exactly like a real customer purchase would.'

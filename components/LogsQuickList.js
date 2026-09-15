@@ -1,23 +1,38 @@
 import Link from "next/link";
-import { ChevronRight, Star } from "lucide-react";
-import AdaptiveLogo from "./AdaptiveLogo";
+import { ChevronRight } from "lucide-react";
+import { CategoryBanner, ProductCard } from "./DigitalAccountCard";
 
-// Dashboard preview of the Digital Accounts catalog — a horizontally
-// scrollable row of cards (same "Popular Logs" carousel pattern as the
-// reference storefront screenshot), sitting directly on the dashboard so a
-// customer doesn't have to visit /digital-accounts just to see what's in
-// stock. `items` is decided server-side in
-// app/(customer)/dashboard/page.js (favorited templates first, then oldest,
-// capped to a small preview — see that file's loadDigitalAccountsPreview()).
-//
-// No product name AND no category-name label is shown here, same rule as
-// the full browser (components/DigitalAccountsBrowser.js) — description is
-// the card's only text, per the business owner's request. Description is
-// shown in full, never truncated, for the same reason it isn't truncated
-// there. The category logo alone (no text label next to it) is what
-// identifies the platform, same as every product row on the full page.
+// Dashboard preview of the Digital Accounts catalog — grouped into the exact
+// same colored-gradient-banner + 2-column card grid as the full
+// /digital-accounts page (components/DigitalAccountCard.js is shared
+// between the two, so this is never just similar, it's identical). No more
+// horizontal scroll: everything renders as stacked, non-scrolling category
+// sections, same as the full page. `items` is a flat, already-capped list
+// decided server-side in app/(customer)/dashboard/page.js (favorited
+// templates first, then oldest — see that file's loadDigitalAccountsPreview()),
+// bucketed back into one section per category here, in first-seen order.
 export default function LogsQuickList({ items }) {
   if (!items || items.length === 0) return null;
+
+  const groups = [];
+  const groupByKey = new Map();
+  for (const t of items) {
+    const key = t.categoryId || t.categoryName || "uncategorized";
+    if (!groupByKey.has(key)) {
+      const group = {
+        key,
+        category: { id: t.categoryId, name: t.categoryName, logoUrl: t.logoUrl, logoUrlDark: t.logoUrlDark },
+        items: [],
+      };
+      groupByKey.set(key, group);
+      groups.push(group);
+    }
+    // ProductCard expects `availableCount` (the full catalog API's field
+    // name) — normalized here since this preview's own query names it
+    // `stockCount` (see loadDigitalAccountsPreview), so the shared card only
+    // ever has one contract to satisfy.
+    groupByKey.get(key).items.push({ ...t, availableCount: t.stockCount });
+  }
 
   return (
     <div className="mb-7">
@@ -31,52 +46,17 @@ export default function LogsQuickList({ items }) {
         </Link>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
-        {items.map((t) => {
-          const outOfStock = t.stockCount <= 0;
-          return (
-            <div key={t.id} className="card card-pad w-64 shrink-0 snap-start flex flex-col">
-              <div className="flex items-center gap-2 mb-2">
-                {t.logoUrl ? (
-                  <AdaptiveLogo
-                    logo={{ logoUrl: t.logoUrl, logoUrlDark: t.logoUrlDark }}
-                    className="w-9 h-9 rounded-lg shrink-0"
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-lg shrink-0 bg-gray-100 dark:bg-night-800" />
-                )}
-                {t.favorite && (
-                  <Star size={13} fill="currentColor" className="text-amber-400 shrink-0 ml-auto" />
-                )}
-              </div>
-
-              {t.description && (
-                <p className="text-sm text-gray-600 dark:text-night-300 flex-1">{t.description}</p>
-              )}
-
-              <div className="flex items-center justify-between gap-2 mt-3">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"} text-[10px]`}>
-                    {t.stockCount} pcs
-                  </span>
-                  <span className="badge badge-neutral text-[10px]">
-                    ₦{Number(t.price_ngn).toLocaleString("en-US")}
-                  </span>
-                </div>
-                {outOfStock ? (
-                  <span className="badge badge-danger shrink-0 text-[10px]">Sold out</span>
-                ) : (
-                  <Link
-                    href={`/digital-accounts/checkout/${t.id}`}
-                    className="badge badge-success shrink-0 flex items-center gap-0.5 hover:opacity-80 transition text-[10px]"
-                  >
-                    Buy <ChevronRight size={11} />
-                  </Link>
-                )}
-              </div>
+      <div className="space-y-5">
+        {groups.map((g) => (
+          <div key={g.key}>
+            <CategoryBanner category={g.category} compact />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {g.items.map((t) => (
+                <ProductCard key={t.id} template={t} logo={g.category} />
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -133,7 +133,7 @@ function DigitalOrderRow({ o }) {
     <PurchaseRow
       buyerName={o.buyerName}
       date={o.created_at}
-      summary={`${o.template_name || "Digital account"} × ${o.quantity}${o.category_name ? ` — ${o.category_name}` : ""}`}
+      summary={`${o.template_name || "Log"} × ${o.quantity}${o.category_name ? ` — ${o.category_name}` : ""}`}
       status="completed"
       statusMap={{ completed: "badge-success" }}
       amount={o.total_ngn}
@@ -217,9 +217,9 @@ export default function AdminProductHistory({
         )}
       </CategorySection>
 
-      <CategorySection title="Digital accounts" description="logs" count={digitalOrders.length}>
+      <CategorySection title="Logs" count={digitalOrders.length}>
         {digitalOrders.length === 0 ? (
-          <EmptyRow>No digital accounts purchased yet.</EmptyRow>
+          <EmptyRow>No logs purchased yet.</EmptyRow>
         ) : (
           digitalOrders.map((o) => <DigitalOrderRow key={o.id} o={o} />)
         )}

@@ -21,7 +21,7 @@ const BASE_LINKS = [
   { href: "/get-a-website", label: "Website" },
   { href: "/products/telegram-premium", label: "Telegram Premium", soonForNonAdmin: "istar" },
   { href: "/products/social-boost", label: "Social Boost", soonForNonAdmin: "socialBoost" },
-  { href: "/digital-accounts", label: "Digital Accounts", soonForNonAdmin: "digitalAccounts" },
+  { href: "/digital-accounts", label: "Logs", soonForNonAdmin: "digitalAccounts" },
 ];
 
 export default function CustomerSidebar({

@@ -36,8 +36,8 @@ const PRODUCTS = [
   },
   {
     icon: KeyRound,
-    title: "Digital accounts & logs",
-    desc: "Ready-made social media accounts and logs across platforms, organized by category, with full account details delivered instantly on purchase.",
+    title: "Logs",
+    desc: "Ready-made social media logs across platforms, organized by category, with full account details delivered instantly on purchase.",
   },
   {
     icon: Send,
@@ -60,12 +60,12 @@ const STEPS = [
   {
     icon: MousePointerClick,
     title: "Pick a product",
-    desc: "Numbers, digital accounts, Telegram Premium & Stars, or Social Boost — choose what you need and confirm the price.",
+    desc: "Numbers, logs, Telegram Premium & Stars, or Social Boost — choose what you need and confirm the price.",
   },
   {
     icon: PhoneIncoming,
     title: "Get it instantly",
-    desc: "Numbers and digital accounts are reserved the moment you buy; Telegram and Social Boost orders start processing right away.",
+    desc: "Numbers and logs are reserved the moment you buy; Telegram and Social Boost orders start processing right away.",
   },
   {
     icon: MessageSquareText,
@@ -78,12 +78,12 @@ const FEATURES = [
   {
     icon: Zap,
     title: "Instant delivery",
-    desc: "Numbers, digital accounts, and Telegram orders are fulfilled immediately and pushed to your dashboard as soon as they're ready.",
+    desc: "Numbers, logs, and Telegram orders are fulfilled immediately and pushed to your dashboard as soon as they're ready.",
   },
   {
     icon: Layers,
     title: "One wallet, every product",
-    desc: "SMS verification, digital accounts, Telegram Premium & Stars, and Social Boost — fund your balance once and use it across all of them.",
+    desc: "SMS verification, logs, Telegram Premium & Stars, and Social Boost — fund your balance once and use it across all of them.",
   },
   {
     icon: RefreshCcw,
@@ -123,12 +123,12 @@ export default async function HomePage() {
               One wallet, every digital product
             </span>
             <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-night-100 max-w-3xl mx-auto leading-[1.1]">
-              SMS numbers, digital accounts, Telegram & social growth — <span className="text-brand-600 dark:text-brand-400">all in one place</span>.
+              SMS numbers, logs, Telegram & social growth — <span className="text-brand-600 dark:text-brand-400">all in one place</span>.
             </h1>
             <p className="text-lg text-gray-500 dark:text-night-300 max-w-xl mx-auto mt-6">
-              NexaVerify rents you real phone numbers for verification, sells ready-made digital
-              accounts and logs, gifts Telegram Premium & Stars, and boosts your social accounts —
-              all from one wallet, with instant delivery to your dashboard.
+              NexaVerify rents you real phone numbers for verification, sells ready-made logs,
+              gifts Telegram Premium & Stars, and boosts your social accounts — all from one
+              wallet, with instant delivery to your dashboard.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
               <Link href="/login?mode=signup" className="btn-primary text-base px-7 py-3">

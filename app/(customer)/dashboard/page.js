@@ -62,6 +62,11 @@ async function loadDigitalAccountsPreview() {
       price_ngn: t.price_ngn,
       favorite: t.favorite,
       stockCount: stockCountByTemplate[t.id] || 0,
+      // categoryId is what LogsQuickList.js groups by AND hashes for its
+      // colored banner (lib/categoryColors.js) — same key the full
+      // /digital-accounts page hashes, so a given category always gets the
+      // same banner color on both.
+      categoryId: t.category_id,
       categoryName: category?.name || null,
       logoUrl: category?.logo_url || null,
       logoUrlDark: category?.logo_url_dark || null,

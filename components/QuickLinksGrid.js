@@ -27,7 +27,7 @@ const TILES = [
   {
     key: "logs",
     href: "/digital-accounts",
-    label: "Digital Accounts",
+    label: "Logs",
     icon: KeyRound,
     soonForNonAdmin: "digitalAccounts",
   },
