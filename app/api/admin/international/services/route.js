@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { getServicesForCountry, DaisySimError } from "@/lib/daisysim";
+import { safeErrorResponse } from "@/lib/apiError";
+import { logError } from "@/lib/errorLog";
 
 // Admin-only catalog browse for /admin/international's InternationalOverridesManager.
 // Deliberately does NOT check daisysim_config.enabled the way the
@@ -21,8 +23,12 @@ export async function GET(request) {
     return NextResponse.json({ services });
   } catch (err) {
     if (err instanceof DaisySimError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+      // Admin-only diagnostic route — the real DaisySim message is shown
+      // directly (an admin is trusted with it), but it's still logged so it
+      // also shows up on the Notifications page alongside every other error.
+      const referenceId = await logError({ error: err, route: "/api/admin/international/services", userId: user.id });
+      return NextResponse.json({ error: err.message, referenceId }, { status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/admin/international/services", userId: user.id });
   }
 }

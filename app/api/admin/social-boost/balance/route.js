@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { getBalance, SocialBoostError } from "@/lib/socialboost";
+import { safeErrorResponse } from "@/lib/apiError";
 
 export async function GET() {
   const { user, profile } = await getSessionProfile();
@@ -15,6 +16,6 @@ export async function GET() {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/admin/social-boost/balance", userId: user.id });
   }
 }

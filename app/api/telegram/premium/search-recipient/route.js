@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { searchPremiumRecipient, IStarError } from "@/lib/istar";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Admins can always reach this (their own testing flow). Everyone else only
 // if istar_config.customer_visible is on — see that column's comment in
@@ -45,6 +46,6 @@ export async function GET(request) {
         { status: err.status || 502 }
       );
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/telegram/premium/search-recipient", userId: user.id });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderStatus, SocialBoostError } from "@/lib/socialboost";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // This panel is poll-only — no webhook — so a status refresh is always a
 // manual (or eventually scheduled) pull, unlike DaisySMS/iStar which push.
@@ -38,6 +39,6 @@ export async function POST(_request, { params }) {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/social-boost/orders/[id]/refresh", userId: user.id });
   }
 }

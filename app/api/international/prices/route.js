@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { getPrices, computeNgnPrice, DaisySimError } from "@/lib/daisysim";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Fetches DaisySim's live price tiers for a country+service and converts
 // each to NGN for display (live USD tier price x admin-set usdRate, plus
@@ -57,8 +58,13 @@ export async function POST(request) {
       const messages = {
         RATE_LIMITED: "Too many requests — wait a moment and try again.",
       };
-      return NextResponse.json({ error: messages[err.code] || err.message }, { status: 502 });
+      if (messages[err.code]) {
+        return NextResponse.json({ error: messages[err.code] }, { status: 502 });
+      }
+      // No curated message for this code — don't show the provider's raw
+      // text, log it and return the generic message + reference ID instead.
+      return safeErrorResponse(err, { route: "/api/international/prices", userId: user.id, status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/international/prices", userId: user.id });
   }
 }

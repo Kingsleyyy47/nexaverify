@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelOrders, getOrderStatus, SocialBoostError } from "@/lib/socialboost";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Recognizes the panel's own "already cancelled/completed" error text on a
 // cancel attempt, so that's treated as a successful idempotent no-op rather
@@ -90,7 +91,7 @@ export async function POST(_request, { params }) {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/social-boost/orders/[id]/cancel", userId: user.id });
   }
 
   let confirmedByProvider = false;

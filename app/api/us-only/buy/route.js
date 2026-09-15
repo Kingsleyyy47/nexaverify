@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { purchaseNumber, computeNgnPrice, cancelActivation, GetatextError } from "@/lib/getatext";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Buys a number via the "US Only" provider (third provider alongside
 // DaisySMS and "All countries" DaisySim — see lib/getatext.js). Same
@@ -86,7 +87,7 @@ export async function POST(request) {
     if (err instanceof GetatextError) {
       return NextResponse.json({ error: err.message || "Could not rent a number right now." }, { status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id });
   }
 
   // The real, final charge — what Getatext actually debited, which may

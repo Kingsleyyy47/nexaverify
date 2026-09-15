@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getServices, SocialBoostError } from "@/lib/socialboost";
 import { detectPlatform } from "@/lib/socialboost-platform";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Admins can always reach this (their own testing flow, AND the catalog
 // manager at /admin/social-boost); everyone else additionally needs
@@ -100,6 +101,6 @@ export async function GET() {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/social-boost/services", userId: user.id });
   }
 }

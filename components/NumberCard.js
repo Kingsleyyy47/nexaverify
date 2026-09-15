@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
 import { RENTAL_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
+import { safePhoneNumber } from "@/lib/phoneDisplay";
 
 const STATUS_BADGE = {
   waiting: "badge-warning",
@@ -103,10 +104,10 @@ export default function NumberCard({ rental }) {
       <div className="flex items-start justify-between mb-3 gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="font-mono text-base font-bold">{state.phone_number}</div>
+            <div className="font-mono text-base font-bold">{safePhoneNumber(state.phone_number)}</div>
             <button
               type="button"
-              onClick={() => copyText(state.phone_number, setNumberCopied)}
+              onClick={() => copyText(safePhoneNumber(state.phone_number), setNumberCopied)}
               title="Copy number"
               className="shrink-0 p-1 rounded-md text-gray-400 dark:text-night-400 hover:text-brand-700 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-night-800 transition"
             >

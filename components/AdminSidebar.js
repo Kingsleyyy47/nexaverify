@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/admin/providers", label: "APIs & Providers" },
   { href: "/admin/platform-logos", label: "Platform Logos" },
   { href: "/admin/products", label: "Products" },
+  { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/topups", label: "Top-up requests" },
   { href: "/admin/transactions", label: "Transactions" },

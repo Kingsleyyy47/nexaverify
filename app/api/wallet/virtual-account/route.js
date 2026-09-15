@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createVirtualAccount, PocketfiError } from "@/lib/pocketfi";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Get-or-create: returns the customer's existing dedicated account if one's
 // already on file, otherwise asks PocketFi for a new one and stores it.
@@ -65,9 +66,12 @@ export async function POST() {
     });
   } catch (err) {
     if (err instanceof PocketfiError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+      // No curated customer-safe message here, and this is a payments
+      // provider — never show its raw text, log it and return the generic
+      // message + reference ID instead.
+      return safeErrorResponse(err, { route: "/api/wallet/virtual-account", userId: user.id, status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/wallet/virtual-account", userId: user.id });
   }
 
   const { data: inserted, error: insertError } = await admin

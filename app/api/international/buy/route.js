@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { purchaseNumber, computeNgnPrice, cancelActivation, DaisySimError } from "@/lib/daisysim";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Buys an international number via DaisySim (second provider alongside
 // DaisySMS — see lib/daisy.js's app/api/rentals/buy for that flow). Charges
@@ -93,7 +94,7 @@ export async function POST(request) {
         { status: 502 }
       );
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/international/buy", userId: user.id });
   }
 
   const { data: rental, error: insertError } = await admin

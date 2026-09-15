@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -152,19 +151,6 @@ export default async function DashboardPage() {
       />
 
       {digitalAccountsCustomerVisible && <LogsQuickList items={digitalAccountsPreview} />}
-
-      <div className="card card-pad mb-7">
-        <div className="text-sm text-gray-500 dark:text-night-400 font-semibold mb-2">
-          Active rentals
-        </div>
-        <div className="text-3xl font-bold">{activeRentals?.length || 0}</div>
-        <Link
-          href="/rentals"
-          className="text-xs font-semibold text-brand-700 dark:text-brand-400 mt-2 inline-block"
-        >
-          View rentals →
-        </Link>
-      </div>
 
       {usOnlyEnabled && !usOnlyCatalog.error && (
         <div className="mb-7">

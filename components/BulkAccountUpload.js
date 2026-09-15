@@ -67,7 +67,14 @@ export default function BulkAccountUpload() {
         if (res.ok) {
           const activeTemplates = (data.templates || []).filter((t) => !t.archived);
           setTemplates(activeTemplates);
-          setTemplateId(activeTemplates[0]?.id || "");
+          // Deliberately NOT defaulted to activeTemplates[0] — that silently
+          // "hardcoded" whatever template happened to load first as a
+          // fallback, so a file the auto-detector couldn't match still
+          // uploaded successfully, just into the wrong category, with
+          // nothing forcing the admin to notice. Left unset here: either a
+          // successful detection (handleFileChange below) fills it in, or
+          // the admin has to pick one themselves — and the submit guard
+          // further down refuses to upload with nothing selected.
         }
       } finally {
         setLoadingTemplates(false);
@@ -86,6 +93,12 @@ export default function BulkAccountUpload() {
     setDetectedHint(null);
     setMatchedCategoryName(null);
     setShowAllTemplates(false);
+    // Clears whatever template a PREVIOUS file's detection picked — without
+    // this, choosing a second file that fails to auto-detect silently left
+    // the first file's guessed template selected, which is the same
+    // "hardcoded placeholder" bug as defaulting to activeTemplates[0]: a
+    // stale selection nothing forces the admin to notice or reconsider.
+    setTemplateId("");
     if (!selected) return;
 
     setDetecting(true);
@@ -173,8 +186,8 @@ export default function BulkAccountUpload() {
         <Upload size={32} className="mx-auto mb-3 text-gray-400 dark:text-night-500" />
         <div className="font-bold text-sm">Upload CSV or TXT File</div>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
-          Choose a CSV or TXT file with account credentials. Comma, pipe, and colon-delimited logs are supported —
-          the category is auto-detected from the file, no need to pick it first.
+          Choose a CSV or TXT file with account credentials. Comma, pipe, colon, semicolon, and tab-delimited logs
+          are all supported — the category is auto-detected from the file, no need to pick it first.
         </p>
         <span className="btn-secondary btn-sm mt-3 inline-block">
           {file ? file.name : "Choose File"}
@@ -216,11 +229,18 @@ export default function BulkAccountUpload() {
           {visibleTemplates.length === 0 ? (
             <option value="">Choose a product template</option>
           ) : (
-            visibleTemplates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.categoryName} — {t.name}
-              </option>
-            ))
+            <>
+              {!templateId && (
+                <option value="" disabled>
+                  Choose a product template…
+                </option>
+              )}
+              {visibleTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.categoryName} — {t.name}
+                </option>
+              ))}
+            </>
           )}
         </select>
         {!loadingTemplates && templates.length === 0 && (
@@ -305,8 +325,8 @@ export default function BulkAccountUpload() {
               No header? No problem — paste logs straight in as-is
             </div>
             <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mb-2">
-              No column names needed and every column doesn't have to be included — the delimiter (comma, "|", or
-              ":") and column layout are auto-detected from the file. A lone label line at the top (e.g. a bare
+              No column names needed and every column doesn't have to be included — the delimiter (comma, "|", ":",
+              ";", or tab) and column layout are auto-detected from the file. A lone label line at the top (e.g. a bare
               "TIKTOK" heading) is also used to guess the category above, so the right template gets pre-selected
               automatically. These are the formats it recognizes:
             </p>

@@ -1767,6 +1767,36 @@ create policy "logos_bucket_select_all" on storage.objects
 -- writes to it.
 
 -- ============================================================================
+-- error_logs: every unexpected error a customer ever saw (or that a
+-- background job hit), keyed by a short reference_id the customer can quote
+-- to support. Customers/admins alike only ever see the sanitized message +
+-- reference_id (see lib/errorLog.js, lib/apiError.js) — the REAL error
+-- (stack trace, provider raw response, SQL error, etc.) lives only here,
+-- readable only through the admin Notifications page
+-- (app/admin/notifications/page.js), which reads it with the service role
+-- key. No client-facing select policy at all, same pattern as
+-- digital_stock_items above — every read goes through that admin page.
+-- ============================================================================
+create table if not exists public.error_logs (
+  id uuid primary key default gen_random_uuid(),
+  reference_id text not null unique,   -- e.g. "ERR-7K3QXJ2M" — what the customer sees and quotes to support
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null, -- whoever was signed in when it happened, if anyone
+  route text,                          -- API route path, or the page path for a client-side render error
+  message text not null,               -- the real, unsanitized error message — never shown to customers
+  raw jsonb,                           -- stack trace / provider raw response body / error code, whatever was available
+  context jsonb                        -- free-form extra detail (request body, params, etc.), when a caller has it
+);
+
+create index if not exists error_logs_created_at_idx on public.error_logs (created_at desc);
+create index if not exists error_logs_user_id_idx on public.error_logs (user_id);
+
+alter table public.error_logs enable row level security;
+-- Deliberately no select/insert/update/delete policy at all — every write
+-- goes through lib/errorLog.js (service role key) and every read goes
+-- through the admin Notifications page's route handler (also service role).
+
+-- ============================================================================
 -- One-time: promote yourself to admin after your first signup.
 -- Replace the email before running.
 -- ============================================================================

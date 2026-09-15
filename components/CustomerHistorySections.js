@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
+import { safePhoneNumber } from "@/lib/phoneDisplay";
 
 const RENTAL_STATUS_BADGE = {
   waiting: "badge-warning",
@@ -142,7 +143,7 @@ function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoos
           <OrderCard
             title={order.service_name || order.service_id || "SMS rental"}
             subtitle={[
-              order.phone_number,
+              safePhoneNumber(order.phone_number),
               order.country_name,
               order.is_long_term ? "Long-term" : "Short-term",
             ].filter(Boolean).join(" · ")}

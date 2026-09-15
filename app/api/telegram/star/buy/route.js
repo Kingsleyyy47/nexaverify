@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createStarOrder, computeStarTotalPrice, starConfigFromRow, IStarError } from "@/lib/istar";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled` below). Everyone else additionally needs
@@ -83,7 +84,7 @@ export async function POST(request) {
     if (err instanceof IStarError) {
       return NextResponse.json({ error: customerSafeMessage(err, admin_) }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/telegram/star/buy", userId: user.id });
   }
 
   const { data: orderRow, error: insertError } = await admin

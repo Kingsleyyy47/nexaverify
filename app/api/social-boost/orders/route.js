@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getServices, placeOrder, SocialBoostError } from "@/lib/socialboost";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled`) — everyone else additionally needs
@@ -70,7 +71,7 @@ export async function POST(request) {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: customerSafeMessage(err, isAdminCaller) }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/social-boost/orders", userId: user.id });
   }
 
   if (!matchedService) {
@@ -156,7 +157,7 @@ export async function POST(request) {
     if (err instanceof SocialBoostError) {
       return NextResponse.json({ error: customerSafeMessage(err, isAdminCaller) }, { status: err.status || 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/social-boost/orders", userId: user.id });
   }
 
   if (!providerOrder?.order) {

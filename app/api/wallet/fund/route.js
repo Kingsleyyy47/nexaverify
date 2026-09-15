@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { initializePayment, PocketfiError } from "@/lib/pocketfi";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Starts an instant wallet funding session via PocketFi. Creates a hosted
 // checkout link the browser should redirect to next. See
@@ -52,9 +53,12 @@ export async function POST(request) {
     });
   } catch (err) {
     if (err instanceof PocketfiError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+      // No curated customer-safe message here, and this is a payments
+      // provider — never show its raw text, log it and return the generic
+      // message + reference ID instead.
+      return safeErrorResponse(err, { route: "/api/wallet/fund", userId: user.id, status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/wallet/fund", userId: user.id });
   }
 
   const admin = createAdminClient();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { getServicesForCountry, DaisySimError } from "@/lib/daisysim";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Lists services available for a country, for the "International numbers"
 // buy flow (see components/InternationalBuyForm.js). Live pass-through to
@@ -44,8 +45,10 @@ export async function GET(request) {
     return NextResponse.json({ services: visible });
   } catch (err) {
     if (err instanceof DaisySimError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+      // No curated customer-safe message for this route — never show the
+      // provider's raw text, log it and return a generic message + reference ID.
+      return safeErrorResponse(err, { route: "/api/international/services", userId: user.id, status: 502 });
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/international/services", userId: user.id });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderStatus, learnStarCostFromOrder, IStarError } from "@/lib/istar";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Manual poll fallback for when the webhook hasn't landed yet (or at all —
 // e.g. local dev with no public URL registered in the iStar dashboard). Open
@@ -44,7 +45,7 @@ export async function GET(request, { params }) {
         { status: err.status || 502 }
       );
     }
-    throw err;
+    return safeErrorResponse(err, { route: "/api/telegram/orders/[id]/status", userId: user.id });
   }
 
   const now = new Date().toISOString();
