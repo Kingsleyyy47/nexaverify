@@ -1439,6 +1439,14 @@ create policy "digital_orders_select_own" on public.digital_orders
 --     that are extremely long or look like cookie data and routes them here
 --     instead of letting them overwrite (or shift) the real email/password
 --     columns next to them — see the parser for the actual detection logic.
+--   login_link: an actual URL to log the account in with (a login page, a
+--     profile link, etc.), auto-detected the same way as extra_data —
+--     lib/digitalAccountsCsv.js#looksLikeLink() — and kept deliberately
+--     separate from extra_data since it's the one field the customer should
+--     see as a clickable "Login" action rather than plain copyable text (see
+--     components/OrderCredentialsActions.js). The detection is strict about
+--     never confusing a long cookie/session blob for a link (or vice versa)
+--     — see that function's own comment for exactly how.
 -- ============================================================================
 create table if not exists public.digital_stock_items (
   id uuid primary key default gen_random_uuid(),
@@ -1453,6 +1461,7 @@ create table if not exists public.digital_stock_items (
   year text,
   friends_count text,
   extra_data text,
+  login_link text,
   status text not null default 'available' check (status in ('available', 'sold')),
   order_id uuid references public.digital_orders(id) on delete set null,
   sold_at timestamptz,
@@ -1460,10 +1469,11 @@ create table if not exists public.digital_stock_items (
 );
 
 -- Additive columns for installs that ran this schema before year/friends_count/
--- extra_data existed — safe to re-run.
+-- extra_data/login_link existed — safe to re-run.
 alter table public.digital_stock_items add column if not exists year text;
 alter table public.digital_stock_items add column if not exists friends_count text;
 alter table public.digital_stock_items add column if not exists extra_data text;
+alter table public.digital_stock_items add column if not exists login_link text;
 
 create index if not exists digital_stock_items_template_status_idx
   on public.digital_stock_items(template_id, status);
@@ -1496,6 +1506,7 @@ update public.digital_orders o
           'year', year,
           'friends_count', friends_count,
           'extra_data', extra_data,
+          'login_link', login_link,
           'created_at', created_at
         )
         order by created_at
@@ -1625,6 +1636,7 @@ begin
       'year', year,
       'friends_count', friends_count,
       'extra_data', extra_data,
+      'login_link', login_link,
       'created_at', created_at
     )
     order by created_at

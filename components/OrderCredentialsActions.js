@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Download } from "lucide-react";
+import { Copy, Check, Download, ExternalLink } from "lucide-react";
 
 // Order Details page interactivity — copy/download for the whole order, plus
-// a copy button per credential field. Deliberately NO "Login" button: this
-// feature has no single login URL to send anyone to (unlike a phone-number
-// rental), and the customer explicitly asked for it to be removed from this
-// screen.
+// a copy button per credential field. A "Login" link is shown ONLY when a
+// real login URL was actually detected on that specific account
+// (item.login_link — see lib/digitalAccountsCsv.js#looksLikeLink) — never a
+// generic platform homepage link. This used to be removed entirely because
+// there was no single login URL to send anyone to; now that individual
+// accounts can carry a real one, it's shown just for those.
 function buildCredentialsText(order, items) {
   const lines = [];
   const add = (label, value) => {
@@ -35,6 +37,7 @@ function buildCredentialsText(order, items) {
     add("Recovery Email Pass", item.recovery_email_password);
     add("Year", item.year);
     add("Friends", item.friends_count);
+    add("Login Link", item.login_link);
     add("Extra / Cookies", item.extra_data);
     lines.push("");
   });
@@ -80,7 +83,7 @@ export function OrderTopActions({ order, items }) {
   );
 }
 
-function FieldRow({ label, value, color, compact = false }) {
+function FieldRow({ label, value, color, compact = false, isLink = false }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -97,9 +100,21 @@ function FieldRow({ label, value, color, compact = false }) {
     <div className={`min-w-0 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between ${compact ? "sm:gap-2" : "sm:gap-3"}`}>
       <span className={`${compact ? "text-[10px]" : "text-[11px]"} uppercase tracking-wide font-bold shrink-0 ${color}`}>{label}</span>
       <div className="flex w-full min-w-0 items-start gap-1.5 sm:justify-end">
-        <span className={`block min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-gray-700 dark:text-night-200 ${compact ? "text-xs" : "text-sm"}`}>
-          {value}
-        </span>
+        {isLink ? (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex min-w-0 flex-1 items-center gap-1 break-all font-mono text-brand-700 dark:text-brand-400 hover:underline ${compact ? "text-xs" : "text-sm"}`}
+          >
+            <span className="truncate">{value}</span>
+            <ExternalLink size={compact ? 11 : 12} className="shrink-0" />
+          </a>
+        ) : (
+          <span className={`block min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-gray-700 dark:text-night-200 ${compact ? "text-xs" : "text-sm"}`}>
+            {value}
+          </span>
+        )}
         <button
           onClick={handleCopy}
           aria-label={`Copy ${label}`}
@@ -131,6 +146,12 @@ export function CredentialsList({ items, compact = false }) {
           { label: "Year", value: item.year, color: "text-teal-600 dark:text-teal-400" },
           { label: "Friends", value: item.friends_count, color: "text-indigo-600 dark:text-indigo-400" },
           {
+            label: "Login",
+            value: item.login_link,
+            color: "text-brand-700 dark:text-brand-400",
+            isLink: true,
+          },
+          {
             label: "Extra / Cookies",
             value: item.extra_data,
             color: "text-gray-500 dark:text-night-400",
@@ -144,7 +165,14 @@ export function CredentialsList({ items, compact = false }) {
             </span>
             <div className={compact ? "space-y-1" : "space-y-1.5"}>
               {fields.map((f) => (
-                <FieldRow key={f.label} label={f.label} value={f.value} color={f.color} compact={compact} />
+                <FieldRow
+                  key={f.label}
+                  label={f.label}
+                  value={f.value}
+                  color={f.color}
+                  compact={compact}
+                  isLink={f.isLink}
+                />
               ))}
             </div>
           </div>

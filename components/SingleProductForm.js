@@ -17,6 +17,7 @@ const EMPTY_CREDENTIALS = {
   year: "",
   friendsCount: "",
   extraData: "",
+  loginLink: "",
 };
 
 // Admin-only "Single Product" section — its own page (see
@@ -306,6 +307,21 @@ export default function SingleProductForm() {
           placeholder="e.g., friend count (Facebook logs)"
           className={INPUT_CLASS}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold mb-1.5">Login Link (optional)</label>
+        <input
+          type="text"
+          value={fields.loginLink}
+          onChange={(e) => setField("loginLink", e.target.value)}
+          placeholder="e.g., a login page or profile URL for this account"
+          className={INPUT_CLASS}
+        />
+        <p className="text-xs text-gray-400 dark:text-night-400 mt-1.5">
+          Shown to the customer as a clickable &quot;Login&quot; link. If a link is pasted into Extra /
+          Cookies below instead, it&apos;s still picked up automatically.
+        </p>
       </div>
 
       <div>

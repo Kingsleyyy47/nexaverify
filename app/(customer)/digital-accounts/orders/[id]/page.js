@@ -42,6 +42,7 @@ export default async function DigitalOrderDetailsPage({ params }) {
         year: item.year || null,
         friends_count: item.friends_count || null,
         extra_data: item.extra_data || null,
+        login_link: item.login_link || null,
         created_at: item.created_at || order.created_at,
       }))
     : [];

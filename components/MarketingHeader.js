@@ -7,6 +7,7 @@ import ThemeToggle from "./ThemeToggle";
 import NavLogo from "./NavLogo";
 
 const NAV = [
+  { href: "/#products", label: "Products" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#features", label: "Features" },
   { href: "/website", label: "Website" },

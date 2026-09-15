@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { validateAccountFields } from "@/lib/digitalAccountsCsv";
+import { validateAccountFields, looksLikeLink } from "@/lib/digitalAccountsCsv";
 
 // Adds ONE account credential set to an existing product template — the
 // "Single Product" admin section (see components/SingleProductForm.js), for
@@ -43,6 +43,14 @@ export async function POST(request, { params }) {
   const year = trim(body.year);
   const friendsCount = trim(body.friendsCount);
   const extraData = trim(body.extraData);
+  const loginLinkInput = trim(body.loginLink);
+  // Same auto-detect the CSV upload applies (lib/digitalAccountsCsv.js) — an
+  // admin who pastes an actual URL into "Extra / Cookies" by mistake still
+  // gets it filed as login_link rather than lumped in with cookie junk, and
+  // the explicit Login Link field always wins if both are somehow filled.
+  const extraLooksLikeLink = extraData && looksLikeLink(extraData);
+  const loginLink = loginLinkInput || (extraLooksLikeLink ? extraData : "");
+  const finalExtraData = extraLooksLikeLink ? "" : extraData;
 
   // Same rule the CSV upload enforces per row — nothing is inserted until
   // both conditions are met, mirrored client-side in SingleProductForm.js so
@@ -65,7 +73,8 @@ export async function POST(request, { params }) {
       recovery_email_password: recoveryEmailPassword || null,
       year: year || null,
       friends_count: friendsCount || null,
-      extra_data: extraData || null,
+      extra_data: finalExtraData || null,
+      login_link: loginLink || null,
     })
     .select("id")
     .single();

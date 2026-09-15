@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Upload, KeyRound, AlertTriangle } from "lucide-react";
+import { Upload, KeyRound, AlertTriangle, Sparkles } from "lucide-react";
+
+// Loose match between a detected category hint (a label line like "TIKTOK",
+// or an unambiguous format guess like "Facebook" — see
+// lib/digitalAccountsCsv.js#parseAndValidateAccountsCsv) and an existing
+// category name ("TikTok", "Tik Tok", etc.) — strips everything but
+// letters/digits and compares case-insensitively, matching either direction
+// so "Instagram" matches a hint of "insta" and vice versa.
+function normalizeForMatch(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 const SAMPLE_CSV = `username,password,email,email_password,two_fa,recovery_email,recovery_email_password,year,friends_count
 john_doe,pass123,john@email.com,emailpass123,123456,recovery@email.com,recpass123,2019,850
@@ -35,6 +45,17 @@ export default function BulkAccountUpload() {
   const [error, setError] = useState("");
   const [rowErrors, setRowErrors] = useState([]);
   const [success, setSuccess] = useState("");
+  // Category auto-detection (see app/api/admin/digital-accounts/detect-
+  // category) — `detecting` covers the brief fetch right after a file is
+  // chosen, `detectedHint` is the raw guess for display (e.g. "TIKTOK"),
+  // `matchedCategoryName` is the existing category it actually matched
+  // (null if the guess didn't match anything real), and `showAllTemplates`
+  // lets the admin dismiss the auto-filter and go back to picking from
+  // every template — never enforced, purely a shortcut.
+  const [detecting, setDetecting] = useState(false);
+  const [detectedHint, setDetectedHint] = useState(null);
+  const [matchedCategoryName, setMatchedCategoryName] = useState(null);
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -54,6 +75,48 @@ export default function BulkAccountUpload() {
     }
     load();
   }, []);
+
+  const visibleTemplates =
+    showAllTemplates || !matchedCategoryName
+      ? templates
+      : templates.filter((t) => t.categoryName === matchedCategoryName);
+
+  async function handleFileChange(selected) {
+    setFile(selected);
+    setDetectedHint(null);
+    setMatchedCategoryName(null);
+    setShowAllTemplates(false);
+    if (!selected) return;
+
+    setDetecting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selected);
+      const res = await fetch("/api/admin/digital-accounts/detect-category", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      const hint = data?.categoryHint || null;
+      if (!hint) return;
+
+      setDetectedHint(hint);
+      const hintNorm = normalizeForMatch(hint);
+      const match = templates.find((t) => {
+        const catNorm = normalizeForMatch(t.categoryName);
+        return catNorm && (catNorm === hintNorm || catNorm.includes(hintNorm) || hintNorm.includes(catNorm));
+      });
+      if (match) {
+        setMatchedCategoryName(match.categoryName);
+        setTemplateId(match.id);
+      }
+    } catch {
+      // Detection is advisory only — a failed guess just leaves the
+      // dropdown exactly as it already was (full list, nothing pre-picked).
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   async function handleUpload(e) {
     e.preventDefault();
@@ -86,6 +149,9 @@ export default function BulkAccountUpload() {
       }
       setSuccess(`Uploaded ${data.inserted} account${data.inserted === 1 ? "" : "s"} successfully.`);
       setFile(null);
+      setDetectedHint(null);
+      setMatchedCategoryName(null);
+      setShowAllTemplates(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch {
       setError("Upload failed — check your connection and try again.");
@@ -96,6 +162,49 @@ export default function BulkAccountUpload() {
 
   return (
     <form onSubmit={handleUpload} className="space-y-5">
+      <label className="block border-2 border-dashed border-gray-200 dark:border-night-700 rounded-2xl p-10 text-center cursor-pointer hover:border-brand-300 dark:hover:border-brand-500 transition">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv,.txt,text/plain"
+          onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+          className="hidden"
+        />
+        <Upload size={32} className="mx-auto mb-3 text-gray-400 dark:text-night-500" />
+        <div className="font-bold text-sm">Upload CSV or TXT File</div>
+        <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
+          Choose a CSV or TXT file with account credentials. Comma, pipe, and colon-delimited logs are supported —
+          the category is auto-detected from the file, no need to pick it first.
+        </p>
+        <span className="btn-secondary btn-sm mt-3 inline-block">
+          {file ? file.name : "Choose File"}
+        </span>
+        {!file && <span className="text-xs text-gray-400 dark:text-night-500 ml-2">No file chosen</span>}
+        {detecting && <p className="text-xs text-gray-400 dark:text-night-500 mt-2">Detecting category…</p>}
+      </label>
+
+      {detectedHint && (
+        <div className="flex items-start gap-2 rounded-lg bg-brand-50 dark:bg-brand-950/40 border border-brand-100 dark:border-brand-900 px-3.5 py-2.5 text-xs">
+          <Sparkles size={14} className="shrink-0 mt-0.5 text-brand-600 dark:text-brand-400" />
+          {matchedCategoryName ? (
+            <p className="text-brand-800 dark:text-brand-300">
+              Detected <strong>{detectedHint}</strong> — pre-selected a template in{" "}
+              <strong>{matchedCategoryName}</strong> below.{" "}
+              {!showAllTemplates && (
+                <button type="button" onClick={() => setShowAllTemplates(true)} className="underline font-semibold">
+                  Show all templates
+                </button>
+              )}
+            </p>
+          ) : (
+            <p className="text-brand-800 dark:text-brand-300">
+              Detected <strong>{detectedHint}</strong>, but no matching category was found — choose a template
+              manually below.
+            </p>
+          )}
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-bold mb-1.5">Select Product Template</label>
         <select
@@ -104,10 +213,10 @@ export default function BulkAccountUpload() {
           disabled={loadingTemplates || templates.length === 0}
           className="w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900"
         >
-          {templates.length === 0 ? (
+          {visibleTemplates.length === 0 ? (
             <option value="">Choose a product template</option>
           ) : (
-            templates.map((t) => (
+            visibleTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.categoryName} — {t.name}
               </option>
@@ -120,25 +229,6 @@ export default function BulkAccountUpload() {
           </p>
         )}
       </div>
-
-      <label className="block border-2 border-dashed border-gray-200 dark:border-night-700 rounded-2xl p-10 text-center cursor-pointer hover:border-brand-300 dark:hover:border-brand-500 transition">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,text/csv,.txt,text/plain"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="hidden"
-        />
-        <Upload size={32} className="mx-auto mb-3 text-gray-400 dark:text-night-500" />
-        <div className="font-bold text-sm">Upload CSV or TXT File</div>
-        <p className="text-sm text-gray-400 dark:text-night-400 mt-1">
-          Choose a CSV or TXT file with account credentials. Comma, pipe, and colon-delimited logs are supported.
-        </p>
-        <span className="btn-secondary btn-sm mt-3 inline-block">
-          {file ? file.name : "Choose File"}
-        </span>
-        {!file && <span className="text-xs text-gray-400 dark:text-night-500 ml-2">No file chosen</span>}
-      </label>
 
       <div>
         <h4 className="font-bold text-sm mb-2">CSV/TXT Format Requirements:</h4>
@@ -182,18 +272,24 @@ export default function BulkAccountUpload() {
                 <strong>extra_data</strong>, <strong>cookies</strong>, or <strong>notes</strong> - Any leftover
                 session/cookie text
               </li>
+              <li>
+                <strong>login_link</strong>, <strong>link</strong>, or <strong>url</strong> - An actual login/profile
+                link, shown to the customer as a clickable &quot;Login&quot; button
+              </li>
             </ul>
           </div>
 
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900 p-3">
             <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">
-              Cookies/session text is auto-detected
+              Cookies/session text and links are both auto-detected
             </div>
             <p className="text-[11px] text-amber-700 dark:text-amber-400">
               A field that&apos;s extremely long or looks like browser session data (e.g. contains
               &quot;csrftoken&quot; or &quot;sessionid&quot;) is automatically pulled out into its own
               &quot;Extra / Cookies&quot; field instead of overwriting or shifting the real email/password
-              columns next to it.
+              columns next to it. A field that&apos;s an actual link (starts with &quot;http://&quot;,
+              &quot;https://&quot;, or &quot;www.&quot;) is detected separately as the account&apos;s login link
+              — the two are never confused, even when a cookie value is extremely long.
             </p>
           </div>
 
@@ -210,7 +306,9 @@ export default function BulkAccountUpload() {
             </div>
             <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mb-2">
               No column names needed and every column doesn't have to be included — the delimiter (comma, "|", or
-              ":") and column layout are auto-detected from the file. These are the formats it recognizes:
+              ":") and column layout are auto-detected from the file. A lone label line at the top (e.g. a bare
+              "TIKTOK" heading) is also used to guess the category above, so the right template gets pre-selected
+              automatically. These are the formats it recognizes:
             </p>
             <div className="space-y-1.5">
               {PLATFORM_FORMATS.map((f) => (

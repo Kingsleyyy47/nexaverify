@@ -12,12 +12,44 @@ import {
   MousePointerClick,
   PhoneIncoming,
   MessageSquareText,
+  Smartphone,
+  KeyRound,
+  Send,
+  Rocket,
 } from "lucide-react";
 import { getSessionProfile } from "@/lib/auth";
 import MarketingHeader from "@/components/MarketingHeader";
 import MarketingFooter from "@/components/MarketingFooter";
 import FaqAccordion from "@/components/FaqAccordion";
 import { FAQ_PREVIEW } from "@/lib/faq-data";
+
+// The four product lines the platform actually sells, in the same order
+// and with the same icons/labels as the logged-in dashboard's quick-nav
+// grid (components/QuickLinksGrid.js) and sidebar, so a visitor sees the
+// exact same product names once they sign up — nothing here is renamed or
+// re-scoped for marketing purposes.
+const PRODUCTS = [
+  {
+    icon: Smartphone,
+    title: "SMS number rentals",
+    desc: "Real phone numbers on demand for WhatsApp, Telegram, and dozens of other verifications — USA & Canada, US-only, or worldwide, short-term or long-term.",
+  },
+  {
+    icon: KeyRound,
+    title: "Digital accounts & logs",
+    desc: "Ready-made social media accounts and logs across platforms, organized by category, with full account details delivered instantly on purchase.",
+  },
+  {
+    icon: Send,
+    title: "Telegram Premium & Stars",
+    desc: "Gift a Telegram Premium subscription or top up Telegram Stars for any username — delivered straight to their account.",
+  },
+  {
+    icon: Rocket,
+    title: "Social Boost",
+    desc: "Grow followers, likes, views, and more across social platforms, with reliable delivery and cancel-anytime protection on active orders.",
+  },
+];
 
 const STEPS = [
   {
@@ -27,18 +59,18 @@ const STEPS = [
   },
   {
     icon: MousePointerClick,
-    title: "Pick a service",
-    desc: "Choose the service you need to verify and confirm the price.",
+    title: "Pick a product",
+    desc: "Numbers, digital accounts, Telegram Premium & Stars, or Social Boost — choose what you need and confirm the price.",
   },
   {
     icon: PhoneIncoming,
-    title: "Get your number instantly",
-    desc: "A real number is reserved for you the moment you buy.",
+    title: "Get it instantly",
+    desc: "Numbers and digital accounts are reserved the moment you buy; Telegram and Social Boost orders start processing right away.",
   },
   {
     icon: MessageSquareText,
-    title: "Receive your code",
-    desc: "The verification code lands in your dashboard within seconds.",
+    title: "Track it in your dashboard",
+    desc: "Codes, credentials, and order status all land in your dashboard — no manual refreshing.",
   },
 ];
 
@@ -46,12 +78,12 @@ const FEATURES = [
   {
     icon: Zap,
     title: "Instant delivery",
-    desc: "Numbers are reserved immediately and codes are pushed to your dashboard as soon as they arrive — no manual refreshing.",
+    desc: "Numbers, digital accounts, and Telegram orders are fulfilled immediately and pushed to your dashboard as soon as they're ready.",
   },
   {
     icon: Layers,
-    title: "Wide service coverage",
-    desc: "Verify WhatsApp, Telegram, and dozens of other platforms from one account.",
+    title: "One wallet, every product",
+    desc: "SMS verification, digital accounts, Telegram Premium & Stars, and Social Boost — fund your balance once and use it across all of them.",
   },
   {
     icon: RefreshCcw,
@@ -61,17 +93,17 @@ const FEATURES = [
   {
     icon: Wallet,
     title: "Simple wallet billing",
-    desc: "Fund your balance once and pay per number — no surprise line items.",
+    desc: "Fund your balance once and pay per order — no surprise line items.",
   },
   {
     icon: ShieldCheck,
-    title: "Your codes, private",
-    desc: "Only you can see the messages delivered to a number while your rental is active.",
+    title: "Your data, private",
+    desc: "Only you can see the codes, credentials, and order details delivered to your account.",
   },
   {
     icon: BellRing,
     title: "Live status updates",
-    desc: "Watch a rental go from waiting to delivered in real time, right on the numbers page.",
+    desc: "Watch a rental or order move from waiting to delivered in real time, right on its page.",
   },
 ];
 
@@ -88,23 +120,46 @@ export default async function HomePage() {
         <section className="relative overflow-hidden bg-gradient-to-b from-brand-50 to-white dark:from-night-900 dark:to-night-950">
           <div className="max-w-6xl mx-auto px-5 md:px-8 pt-20 pb-24 text-center">
             <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 dark:bg-brand-900 text-brand-800 dark:text-brand-300 text-xs font-bold px-4 py-1.5 mb-6">
-              SMS verification, made simple
+              One wallet, every digital product
             </span>
             <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-night-100 max-w-3xl mx-auto leading-[1.1]">
-              Get verified in <span className="text-brand-600 dark:text-brand-400">seconds</span>, not minutes.
+              SMS numbers, digital accounts, Telegram & social growth — <span className="text-brand-600 dark:text-brand-400">all in one place</span>.
             </h1>
             <p className="text-lg text-gray-500 dark:text-night-300 max-w-xl mx-auto mt-6">
-              NexaVerify rents you a real phone number on demand, delivers the SMS code straight to
-              your dashboard, and lets you keep numbers long-term when you need them again.
+              NexaVerify rents you real phone numbers for verification, sells ready-made digital
+              accounts and logs, gifts Telegram Premium & Stars, and boosts your social accounts —
+              all from one wallet, with instant delivery to your dashboard.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
               <Link href="/login?mode=signup" className="btn-primary text-base px-7 py-3">
                 Get started <ArrowRight size={18} />
               </Link>
-              <Link href="#how-it-works" className="btn-secondary text-base px-7 py-3">
-                See how it works
+              <Link href="#products" className="btn-secondary text-base px-7 py-3">
+                See our products
               </Link>
             </div>
+          </div>
+        </section>
+
+        {/* Products */}
+        <section id="products" className="max-w-6xl mx-auto px-5 md:px-8 py-20 scroll-mt-16">
+          <div className="text-center max-w-xl mx-auto mb-14">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-night-100">Our products</h2>
+            <p className="text-gray-500 dark:text-night-300 mt-3">
+              Four product lines, one account and one wallet to pay for all of them.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            {PRODUCTS.map((p) => (
+              <div key={p.title} className="card card-pad">
+                <div className="w-11 h-11 rounded-xl bg-brand-50 dark:bg-brand-900 text-brand-700 dark:text-brand-300 flex items-center justify-center mb-4">
+                  <p.icon size={22} />
+                </div>
+                <div className="font-bold text-base mb-1.5 dark:text-night-100">{p.title}</div>
+                <p className="text-sm text-gray-500 dark:text-night-300">{p.desc}</p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -135,7 +190,7 @@ export default async function HomePage() {
             <div className="text-center max-w-xl mx-auto mb-14">
               <h2 className="text-3xl font-bold text-gray-900 dark:text-night-100">Built for reliability</h2>
               <p className="text-gray-500 dark:text-night-300 mt-3">
-                Everything you need to verify accounts quickly, without babysitting the process.
+                Everything you need across numbers, accounts, Telegram, and social growth — without babysitting the process.
               </p>
             </div>
 
@@ -174,9 +229,9 @@ export default async function HomePage() {
           <div className="max-w-4xl mx-auto px-5 md:px-8 py-16 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo/nexaverify-mark.png" alt="" className="h-12 w-auto mx-auto mb-5" />
-            <h2 className="text-3xl font-bold mb-3">Ready to get verified?</h2>
+            <h2 className="text-3xl font-bold mb-3">Ready to get started?</h2>
             <p className="text-white/80 max-w-lg mx-auto mb-8">
-              Create an account, fund your wallet, and rent your first number in under a minute.
+              Create an account, fund your wallet, and get your first number, account, or order in under a minute.
             </p>
             <Link
               href="/login?mode=signup"
