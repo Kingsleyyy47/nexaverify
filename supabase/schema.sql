@@ -1453,7 +1453,7 @@ create table if not exists public.digital_stock_items (
   template_id uuid not null references public.digital_product_templates(id) on delete cascade,
   username text,
   email text,
-  password text not null,
+  password text,
   email_password text,
   two_fa text,
   recovery_email text,
@@ -1474,6 +1474,13 @@ alter table public.digital_stock_items add column if not exists year text;
 alter table public.digital_stock_items add column if not exists friends_count text;
 alter table public.digital_stock_items add column if not exists extra_data text;
 alter table public.digital_stock_items add column if not exists login_link text;
+
+-- Sept 2026: password used to be required on every row. Some products are
+-- sold as a bare list of one value per line — just links, or just emails —
+-- with no password at all (see lib/digitalAccountsCsv.js's single-column
+-- upload shape), so the column has to allow null. Safe to re-run: dropping
+-- an already-nullable column's NOT NULL constraint is a no-op.
+alter table public.digital_stock_items alter column password drop not null;
 
 create index if not exists digital_stock_items_template_status_idx
   on public.digital_stock_items(template_id, status);

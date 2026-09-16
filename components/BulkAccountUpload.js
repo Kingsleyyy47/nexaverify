@@ -22,6 +22,7 @@ jane_smith,mypass,jane@email.com,,,,,,`;
 // column layout from the column count. Shown here so an admin can match
 // whatever a customer-care-supplied log line looks like.
 const PLATFORM_FORMATS = [
+  { name: "Single column (just links, or just emails)", sample: "https://facebook.com/profile.php?id=123\nhttps://facebook.com/profile.php?id=456" },
   { name: "Simple CSV/TXT", sample: "username_or_email,password" },
   { name: "Default stock order", sample: "username,password,2fa,email,email_password,recovery_email,recovery_email_password,year,friends_count" },
   { name: "Default order with blanks", sample: "username,password,,email,email_password,,," },
@@ -326,9 +327,12 @@ export default function BulkAccountUpload() {
             </div>
             <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mb-2">
               No column names needed and every column doesn't have to be included — the delimiter (comma, "|", ":",
-              ";", or tab) and column layout are auto-detected from the file. A lone label line at the top (e.g. a bare
-              "TIKTOK" heading) is also used to guess the category above, so the right template gets pre-selected
-              automatically. These are the formats it recognizes:
+              ";", or tab) and column layout are auto-detected from the file. A file with just ONE value per line
+              (no delimiter at all) is supported too — each line is auto-detected as a link, an email, or a plain
+              username, with no password stored, for products that are sold as a bare list rather than full
+              credentials. A lone label line at the top (e.g. a bare "TIKTOK" heading) is also used to guess the
+              category above, so the right template gets pre-selected automatically. These are the formats it
+              recognizes:
             </p>
             <div className="space-y-1.5">
               {PLATFORM_FORMATS.map((f) => (
