@@ -59,7 +59,12 @@ export async function POST(request) {
     }));
 
   const { error } = await admin.from("daisysim_usa_overrides").upsert(rows, { onConflict: "service_code,backend" });
-  if (error) return NextResponse.json({ error: "Could not sync catalog" }, { status: 500 });
+  // Surfaces the real Postgres error (e.g. "no unique or exclusion constraint
+  // matching the ON CONFLICT specification" if supabase/schema.sql's
+  // daisysim_usa_overrides.backend migration hasn't been run against this
+  // database yet) — admin-only route, so it's safe to show as-is rather than
+  // a generic message that'd hide exactly what needs fixing.
+  if (error) return NextResponse.json({ error: `Could not sync catalog: ${error.message}` }, { status: 500 });
 
   return NextResponse.json({ backend, synced: rows.length, total: apps.length });
 }
