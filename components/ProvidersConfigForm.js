@@ -99,10 +99,10 @@ export default function ProvidersConfigForm({ config }) {
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
       <ToggleRow
-        title="US Only (Getatext)"
-        description="A separate USA-only numbers provider — /products/us-only, the dashboard quick-buy list, and the sidebar link. Off hides all of it from customers and blocks purchases server-side."
+        title="US Only (Getatext or DaisySim)"
+        description="A separate USA-only numbers provider — /products/us-only, the dashboard quick-buy list, and the sidebar link. Off hides all of it from customers and blocks purchases server-side. Which of the two backends actually fulfills it is chosen on its own settings page, not here."
         detailHref="/admin/us-only"
-        detailLabel="Manage markup & catalog"
+        detailLabel="Manage backend, markup & catalog"
         checked={usOnlyEnabled}
         onChange={setUsOnlyEnabled}
       />

@@ -5,6 +5,7 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
+import { cancelActivation as cancelActivationServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
 import { RENTAL_BACKEND_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 import { logError } from "@/lib/errorLog";
 
@@ -131,6 +132,13 @@ async function retryPendingRefund(admin, rental, results) {
 async function processExpiredRental(admin, rental, results) {
   const isDaisySim = rental.provider === "daisysim";
   const isDaisySimUsa = rental.provider === "daisysim_usa";
+  // "US Only" has two interchangeable backends — which one actually
+  // fulfilled THIS rental is stamped on the row (us_only_backend),
+  // independent of daisysim_usa_config's current value. Legacy rows from
+  // before this column existed have us_only_backend === null and were
+  // always Getatext-backed.
+  const isServer7UsOnly = isDaisySimUsa && rental.us_only_backend === "daisysim";
+  const isGetatextUsOnly = isDaisySimUsa && !isServer7UsOnly;
   const now = new Date().toISOString();
 
   // Set below for daisysim only — see the matching comment in
@@ -155,7 +163,10 @@ async function processExpiredRental(admin, rental, results) {
     if (isDaisySim) {
       const result = await cancelActivation(rental.daisysim_activation_id);
       providerRefundConfirmed = Boolean(result.refund);
-    } else if (isDaisySimUsa) {
+    } else if (isServer7UsOnly) {
+      const result = await cancelActivationServer7(rental.daisysim_server7_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
+    } else if (isGetatextUsOnly) {
       const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
       providerRefundConfirmed = Boolean(result.refund);
     } else {
@@ -175,6 +186,20 @@ async function processExpiredRental(admin, rental, results) {
     // already moved on from.
     if (isDaisySim && err instanceof DaisySimError && err.code === "CODE_RECEIVED") {
       const code = err.raw?.data?.code || err.raw?.code || null;
+      await admin
+        .from("rentals")
+        .update({ status: "received", sms_code: code, updated_at: now })
+        .eq("id", rental.id)
+        .eq("status", "waiting");
+      results.receivedInstead++;
+      return;
+    }
+    // Same CODE_RECEIVED race documented for the server7 API's own /cancel —
+    // "treat that as a successful check, not as a failure": a code arrived
+    // right as we tried to cancel, so it's surfaced instead of leaving the
+    // customer with neither a working number nor a refund.
+    if (isServer7UsOnly && err instanceof DaisySimUsaError && err.code === "CODE_RECEIVED") {
+      const code = err.raw?.data?.code || null;
       await admin
         .from("rentals")
         .update({ status: "received", sms_code: code, updated_at: now })
@@ -208,7 +233,8 @@ async function processExpiredRental(admin, rental, results) {
     // Treat exactly like a successful cancel rather than an error.
     const alreadyGone =
       (isDaisySim && err instanceof DaisySimError && err.code === "NOT_FOUND") ||
-      (isDaisySimUsa && err instanceof GetatextError && err.code === "NOT_FOUND") ||
+      (isGetatextUsOnly && err instanceof GetatextError && err.code === "NOT_FOUND") ||
+      (isServer7UsOnly && err instanceof DaisySimUsaError && ["NOT_FOUND", "USER_NOT_FOUND"].includes(err.code)) ||
       (!isDaisySim && !isDaisySimUsa && err instanceof DaisyError && err.code === "NO_ACTIVATION");
 
     // Sept 2026: DaisySMS's own Cloudflare started returning a bot-check

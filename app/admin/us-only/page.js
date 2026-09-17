@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getApps, GetatextError } from "@/lib/getatext";
+import { getApps as getAppsUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
 import UsOnlyConfigForm from "@/components/UsOnlyConfigForm";
 import UsOnlyOverridesManager from "@/components/UsOnlyOverridesManager";
 
@@ -15,28 +16,30 @@ export default async function AdminUsOnlyPage() {
   const config = {
     enabled: Boolean(row?.enabled),
     markupAmountNgn: row?.markup_amount_ngn ?? 0,
+    backend: row?.backend === "daisysim" ? "daisysim" : "getatext",
     updatedAt: row?.updated_at ?? null,
   };
 
   // Needed to offer "show cost in ₦" in the catalog manager below — same
   // pattern as /admin/products' "Show DaisySMS cost in ₦" toggle, and the
-  // same toggle just added to /admin/social-boost. Getatext's own `price` on
+  // same toggle just added to /admin/social-boost. Both backends' `price` on
   // each service is always in USD; converting it for display only ever uses
   // this admin-set rate, never touches anything stored. computeNgnPrice is
   // the exact same formula used at actual purchase time (see
-  // app/api/us-only/buy/route.js) — unchanged from when this product was
-  // still backed by DaisySim's server7 API, so the admin-facing calculation
-  // hasn't changed just because the provider behind it has.
+  // app/api/us-only/buy/route.js), identical between the two backends.
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
 
-  // Catalog browse is best-effort — a missing/invalid GETATEXT_API_KEY
-  // shouldn't take down the whole settings page, just the browse section.
+  // Catalog browse is best-effort — a missing/invalid API key for whichever
+  // backend is currently selected shouldn't take down the whole settings
+  // page, just the browse section. Always browses the CURRENTLY SELECTED
+  // backend's catalog, since that's the one new purchases will actually use.
   let services = [];
   let servicesError = "";
   try {
-    services = await getApps();
+    services = config.backend === "daisysim" ? await getAppsUsa() : await getApps();
   } catch (err) {
-    servicesError = err instanceof GetatextError ? err.message : "Could not load the service list.";
+    servicesError =
+      err instanceof GetatextError || err instanceof DaisySimUsaError ? err.message : "Could not load the service list.";
   }
 
   return (
@@ -44,10 +47,11 @@ export default async function AdminUsOnlyPage() {
       <div>
         <h1 className="text-2xl font-bold">US Only</h1>
         <p className="text-sm text-gray-400 dark:text-night-400 mt-1 max-w-lg">
-          A third provider, separate from the DaisySMS catalog and from "All countries" (DaisySim).
-          USA-only, flat service list with live pricing already attached, backed by Getatext. It's
-          kept off by default — turn it on once you're happy with the markup below. Customers only
-          ever see "US Only"; the Getatext name is admin-only.
+          A third provider slot, separate from the DaisySMS catalog and from "All countries"
+          (DaisySim). USA-only, flat service list with live pricing already attached — backed by
+          EITHER Getatext or DaisySim's own dedicated USA numbers API, whichever is selected below
+          (never both at once). It's kept off by default — turn it on once you're happy with the
+          markup below. Customers only ever see "US Only"; the provider name is admin-only.
         </p>
       </div>
 
@@ -59,7 +63,7 @@ export default async function AdminUsOnlyPage() {
       <div className="card card-pad">
         <h3 className="font-bold text-[15px] mb-1">Catalog — markup, favorites &amp; enable/disable</h3>
         <p className="text-sm text-gray-400 dark:text-night-400 mb-4 max-w-2xl">
-          Getatext's own cost is live, but the markup on top of it is fully yours to set — per
+          The selected provider's own cost is live, but the markup on top of it is fully yours to set — per
           service. Set a markup amount and click "Markup" to apply it to every service currently
           shown (search narrows that down first); it replaces whatever was in effect before
           (including the global default set above), so running it again with a new number updates

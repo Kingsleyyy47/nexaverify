@@ -11,8 +11,9 @@ import ConfirmDialog from "./ConfirmDialog";
 // bulk Enable/Disable/Markup scoped to the current search, "Show cost in
 // ₦" toggle) rather than the old plain favorite/disable-only list. The one
 // real difference: DaisySMS stores a manually-set final `customer_price`
-// per product (recomputed only on demand via sync), while Getatext's cost is
-// always live — so there's no equivalent "auto-markup on future syncs"
+// per product (recomputed only on demand via sync), while US Only's own cost
+// (from whichever backend is currently selected — Getatext or DaisySim, see
+// daisysim_usa_config.backend) is always live — so there's no equivalent "auto-markup on future syncs"
 // checkbox here, and the editable box per row is the MARKUP amount, not a
 // final price (see UsOnlyServiceRow.js and the pricing fallback described in
 // schema.sql's daisysim_usa_overrides.markup_ngn comment).
@@ -254,7 +255,7 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
       <ConfirmDialog
         open={pendingAction === "markup"}
         title={`Set markup to ₦${markupValue.toLocaleString("en-US")} for all matching services?`}
-        message={`This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added on top of Getatext's live cost) on all ${filtered.length} service(s) currently shown — replacing whatever markup was in effect before on each (including the global default), not adding on top of it. You can still edit any individual service afterward.`}
+        message={`This sets a flat ₦${markupValue.toLocaleString("en-US")} markup (added on top of the provider's live cost) on all ${filtered.length} service(s) currently shown — replacing whatever markup was in effect before on each (including the global default), not adding on top of it. You can still edit any individual service afterward.`}
         confirmLabel="Yes, apply it"
         cancelLabel="Cancel"
         onConfirm={handleApplyMarkup}

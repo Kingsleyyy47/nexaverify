@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStatus, DaisyError } from "@/lib/daisy";
 import { checkSms, DaisySimError } from "@/lib/daisysim";
 import { checkSms as checkSmsUsa, GetatextError } from "@/lib/getatext";
+import { checkStatus as checkStatusDaisySimUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
 
 export async function GET(request) {
   const { user, supabase } = await getSessionProfile();
@@ -59,8 +60,17 @@ export async function GET(request) {
   }
 
   if (rental.provider === "daisysim_usa") {
+    // "US Only" has two interchangeable backends — which one actually
+    // fulfilled THIS rental is stamped on the row at purchase time
+    // (us_only_backend), independent of whatever daisysim_usa_config.backend
+    // currently says. Legacy rows from before this column existed have
+    // us_only_backend === null and were always Getatext-backed, so null
+    // falls through to the Getatext branch same as before.
+    const isServer7 = rental.us_only_backend === "daisysim";
     try {
-      const result = await checkSmsUsa(rental.daisysim_usa_activation_id);
+      const result = isServer7
+        ? await checkStatusDaisySimUsa(rental.daisysim_server7_activation_id)
+        : await checkSmsUsa(rental.daisysim_usa_activation_id);
 
       if (result.status === "received") {
         const { data: updated } = await admin
@@ -87,7 +97,10 @@ export async function GET(request) {
 
       return NextResponse.json({ rental }); // still waiting
     } catch (err) {
-      if (err instanceof GetatextError && err.code === "NOT_FOUND") {
+      if (
+        (!isServer7 && err instanceof GetatextError && err.code === "NOT_FOUND") ||
+        (isServer7 && err instanceof DaisySimUsaError && ["NOT_FOUND", "USER_NOT_FOUND"].includes(err.code))
+      ) {
         return NextResponse.json({ rental }); // transient — just report current state
       }
       return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });

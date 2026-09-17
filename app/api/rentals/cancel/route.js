@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelRental, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
+import { cancelActivation as cancelActivationServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
 
 export async function POST(request) {
   const { user, supabase } = await getSessionProfile();
@@ -63,14 +64,45 @@ export async function POST(request) {
       }
       return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
     }
+  } else if (rental.provider === "daisysim_usa" && rental.us_only_backend === "daisysim") {
+    // "US Only" via DaisySim's dedicated server7 API — see lib/daisysimUsa.js.
+    // Which backend fulfilled THIS rental is read off the row, not off
+    // daisysim_usa_config's current value, so an admin toggle flip mid-flight
+    // can never send a cancel to the wrong provider.
+    try {
+      const result = await cancelActivationServer7(rental.daisysim_server7_activation_id);
+      providerRefundConfirmed = Boolean(result.refund);
+    } catch (err) {
+      if (err instanceof DaisySimUsaError && err.code === "TOO_EARLY") {
+        return NextResponse.json({ error: err.message || "This number was just purchased — wait a bit before cancelling." }, { status: 400 });
+      }
+      if (err instanceof DaisySimUsaError && err.code === "CODE_RECEIVED") {
+        // A code arrived in the exact race window — the API docs are
+        // explicit that this should be treated as a successful check, not a
+        // failure: the charge stands and the code is kept, same spirit as
+        // DaisySim's (the "All countries" provider) own CODE_RECEIVED case
+        // above.
+        const code = err.raw?.data?.code || null;
+        const { data: updated } = await admin
+          .from("rentals")
+          .update({ status: "received", sms_code: code, updated_at: new Date().toISOString() })
+          .eq("id", rentalId)
+          .select()
+          .single();
+        return NextResponse.json({
+          rental: updated,
+          error: "A code arrived just as you cancelled — this number wasn't cancelled.",
+        });
+      }
+      return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
+    }
   } else if (rental.provider === "daisysim_usa") {
-    // "daisysim_usa" is the historical provider tag for the "US Only"
-    // product slot — it's backed by Getatext now (lib/getatext.js), not
-    // DaisySim. Getatext's cancel-rental has no `refund` boolean and no
-    // documented distinct error for "too early" or "code already arrived"
-    // the way DaisySim's did (see lib/getatext.js's header comment) — a
-    // successful call is treated as full refund confirmation on its own,
-    // and any failure just falls through to the generic message below.
+    // Legacy/default "US Only" backend — Getatext (lib/getatext.js).
+    // Getatext's cancel-rental has no `refund` boolean and no documented
+    // distinct error for "too early" or "code already arrived" the way
+    // DaisySim's did (see lib/getatext.js's header comment) — a successful
+    // call is treated as full refund confirmation on its own, and any
+    // failure just falls through to the generic message below.
     try {
       const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
       providerRefundConfirmed = Boolean(result.refund);

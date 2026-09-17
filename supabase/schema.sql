@@ -276,6 +276,23 @@ create table if not exists public.daisysim_usa_config (
 
 insert into public.daisysim_usa_config (id) values (true) on conflict (id) do nothing;
 
+-- backend: which of the two interchangeable "US Only" providers actually
+-- fulfills purchases while `enabled` is true — Getatext (lib/getatext.js,
+-- the current default) or DaisySim's own dedicated USA "server7" API
+-- (lib/daisysimUsa.js, rebuilt Sept 2026 as a toggleable alternative after
+-- Getatext started hitting Cloudflare-block issues). The two can never both
+-- be active at once by construction — this is a single column, not two
+-- independent switches — so `enabled=true, backend='getatext'` and
+-- `enabled=true, backend='daisysim'` are the only two "on" states, and
+-- `enabled=false` means off regardless of which backend is selected. See
+-- rentals.us_only_backend below for how an in-flight rental remembers which
+-- backend actually fulfilled IT, independent of whatever this config's
+-- current value is by the time it's cancelled/checked/swept.
+alter table public.daisysim_usa_config add column if not exists backend text not null default 'getatext';
+alter table public.daisysim_usa_config drop constraint if exists daisysim_usa_config_backend_check;
+alter table public.daisysim_usa_config add constraint daisysim_usa_config_backend_check
+  check (backend in ('getatext', 'daisysim'));
+
 alter table public.daisysim_usa_config enable row level security;
 
 drop policy if exists "daisysim_usa_config_select_all" on public.daisysim_usa_config;
@@ -768,6 +785,26 @@ alter table public.rentals drop constraint if exists rentals_provider_check;
 alter table public.rentals add constraint rentals_provider_check
   check (provider in ('daisysms', 'daisysim', 'daisysim_usa'));
 alter table public.rentals add column if not exists daisysim_usa_activation_id text;
+
+-- ----------------------------------------------------------------------------
+-- "US Only" dual-backend support (Sept 2026 — see lib/daisysimUsa.js and
+-- daisysim_usa_config.backend above). Getatext and DaisySim's "server7" API
+-- are two entirely separate providers with their own ID namespaces sharing
+-- the single 'daisysim_usa' provider tag, so each rental needs to remember
+-- BOTH which one actually fulfilled it (us_only_backend) AND that backend's
+-- own activation id — daisysim_usa_activation_id above is reused as-is for
+-- Getatext (no migration needed for existing/legacy rows, which have no
+-- us_only_backend value and are treated as 'getatext' by every call site),
+-- while server7-backed rentals get their own new column. Deliberately keyed
+-- off the ROW, not off daisysim_usa_config.backend's current value — an
+-- admin flipping the toggle must never change which backend an
+-- already-placed rental is checked/cancelled against.
+-- ----------------------------------------------------------------------------
+alter table public.rentals add column if not exists us_only_backend text;
+alter table public.rentals drop constraint if exists rentals_us_only_backend_check;
+alter table public.rentals add constraint rentals_us_only_backend_check
+  check (us_only_backend is null or us_only_backend in ('getatext', 'daisysim'));
+alter table public.rentals add column if not exists daisysim_server7_activation_id text;
 
 -- ----------------------------------------------------------------------------
 -- No-code timeout (both providers) — 15 minutes server-side (see

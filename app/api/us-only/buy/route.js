@@ -2,17 +2,28 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { purchaseNumber, computeNgnPrice, cancelActivation, GetatextError } from "@/lib/getatext";
+import {
+  purchaseNumber as purchaseNumberUsa,
+  cancelActivation as cancelActivationUsa,
+  DaisySimUsaError,
+} from "@/lib/daisysimUsa";
 import { safeErrorResponse } from "@/lib/apiError";
 
-// Buys a number via the "US Only" provider (third provider alongside
-// DaisySMS and "All countries" DaisySim — see lib/getatext.js). Same
-// pricing-safety pattern as app/api/international/buy/route.js: Getatext
-// resolves price server-side from the service code alone and ignores any
-// price sent to it, so `priceUsd` from the client (whatever
+// Buys a number via the "US Only" provider (third provider slot alongside
+// DaisySMS and "All countries" DaisySim). Backed by ONE of two
+// interchangeable backends — Getatext (lib/getatext.js) or DaisySim's own
+// dedicated USA "server7" API (lib/daisysimUsa.js) — chosen by
+// daisysim_usa_config.backend and never both at once. Which backend actually
+// fulfilled THIS rental is stamped onto the row (us_only_backend +
+// backend-specific activation-id column) so a later admin toggle flip can
+// never change which provider a given rental is checked/cancelled against.
+// Same pricing-safety pattern as app/api/international/buy/route.js either
+// way: both backends resolve price server-side from the service code alone
+// and ignore any price sent to them, so `priceUsd` from the client (whatever
 // lib/usOnlyCatalog.js last showed them) is used ONLY as a pre-check
-// estimate. The real, authoritative USD amount is `price` in the purchase
-// response, and that — not the estimate — is what the customer is actually
-// billed in NGN.
+// estimate. The real, authoritative USD amount is `amountCharged` in the
+// purchase response, and that — not the estimate — is what the customer is
+// actually billed in NGN.
 export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -26,12 +37,13 @@ export async function POST(request) {
 
   const { data: config } = await admin
     .from("daisysim_usa_config")
-    .select("enabled, markup_amount_ngn")
+    .select("enabled, markup_amount_ngn, backend")
     .eq("id", true)
     .maybeSingle();
   if (!config?.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
+  const backend = config.backend === "daisysim" ? "daisysim" : "getatext";
 
   // Re-check the admin's per-service block list server-side (see
   // /admin/us-only -> UsOnlyOverridesManager, public.daisysim_usa_overrides)
@@ -73,47 +85,60 @@ export async function POST(request) {
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
 
-  // Getatext resolves the live price itself from `app` (the service code)
-  // alone — no price is sent, and none would be honored if it were. Unlike
-  // the provider this replaces, Getatext doesn't hand back a machine
-  // -readable error code — just a human-readable message (see
-  // lib/getatext.js) — and that message is already customer-safe (no
+  // Both backends resolve the live price themselves from `app` (the service
+  // code) alone — no price is sent, and none would be honored if it were.
+  // Getatext doesn't hand back a machine-readable error code — just a
+  // human-readable message (see lib/getatext.js) — already customer-safe (no
   // provider name or internal jargon), so it's shown through directly rather
-  // than mapped from a code table.
+  // than mapped from a code table. DaisySim USA does have machine-readable
+  // codes (see lib/daisysimUsa.js) but no per-code friendly-message mapping
+  // exists yet here either — its `message` field is likewise safe to show
+  // as-is for the purchase-failure cases actually reachable from this route.
   let purchase;
   try {
-    purchase = await purchaseNumber({ app: serviceCode, appName: serviceName });
+    purchase =
+      backend === "daisysim"
+        ? await purchaseNumberUsa({ app: serviceCode, appName: serviceName })
+        : await purchaseNumber({ app: serviceCode, appName: serviceName });
   } catch (err) {
-    if (err instanceof GetatextError) {
+    if (err instanceof GetatextError || err instanceof DaisySimUsaError) {
       return NextResponse.json({ error: err.message || "Could not rent a number right now." }, { status: 502 });
     }
     return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id });
   }
 
-  // The real, final charge — what Getatext actually debited, which may
+  // Best-effort rollback helper — routes to whichever backend actually
+  // fulfilled the purchase above, since the two have entirely separate
+  // activation-id namespaces and cancel endpoints.
+  async function cancelPurchase() {
+    try {
+      if (backend === "daisysim") {
+        await cancelActivationUsa(purchase.activationId);
+      } else {
+        await cancelActivation(purchase.activationId);
+      }
+    } catch {
+      // best effort only — Getatext's docs mention a wait (5 minutes on
+      // accounts without immediate cancellation) before a fresh rental can
+      // be cancelled, and DaisySim USA locks cancellation for the first 180s
+      // after purchase, so this may well fail immediately after a purchase.
+      // Acceptable gap, same as the other providers.
+    }
+  }
+
+  // The real, final charge — what the provider actually debited, which may
   // differ slightly from `estimatedPrice` if the live price moved between
   // the client's last fetch and this purchase.
   const customerPrice = computeNgnPrice(purchase.amountCharged, usdRate, effectiveMarkupNgn);
 
   if (!customerPrice || customerPrice <= 0) {
-    try {
-      await cancelActivation(purchase.activationId);
-    } catch {
-      // best effort only
-    }
+    await cancelPurchase();
     return NextResponse.json({ error: "Could not price this number — try again." }, { status: 500 });
   }
 
   // Re-check against the REAL price, not the estimate.
   if (Number(profile?.balance || 0) < customerPrice) {
-    try {
-      await cancelActivation(purchase.activationId);
-    } catch {
-      // best effort only — Getatext's docs mention a wait (5 minutes on
-      // accounts without immediate cancellation) before a fresh rental can
-      // be cancelled, so this may well fail immediately after a purchase.
-      // Acceptable gap, same as the other providers.
-    }
+    await cancelPurchase();
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
 
@@ -122,10 +147,13 @@ export async function POST(request) {
     .insert({
       user_id: user.id,
       provider: "daisysim_usa",
-      daisysim_usa_activation_id: purchase.activationId,
+      us_only_backend: backend,
+      ...(backend === "daisysim"
+        ? { daisysim_server7_activation_id: purchase.activationId }
+        : { daisysim_usa_activation_id: purchase.activationId }),
       phone_number: purchase.phoneNumber,
       price: customerPrice, // NGN — what the customer is actually charged
-      cost_usd: purchase.amountCharged, // USD — what Getatext actually charged us
+      cost_usd: purchase.amountCharged, // USD — what the provider actually charged us
       country_name: "USA",
       service_code: serviceCode,
       service_name: serviceName || purchase.service,
@@ -136,11 +164,7 @@ export async function POST(request) {
     .single();
 
   if (insertError || !rental) {
-    try {
-      await cancelActivation(purchase.activationId);
-    } catch {
-      // best effort only
-    }
+    await cancelPurchase();
     return NextResponse.json({ error: "Could not save the rental. Please try again." }, { status: 500 });
   }
 
@@ -155,12 +179,8 @@ export async function POST(request) {
     });
   } catch (err) {
     // Balance changed between our pre-check and now (e.g. concurrent
-    // purchase). Undo: best-effort cancel with Getatext and mark cancelled.
-    try {
-      await cancelActivation(purchase.activationId);
-    } catch {
-      // best effort only
-    }
+    // purchase). Undo: best-effort cancel with the provider and mark cancelled.
+    await cancelPurchase();
     await admin.from("rentals").update({ status: "cancelled" }).eq("id", rental.id);
     return NextResponse.json({ error: "Insufficient balance at time of purchase." }, { status: 402 });
   }
