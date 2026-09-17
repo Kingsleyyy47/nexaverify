@@ -6,6 +6,7 @@ import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
 import { RENTAL_BACKEND_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
+import { logError } from "@/lib/errorLog";
 
 // Kingsley's rule: any rental (any provider) that's gone
 // RENTAL_BACKEND_TIMEOUT_MINUTES without a code gets cancelled on the
@@ -113,10 +114,15 @@ async function retryPendingRefund(admin, rental, results) {
     });
     results.refunded++;
   } catch (err) {
-    console.error(`[sweep-timeouts] refund retry failed for rental ${claimed.id}:`, err.message);
+    const referenceId = await logError({
+      error: err,
+      route: "/api/admin/rentals/sweep-timeouts",
+      userId: claimed.user_id,
+      context: { rentalId: claimed.id, stage: "refund-retry" },
+    });
     await admin
       .from("rentals")
-      .update({ refunded_at: null, cancel_error: `refund failed: ${err.message}`.slice(0, 500) })
+      .update({ refunded_at: null, cancel_error: `refund failed: ${err.message} (ref ${referenceId})`.slice(0, 500) })
       .eq("id", claimed.id);
     results.errors++;
   }
@@ -203,15 +209,22 @@ async function processExpiredRental(admin, rental, results) {
       // Real failure (network hiccup, timeout, unexpected provider
       // response) — do NOT touch status. Leaving it at 'waiting' means this
       // exact rental is still past the cutoff on the NEXT sweep run, so it
-      // retries automatically with no extra bookkeeping needed. Just record
-      // the error for admin visibility.
-      console.error(
-        `[sweep-timeouts] provider cancel failed for rental ${rental.id} (${rental.provider}):`,
-        err.code || err.message
-      );
+      // retries automatically with no extra bookkeeping needed. Logged via
+      // logError (not just console.error) so a systemic failure — e.g. every
+      // rental erroring at once, as happened Sept 2026 — is actually visible
+      // in Admin > Notifications with the real raw provider response,
+      // instead of only existing in Vercel's function logs.
+      const referenceId = await logError({
+        error: err,
+        route: "/api/admin/rentals/sweep-timeouts",
+        userId: rental.user_id,
+        context: { rentalId: rental.id, provider: rental.provider, daisyId: rental.daisy_id },
+      });
       await admin
         .from("rentals")
-        .update({ cancel_error: String(err.code || err.message || "unknown error").slice(0, 500) })
+        .update({
+          cancel_error: `${String(err.code || err.message || "unknown error").slice(0, 450)} (ref ${referenceId})`,
+        })
         .eq("id", rental.id);
       results.errors++;
       return;
@@ -283,10 +296,15 @@ async function processExpiredRental(admin, rental, results) {
     // provider is already cancelled at this point, so un-claim JUST the
     // refund (not status) — the next sweep run will retry the credit
     // without trying to cancel on the provider again.
-    console.error(`[sweep-timeouts] refund failed for rental ${claimed.id}:`, err.message);
+    const referenceId = await logError({
+      error: err,
+      route: "/api/admin/rentals/sweep-timeouts",
+      userId: claimed.user_id,
+      context: { rentalId: claimed.id, stage: "refund-after-cancel" },
+    });
     await admin
       .from("rentals")
-      .update({ refunded_at: null, cancel_error: `refund failed: ${err.message}`.slice(0, 500) })
+      .update({ refunded_at: null, cancel_error: `refund failed: ${err.message} (ref ${referenceId})`.slice(0, 500) })
       .eq("id", claimed.id);
     results.errors++;
   }
