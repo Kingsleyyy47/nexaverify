@@ -27,6 +27,7 @@ const LINKS = [
   { href: "/admin/telegram-premium", label: "Telegram Premium" },
   { href: "/admin/social-boost", label: "Social Boost" },
   { href: "/admin/digital-accounts/categories", label: "Categories" },
+  { href: "/admin/digital-accounts/category-shuffle", label: "Category Shuffle" },
   { href: "/admin/digital-accounts/templates", label: "Product Templates" },
   { href: "/admin/digital-accounts/single-product", label: "Single Product" },
   { href: "/admin/digital-accounts/upload", label: "Bulk Account Upload" },

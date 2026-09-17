@@ -1292,6 +1292,18 @@ create table if not exists public.digital_categories (
 -- Additive columns for installs that ran this schema before these existed.
 alter table public.digital_categories add column if not exists logo_url text;
 alter table public.digital_categories add column if not exists logo_url_dark text;
+-- Sept 2026: lets an admin manually reorder how categories appear on the
+-- customer-facing Logs page and the dashboard's embedded catalog (see the
+-- new /admin/digital-accounts/category-shuffle page) instead of always
+-- following creation order. Defaults to 0 for every existing row on first
+-- run — every customer-facing fetch orders by (sort_order, created_at), so
+-- until an admin actually uses the shuffle page, everything with the same
+-- default 0 just falls back to created_at and looks exactly like before.
+-- Deliberately NOT backfilled with distinct values here (e.g. via
+-- row_number()) — schema.sql gets re-run whenever anything else in it
+-- changes, and a backfill would silently wipe out an admin's real custom
+-- order back to creation order every time.
+alter table public.digital_categories add column if not exists sort_order integer not null default 0;
 
 alter table public.digital_categories enable row level security;
 

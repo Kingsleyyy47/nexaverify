@@ -9,8 +9,16 @@ export async function GET() {
   }
 
   const admin = createAdminClient();
+  // Same (sort_order, created_at) ordering the customer-facing categories
+  // route uses — see /admin/digital-accounts/category-shuffle — so this
+  // list (and CategoryManager's display of it) always shows categories in
+  // the exact order customers actually see them in.
   const [{ data: categories }, { data: templates }] = await Promise.all([
-    admin.from("digital_categories").select("*").order("created_at", { ascending: true }),
+    admin
+      .from("digital_categories")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
     admin.from("digital_product_templates").select("id, category_id"),
   ]);
 

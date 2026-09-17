@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber, cancelRental, DaisyError } from "@/lib/daisy";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // NexaVerify charges customers in NGN using the admin-set `customer_price`
 // on the service (see /admin/products) — NOT whatever DaisySMS's live USD
@@ -88,22 +89,33 @@ export async function POST(request) {
         TOO_MANY_ACTIVE_RENTALS: "You've reached the limit of active rentals. Finish or cancel one first.",
         NO_MONEY: "This service is temporarily unavailable. Please contact support.",
       };
-      // Log the RAW DaisySMS response for anything not in the friendly-message
-      // map above (e.g. BAD_KEY, UNKNOWN_RESPONSE, TIMEOUT, NETWORK_ERROR) —
-      // those all currently show the same generic customer-facing message, so
-      // this is the only place the actual cause is visible. Check Vercel's
-      // deployment -> Functions -> Logs for this line if purchases start
-      // failing with "Could not rent a number right now."
-      if (!messages[err.code]) {
-        console.error(`[rentals/buy] DaisySMS getNumber failed for service "${serviceId}":`, err.code, err.message);
+      if (messages[err.code]) {
+        return NextResponse.json({ error: messages[err.code] }, { status: 502 });
       }
-      return NextResponse.json(
-        { error: messages[err.code] || "Could not rent a number right now." },
-        { status: 502 }
-      );
+      // Anything else (BAD_KEY, UNKNOWN_RESPONSE, TIMEOUT, NETWORK_ERROR) is
+      // unexpected — logged with a reference ID + the full raw DaisySMS
+      // response text (DaisyError's `raw` field, captured by logError) so a
+      // mystery "Could not rent a number" is actually diagnosable from
+      // /admin/notifications instead of only living in Vercel's function
+      // logs. This matters especially here: DaisySMS can successfully rent
+      // AND charge for a number on its own side even when we fail to parse
+      // or receive that response in time (e.g. a slow response tripping our
+      // timeout, or a response shape our strict validation didn't expect) —
+      // the reference ID's raw text is what actually lets that be traced,
+      // rather than guessed at.
+      return safeErrorResponse(err, {
+        route: "/api/rentals/buy",
+        userId: user.id,
+        status: 502,
+        context: { serviceId, daisyErrorCode: err.code },
+      });
     }
-    console.error(`[rentals/buy] Unexpected (non-DaisyError) failure for service "${serviceId}":`, err);
-    return NextResponse.json({ error: "Could not rent a number right now. Please try again." }, { status: 502 });
+    return safeErrorResponse(err, {
+      route: "/api/rentals/buy",
+      userId: user.id,
+      status: 502,
+      context: { serviceId },
+    });
   }
 
   const { data: rental, error: insertError } = await admin

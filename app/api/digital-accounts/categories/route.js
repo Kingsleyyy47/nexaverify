@@ -29,7 +29,16 @@ export async function GET() {
   }
 
   const [{ data: categories }, { data: templates }] = await Promise.all([
-    admin.from("digital_categories").select("id, name, description, logo_url, logo_url_dark"),
+    // Ordered by the admin's manual arrangement (see
+    // /admin/digital-accounts/category-shuffle) first, falling back to
+    // creation order for anything never manually reordered (default
+    // sort_order is 0 for every category, so ties just keep looking like
+    // creation order until an admin actually rearranges something).
+    admin
+      .from("digital_categories")
+      .select("id, name, description, logo_url, logo_url_dark")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
     admin.from("digital_product_templates").select("category_id").eq("archived", false),
   ]);
 

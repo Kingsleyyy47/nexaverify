@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import ProvidersConfigForm from "@/components/ProvidersConfigForm";
+import SweepTimeoutsButton from "@/components/SweepTimeoutsButton";
 
 export default async function AdminProvidersPage() {
   const admin = createAdminClient();
@@ -39,6 +40,11 @@ export default async function AdminProvidersPage() {
 
       <div className="card card-pad">
         <ProvidersConfigForm config={config} />
+      </div>
+
+      <div className="card card-pad mt-6">
+        <h3 className="font-bold text-[15px] mb-1">Stuck rentals</h3>
+        <SweepTimeoutsButton />
       </div>
     </div>
   );
