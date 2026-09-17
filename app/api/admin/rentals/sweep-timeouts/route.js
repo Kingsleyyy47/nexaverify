@@ -144,6 +144,12 @@ async function processExpiredRental(admin, rental, results) {
   // either — treated as confirmed since there's genuinely nothing more to
   // verify against.
   let providerRefundConfirmed = true;
+  // Set only when we deliberately cancel + refund WITHOUT a confirmed
+  // provider-side cancellation — see the DaisySMS connectivity-failure
+  // carve-out below. Carried through to the final "claimed" update's
+  // cancel_error so this is never silently indistinguishable from a normal,
+  // fully-confirmed cancel.
+  let unconfirmedCancelNote = null;
 
   try {
     if (isDaisySim) {
@@ -205,15 +211,36 @@ async function processExpiredRental(admin, rental, results) {
       (isDaisySimUsa && err instanceof GetatextError && err.code === "NOT_FOUND") ||
       (!isDaisySim && !isDaisySimUsa && err instanceof DaisyError && err.code === "NO_ACTIVATION");
 
-    if (!alreadyGone) {
-      // Real failure (network hiccup, timeout, unexpected provider
-      // response) — do NOT touch status. Leaving it at 'waiting' means this
-      // exact rental is still past the cutoff on the NEXT sweep run, so it
-      // retries automatically with no extra bookkeeping needed. Logged via
-      // logError (not just console.error) so a systemic failure — e.g. every
-      // rental erroring at once, as happened Sept 2026 — is actually visible
-      // in Admin > Notifications with the real raw provider response,
-      // instead of only existing in Vercel's function logs.
+    // Sept 2026: DaisySMS's own Cloudflare started returning a bot-check
+    // challenge page instead of a real API response, which means EVERY
+    // cancelRental call fails — a stuck rental would retry forever every
+    // minute and never clear for as long as DaisySMS's Cloudflare keeps
+    // blocking us, since there's no way to "solve" a JS challenge from a
+    // server-to-server request. Per Kingsley's explicit instruction ("cancel
+    // from our side, leave Daisy"): for DaisySMS specifically, a failure to
+    // even REACH the provider (as opposed to the provider clearly telling us
+    // something, like ACCESS_READY/NO_ACTIVATION above) is treated as a
+    // local-only cancel + refund — the customer isn't left stuck indefinitely
+    // for a provider-side outage outside anyone's control. This intentionally
+    // does NOT extend to DaisySim/Getatext, and NOT to a DaisySMS BAD_KEY
+    // (a real credential problem, not a transient connectivity issue) —
+    // those still fall through to the "leave stuck, retry" branch below.
+    const isDaisyConnectivityFailure =
+      !isDaisySim &&
+      !isDaisySimUsa &&
+      err instanceof DaisyError &&
+      ["BAD_RESPONSE", "TIMEOUT", "NETWORK_ERROR"].includes(err.code);
+
+    if (!alreadyGone && !isDaisyConnectivityFailure) {
+      // Real failure (unexpected provider response, or a DaisySim/Getatext
+      // connectivity issue — not carved out above) — do NOT touch status.
+      // Leaving it at 'waiting' means this exact rental is still past the
+      // cutoff on the NEXT sweep run, so it retries automatically with no
+      // extra bookkeeping needed. Logged via logError (not just
+      // console.error) so a systemic failure — e.g. every rental erroring at
+      // once, as happened Sept 2026 — is actually visible in Admin >
+      // Notifications with the real raw provider response, instead of only
+      // existing in Vercel's function logs.
       const referenceId = await logError({
         error: err,
         route: "/api/admin/rentals/sweep-timeouts",
@@ -228,6 +255,20 @@ async function processExpiredRental(admin, rental, results) {
         .eq("id", rental.id);
       results.errors++;
       return;
+    }
+
+    if (isDaisyConnectivityFailure) {
+      const referenceId = await logError({
+        error: err,
+        route: "/api/admin/rentals/sweep-timeouts",
+        userId: rental.user_id,
+        context: { rentalId: rental.id, provider: rental.provider, daisyId: rental.daisy_id, bypassed: true },
+      });
+      unconfirmedCancelNote =
+        `Cancelled + refunded locally without confirmed DaisySMS cancellation — provider unreachable ` +
+        `(${err.code}, ref ${referenceId}). DaisySMS's own dashboard may still show this number as active.`;
+      // Falls through to the normal claim+refund logic below, exactly as if
+      // the cancel had succeeded — providerRefundConfirmed stays true.
     }
   }
 
@@ -262,7 +303,10 @@ async function processExpiredRental(admin, rental, results) {
     .from("rentals")
     .update({
       status: "cancelled",
-      cancel_error: null,
+      // Null for a normal, fully-confirmed cancel; carries a note instead
+      // when this went through the DaisySMS connectivity-failure bypass
+      // above, so that distinction is never lost once the row is updated.
+      cancel_error: unconfirmedCancelNote,
       refunded_at: now,
       updated_at: now,
     })
