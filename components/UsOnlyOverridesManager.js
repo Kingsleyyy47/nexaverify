@@ -17,7 +17,7 @@ import ConfirmDialog from "./ConfirmDialog";
 // checkbox here, and the editable box per row is the MARKUP amount, not a
 // final price (see UsOnlyServiceRow.js and the pricing fallback described in
 // schema.sql's daisysim_usa_overrides.markup_ngn comment).
-export default function UsOnlyOverridesManager({ services, overrides, usdRate, markupAmountNgn }) {
+export default function UsOnlyOverridesManager({ services, overrides, usdRate, markupAmountNgn, backend }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [showCostInNgn, setShowCostInNgn] = useState(false);
@@ -77,7 +77,7 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
       const res = await fetch("/api/admin/us-only/overrides/enable-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ services: asServiceRefs(filtered) }),
+        body: JSON.stringify({ services: asServiceRefs(filtered), backend }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not enable services");
@@ -97,7 +97,7 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
       const res = await fetch("/api/admin/us-only/overrides/disable-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ services: asServiceRefs(filtered) }),
+        body: JSON.stringify({ services: asServiceRefs(filtered), backend }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not disable services");
@@ -117,7 +117,7 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
       const res = await fetch("/api/admin/us-only/overrides/markup-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ services: asServiceRefs(filtered), amount: markupValue }),
+        body: JSON.stringify({ services: asServiceRefs(filtered), amount: markupValue, backend }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update markup");
@@ -209,7 +209,7 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
           {favoritesOpen && (
             <div className="px-4 pb-2 border-t border-amber-200 dark:border-amber-900">
               {favorites.map((s) => (
-                <UsOnlyServiceRow key={s.code} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} />
+                <UsOnlyServiceRow key={s.code} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} backend={backend} />
               ))}
             </div>
           )}
@@ -228,7 +228,9 @@ export default function UsOnlyOverridesManager({ services, overrides, usdRate, m
           {filtered.length === 0 ? "No services match." : "All matching services are favorited above."}
         </p>
       ) : (
-        nonFavorites.map((s) => <UsOnlyServiceRow key={s.code} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} />)
+        nonFavorites.map((s) => (
+          <UsOnlyServiceRow key={s.code} service={s} usdRate={usdRate} showCostInNgn={showCostInNgn} backend={backend} />
+        ))
       )}
 
       <ConfirmDialog

@@ -13,7 +13,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { services, amount } = await request.json();
+  const { services, amount, backend } = await request.json();
   const margin = Number(amount);
 
   if (!Array.isArray(services) || services.length === 0) {
@@ -22,12 +22,14 @@ export async function POST(request) {
   if (!Number.isFinite(margin)) {
     return NextResponse.json({ error: "Enter a valid amount" }, { status: 400 });
   }
+  const resolvedBackend = backend === "daisysim" ? "daisysim" : "getatext";
 
   const admin = createAdminClient();
   const codes = services.map((s) => s.serviceCode);
   const { data: existing } = await admin
     .from("daisysim_usa_overrides")
     .select("*")
+    .eq("backend", resolvedBackend)
     .in("service_code", codes);
   const existingMap = new Map((existing || []).map((o) => [o.service_code, o]));
 
@@ -35,6 +37,7 @@ export async function POST(request) {
     const prior = existingMap.get(s.serviceCode);
     return {
       service_code: s.serviceCode,
+      backend: resolvedBackend,
       service_name: s.serviceName || prior?.service_name || s.serviceCode,
       favorite: prior?.favorite ?? false,
       disabled: prior?.disabled ?? false,
@@ -43,7 +46,7 @@ export async function POST(request) {
     };
   });
 
-  const { error } = await admin.from("daisysim_usa_overrides").upsert(rows, { onConflict: "service_code" });
+  const { error } = await admin.from("daisysim_usa_overrides").upsert(rows, { onConflict: "service_code,backend" });
   if (error) return NextResponse.json({ error: "Could not update markup" }, { status: 500 });
 
   return NextResponse.json({ ok: true, updated: rows.length });

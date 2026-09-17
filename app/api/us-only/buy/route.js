@@ -54,6 +54,7 @@ export async function POST(request) {
   const { data: override } = await admin
     .from("daisysim_usa_overrides")
     .select("disabled, markup_ngn")
+    .eq("backend", backend)
     .eq("service_code", serviceCode)
     .maybeSingle();
   if (override?.disabled) {

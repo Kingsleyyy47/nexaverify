@@ -13,10 +13,16 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceCode, serviceName, favorite, disabled, markupNgn } = await request.json();
+  const { serviceCode, serviceName, favorite, disabled, markupNgn, backend } = await request.json();
   if (!serviceCode) {
     return NextResponse.json({ error: "serviceCode is required" }, { status: 400 });
   }
+  // Getatext and DaisySim's server7 API have separate code namespaces — see
+  // schema.sql's comment on this column. Defaults to "getatext" for any
+  // caller that doesn't send one (shouldn't happen from the current UI,
+  // which always passes it, but a missing value must never silently write
+  // to the wrong backend's row).
+  const resolvedBackend = backend === "daisysim" ? "daisysim" : "getatext";
 
   let markup_ngn = null;
   if (markupNgn !== undefined && markupNgn !== null && markupNgn !== "") {
@@ -33,13 +39,14 @@ export async function POST(request) {
     .upsert(
       {
         service_code: serviceCode,
+        backend: resolvedBackend,
         service_name: serviceName || serviceCode,
         favorite: Boolean(favorite),
         disabled: Boolean(disabled),
         markup_ngn,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "service_code" }
+      { onConflict: "service_code,backend" }
     )
     .select()
     .single();

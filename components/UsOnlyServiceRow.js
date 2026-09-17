@@ -12,7 +12,7 @@ import { formatMoney } from "@/lib/currency";
 // price, the editable box here is the MARKUP amount (since Getatext's own
 // cost is live and re-fetched every load, there's nothing to "set a final
 // price" against that wouldn't immediately go stale).
-export default function UsOnlyServiceRow({ service, usdRate, showCostInNgn }) {
+export default function UsOnlyServiceRow({ service, usdRate, showCostInNgn, backend }) {
   const [enabled, setEnabled] = useState(!service.disabled);
   const [favorite, setFavorite] = useState(service.favorite);
   const [markup, setMarkup] = useState(service.markupNgn);
@@ -36,6 +36,7 @@ export default function UsOnlyServiceRow({ service, usdRate, showCostInNgn }) {
       body: JSON.stringify({
         serviceCode: service.code,
         serviceName: service.name,
+        backend,
         favorite,
         disabled: !enabled,
         markupNgn: markup,

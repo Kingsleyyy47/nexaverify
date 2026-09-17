@@ -340,6 +340,31 @@ create table if not exists public.daisysim_usa_overrides (
 -- markup_amount_ngn.
 alter table public.daisysim_usa_overrides add column if not exists markup_ngn numeric(12,2);
 
+-- backend: Getatext and DaisySim's server7 API (see daisysim_usa_config.backend
+-- and lib/daisysimUsa.js) have completely separate service-code namespaces —
+-- the same code string from each provider can refer to two unrelated
+-- services (or the same real-world service under different opaque codes).
+-- Without this column, a favorite/disabled/markup set while on one backend
+-- would silently carry over and misapply to whatever service happens to
+-- share that code string on the other backend after a swap. Defaults to
+-- 'getatext' for every row that existed before this column did — this table
+-- was Getatext-only until DaisySim USA was added back as a toggle, so that's
+-- the correct backfill, not a guess.
+alter table public.daisysim_usa_overrides add column if not exists backend text not null default 'getatext';
+alter table public.daisysim_usa_overrides drop constraint if exists daisysim_usa_overrides_backend_check;
+alter table public.daisysim_usa_overrides add constraint daisysim_usa_overrides_backend_check
+  check (backend in ('getatext', 'daisysim'));
+
+-- Was service_code alone — widened to (service_code, backend) so the two
+-- backends' code namespaces can never collide. Drops the old single-column
+-- unique constraint/index first (name may vary by how it was auto-generated;
+-- the explicit constraint below is what future upserts key off via
+-- onConflict: "service_code,backend").
+alter table public.daisysim_usa_overrides drop constraint if exists daisysim_usa_overrides_service_code_key;
+alter table public.daisysim_usa_overrides drop constraint if exists daisysim_usa_overrides_service_code_backend_key;
+alter table public.daisysim_usa_overrides add constraint daisysim_usa_overrides_service_code_backend_key
+  unique (service_code, backend);
+
 alter table public.daisysim_usa_overrides enable row level security;
 
 drop policy if exists "daisysim_usa_overrides_select_all" on public.daisysim_usa_overrides;

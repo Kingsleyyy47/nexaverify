@@ -20,12 +20,16 @@ export default function UsOnlyConfigForm({ config }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [syncNote, setSyncNote] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSaved(false);
+    setSyncNote("");
     setLoading(true);
+
+    const backendChanged = mode !== "off" && mode !== (config.enabled ? config.backend : null);
 
     try {
       const res = await fetch("/api/admin/us-only/config", {
@@ -41,6 +45,26 @@ export default function UsOnlyConfigForm({ config }) {
       if (!res.ok) throw new Error(data.error || "Could not save settings");
 
       setSaved(true);
+
+      // A swap means the admin is now looking at a different provider's
+      // catalog, with its own service-code namespace — sync it right away
+      // so the catalog manager below isn't empty of anything but
+      // previously-touched services. Best-effort: a sync hiccup shouldn't
+      // make the settings save itself look like it failed.
+      if (backendChanged) {
+        try {
+          const syncRes = await fetch("/api/admin/us-only/sync", { method: "POST" });
+          const syncData = await syncRes.json();
+          setSyncNote(
+            syncRes.ok
+              ? `Catalog synced — ${syncData.synced} service(s) from ${mode === "daisysim" ? "DaisySim" : "Getatext"}.`
+              : `Settings saved, but the catalog sync failed: ${syncData.error || "unknown error"}.`
+          );
+        } catch {
+          setSyncNote("Settings saved, but the catalog sync failed — try \"Sync catalog\" below.");
+        }
+      }
+
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -119,6 +143,7 @@ export default function UsOnlyConfigForm({ config }) {
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {saved && <p className="text-sm text-brand-700 dark:text-brand-400">Settings updated.</p>}
+      {syncNote && <p className="text-sm text-gray-400 dark:text-night-400">{syncNote}</p>}
 
       <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? "Saving…" : "Save settings"}
