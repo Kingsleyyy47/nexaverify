@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelRental, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
-import { cancelActivation as cancelActivationServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { cancelActivation as cancelActivationServer7, checkStatus as checkStatusServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { logError } from "@/lib/errorLog";
 
 export async function POST(request) {
   const { user, supabase } = await getSessionProfile();
@@ -73,19 +74,29 @@ export async function POST(request) {
       const result = await cancelActivationServer7(rental.daisysim_server7_activation_id);
       providerRefundConfirmed = Boolean(result.refund);
     } catch (err) {
-      if (err instanceof DaisySimUsaError && err.code === "TOO_EARLY") {
-        return NextResponse.json({ error: err.message || "This number was just purchased — wait a bit before cancelling." }, { status: 400 });
+      // The docs describe CODE_RECEIVED/TOO_EARLY as distinct 422 responses
+      // with a machine-readable `code` field, but a real cancel-during-
+      // arrival (Sept 2026) came back without one, falling through to a raw
+      // "DaisySim USA returned HTTP 422" — which then leaked straight to the
+      // customer instead of a friendly message. Rather than keep guessing at
+      // the exact response shape, re-check the rental's REAL status directly
+      // whenever the cancel fails — if a code actually arrived, that's
+      // authoritative regardless of what the cancel error looked like.
+      let statusAfterFailedCancel = null;
+      try {
+        statusAfterFailedCancel = await checkStatusServer7(rental.daisysim_server7_activation_id);
+      } catch {
+        // best effort — falls through to the generic handling below
       }
-      if (err instanceof DaisySimUsaError && err.code === "CODE_RECEIVED") {
-        // A code arrived in the exact race window — the API docs are
-        // explicit that this should be treated as a successful check, not a
-        // failure: the charge stands and the code is kept, same spirit as
-        // DaisySim's (the "All countries" provider) own CODE_RECEIVED case
-        // above.
-        const code = err.raw?.data?.code || null;
+
+      if (statusAfterFailedCancel?.status === "received") {
         const { data: updated } = await admin
           .from("rentals")
-          .update({ status: "received", sms_code: code, updated_at: new Date().toISOString() })
+          .update({
+            status: "received",
+            sms_code: statusAfterFailedCancel.code,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", rentalId)
           .select()
           .single();
@@ -94,7 +105,25 @@ export async function POST(request) {
           error: "A code arrived just as you cancelled — this number wasn't cancelled.",
         });
       }
-      return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
+
+      if (err instanceof DaisySimUsaError && err.code === "TOO_EARLY") {
+        return NextResponse.json(
+          { error: "This number was just purchased — wait a bit before cancelling." },
+          { status: 400 }
+        );
+      }
+
+      // Anything else: never show the raw provider message to a customer
+      // (it's meant for logs, not a UI) — log it with a reference ID so an
+      // admin can see exactly what DaisySim sent back, same pattern as the
+      // timeout sweep.
+      const referenceId = await logError({
+        error: err,
+        route: "/api/rentals/cancel",
+        userId: user.id,
+        context: { rentalId, provider: "daisysim_usa", backend: "daisysim" },
+      });
+      return NextResponse.json({ error: `Could not cancel right now (ref ${referenceId})` }, { status: 502 });
     }
   } else if (rental.provider === "daisysim_usa") {
     // Legacy/default "US Only" backend — Getatext (lib/getatext.js).

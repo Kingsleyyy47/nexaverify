@@ -5,7 +5,7 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 import { cancelRental, getStatus, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
-import { cancelActivation as cancelActivationServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { cancelActivation as cancelActivationServer7, checkStatus as checkStatusServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
 import { RENTAL_BACKEND_TIMEOUT_MINUTES } from "@/lib/rentalTimeout";
 import { logError } from "@/lib/errorLog";
 
@@ -197,16 +197,28 @@ async function processExpiredRental(admin, rental, results) {
     // Same CODE_RECEIVED race documented for the server7 API's own /cancel —
     // "treat that as a successful check, not as a failure": a code arrived
     // right as we tried to cancel, so it's surfaced instead of leaving the
-    // customer with neither a working number nor a refund.
-    if (isServer7UsOnly && err instanceof DaisySimUsaError && err.code === "CODE_RECEIVED") {
-      const code = err.raw?.data?.code || null;
-      await admin
-        .from("rentals")
-        .update({ status: "received", sms_code: code, updated_at: now })
-        .eq("id", rental.id)
-        .eq("status", "waiting");
-      results.receivedInstead++;
-      return;
+    // customer with neither a working number nor a refund. A real incident
+    // (Sept 2026) showed this race coming back WITHOUT the documented
+    // `code: "CODE_RECEIVED"` field — just a raw HTTP 422 — so rather than
+    // trust that shape, re-check the rental's actual status directly. If a
+    // code is really there, that's authoritative regardless of what the
+    // cancel error looked like.
+    if (isServer7UsOnly) {
+      let statusAfterFailedCancel = null;
+      try {
+        statusAfterFailedCancel = await checkStatusServer7(rental.daisysim_server7_activation_id);
+      } catch {
+        // best effort — falls through to the generic handling below
+      }
+      if (statusAfterFailedCancel?.status === "received") {
+        await admin
+          .from("rentals")
+          .update({ status: "received", sms_code: statusAfterFailedCancel.code, updated_at: now })
+          .eq("id", rental.id)
+          .eq("status", "waiting");
+        results.receivedInstead++;
+        return;
+      }
     }
     if (!isDaisySim && !isDaisySimUsa && err instanceof DaisyError && err.code === "ACCESS_READY") {
       // DaisySMS's cancel-rejection doesn't include the code in the response
