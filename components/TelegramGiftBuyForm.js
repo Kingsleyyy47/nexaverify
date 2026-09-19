@@ -307,7 +307,14 @@ function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPr
             <span className="font-semibold capitalize">{order.status}</span>
           </div>
           {order.error_message && (
-            <p className="text-xs text-red-600 dark:text-red-400">{order.error_message}</p>
+            // Raw text (a wallet-debit error's .message, or iStar's own raw
+            // failure text — see app/api/telegram/{premium,star}/buy and the
+            // webhook/status routes) is only ever safe to show an admin.
+            // Everyone else gets a generic line; the real detail belongs in
+            // Admin > Notifications.
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {isAdminView ? order.error_message : "This order failed — contact support if you were charged."}
+            </p>
           )}
           <p className="text-xs text-gray-400 dark:text-night-400">
             {isAdminView

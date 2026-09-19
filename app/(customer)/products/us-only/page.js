@@ -8,8 +8,8 @@ import UsOnlyBuyList from "@/components/UsOnlyBuyList";
 // list rather than a country/tier drill-down. Deliberately never names the
 // provider to customers, same white-labeling as the rest of the app.
 export default async function UsOnlyProductsPage() {
-  const { supabase } = await getSessionProfile();
-  const { enabled, services, error } = await getUsOnlyCatalog(supabase);
+  const { user, supabase } = await getSessionProfile();
+  const { enabled, services, error } = await getUsOnlyCatalog(supabase, user?.id);
 
   return (
     <div>

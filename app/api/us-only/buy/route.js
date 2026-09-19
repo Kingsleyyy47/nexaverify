@@ -88,13 +88,25 @@ export async function POST(request) {
 
   // Both backends resolve the live price themselves from `app` (the service
   // code) alone — no price is sent, and none would be honored if it were.
-  // Getatext doesn't hand back a machine-readable error code — just a
-  // human-readable message (see lib/getatext.js) — already customer-safe (no
-  // provider name or internal jargon), so it's shown through directly rather
-  // than mapped from a code table. DaisySim USA does have machine-readable
-  // codes (see lib/daisysimUsa.js) but no per-code friendly-message mapping
-  // exists yet here either — its `message` field is likewise safe to show
-  // as-is for the purchase-failure cases actually reachable from this route.
+  // Neither provider's error text is safe to show a customer as-is —
+  // Getatext's `message` was assumed customer-safe (no provider name/jargon)
+  // but a real Sept 2026 incident showed a raw HTTP-status fallback string
+  // ("DaisySim USA returned HTTP 400/422") leaking straight through on this
+  // exact route. Only a small curated set of KNOWN, genuinely generic codes
+  // get a friendly message here; anything else goes through
+  // safeErrorResponse so the real detail lands in Admin > Notifications
+  // instead of the customer's screen.
+  const FRIENDLY_PURCHASE_CODES = {
+    NO_BALANCE: "This service isn't available right now.",
+    OUT_OF_STOCK: "This service is out of stock right now — try again shortly.",
+    RENTAL_LIMIT: "You've reached the maximum number of active rentals.",
+    INSUFFICIENT_BALANCE: "This service isn't available right now.",
+    PROVIDER_DISABLED: "This service isn't available right now.",
+    RATE_LIMITED: "Too many requests — please try again in a moment.",
+    PRICE_VERIFICATION_FAILED: "Prices just changed — please try again.",
+    INVALID_SERVICE: "This service isn't available right now — try refreshing the page.",
+  };
+
   let purchase;
   try {
     purchase =
@@ -102,10 +114,10 @@ export async function POST(request) {
         ? await purchaseNumberUsa({ app: serviceCode, appName: serviceName })
         : await purchaseNumber({ app: serviceCode, appName: serviceName });
   } catch (err) {
-    if (err instanceof GetatextError || err instanceof DaisySimUsaError) {
-      return NextResponse.json({ error: err.message || "Could not rent a number right now." }, { status: 502 });
+    if ((err instanceof GetatextError || err instanceof DaisySimUsaError) && FRIENDLY_PURCHASE_CODES[err.code]) {
+      return NextResponse.json({ error: FRIENDLY_PURCHASE_CODES[err.code] }, { status: 502 });
     }
-    return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id });
+    return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id, context: { backend, serviceCode } });
   }
 
   // Best-effort rollback helper — routes to whichever backend actually

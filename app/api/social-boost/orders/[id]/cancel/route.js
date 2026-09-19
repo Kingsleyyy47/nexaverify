@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelOrders, getOrderStatus, SocialBoostError } from "@/lib/socialboost";
-import { safeErrorResponse } from "@/lib/apiError";
+import { safeErrorResponse, customerSafeMessage } from "@/lib/apiError";
+import { logError, customerErrorMessage } from "@/lib/errorLog";
 
 // Recognizes the panel's own "already cancelled/completed" error text on a
 // cancel attempt, so that's treated as a successful idempotent no-op rather
@@ -66,10 +67,11 @@ export async function POST(_request, { params }) {
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const isAdminCaller = isAdmin(profile);
   const admin = createAdminClient();
   const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (!isAdmin(profile) && order.user_id !== user.id) {
+  if (!isAdminCaller && order.user_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -89,7 +91,13 @@ export async function POST(_request, { params }) {
     cancelResult = extractCancelResult(results, order.provider_order_id);
   } catch (err) {
     if (err instanceof SocialBoostError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      const message = await customerSafeMessage(err, {
+        isAdminCaller,
+        route: "/api/social-boost/orders/[id]/cancel",
+        userId: user.id,
+        context: { orderId: order.id },
+      });
+      return NextResponse.json({ error: message }, { status: err.status || 502 });
     }
     return safeErrorResponse(err, { route: "/api/social-boost/orders/[id]/cancel", userId: user.id });
   }
@@ -100,8 +108,21 @@ export async function POST(_request, { params }) {
     if (ALREADY_DONE_RE.test(msg)) {
       // Step 4: our record was stale — the provider says it's already done.
       confirmedByProvider = true;
-    } else {
+    } else if (isAdminCaller) {
       return NextResponse.json({ error: msg }, { status: 400 });
+    } else {
+      // The panel's own raw error text — never customer-safe (see
+      // lib/apiError.js's customerSafeMessage for the same pattern used just
+      // above for thrown SocialBoostErrors; this one isn't a thrown error at
+      // all, just an error string in a successful response body, so it's
+      // logged directly here instead).
+      const referenceId = await logError({
+        error: msg,
+        route: "/api/social-boost/orders/[id]/cancel",
+        userId: user.id,
+        context: { orderId: order.id, providerOrderId: order.provider_order_id },
+      });
+      return NextResponse.json({ error: customerErrorMessage(referenceId) }, { status: 400 });
     }
   } else if (cancelResult === undefined) {
     // Response shape we couldn't recognize at all — never silently treat

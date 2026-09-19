@@ -51,7 +51,21 @@ export async function POST(request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message || "Could not create account" }, { status: 400 });
+    // Supabase Auth's own error text is generally written to be shown to a
+    // user, but it's still a third-party string we don't control the wording
+    // of — curate the handful of cases customers actually hit day to day and
+    // fall back to a generic message for anything else, rather than passing
+    // every possible Auth error through unreviewed (same principle as every
+    // other provider error in this app — see lib/apiError.js).
+    const lower = String(error.message || "").toLowerCase();
+    const message = lower.includes("already registered")
+      ? "An account with that email already exists."
+      : lower.includes("password")
+        ? error.message
+        : lower.includes("email")
+          ? error.message
+          : "Could not create account. Please try again.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   if (data.user?.id) {

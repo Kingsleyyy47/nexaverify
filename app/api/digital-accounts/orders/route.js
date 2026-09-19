@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Places a digital-account purchase. All of the actual work — locking the
 // template, atomically claiming exactly `quantity` never-sold stock rows
@@ -92,13 +93,29 @@ export async function POST(request) {
 
   if (error) {
     const lowerMessage = String(error.message || "").toLowerCase();
-    const message = lowerMessage.includes("stock")
-      ? "Not enough stock left for that quantity."
-      : lowerMessage.includes("insufficient balance")
-        ? `Insufficient wallet balance. Required ₦${total.toLocaleString("en-US")}, wallet ₦${walletBalance.toLocaleString("en-US")}.`
-        : error.message || "Could not complete the purchase.";
-    const status = lowerMessage.includes("stock") ? 409 : lowerMessage.includes("insufficient balance") ? 402 : 400;
-    return NextResponse.json({ error: message, requiredAmount: total, walletBalance }, { status });
+    // Only these two known, recognized RPC failure shapes get a curated
+    // message — anything else is an unrecognized Postgres error and must
+    // never be shown raw to a customer (same principle as every other
+    // provider/DB error in this app — see lib/apiError.js).
+    if (lowerMessage.includes("stock")) {
+      return NextResponse.json({ error: "Not enough stock left for that quantity.", requiredAmount: total, walletBalance }, { status: 409 });
+    }
+    if (lowerMessage.includes("insufficient balance")) {
+      return NextResponse.json(
+        {
+          error: `Insufficient wallet balance. Required ₦${total.toLocaleString("en-US")}, wallet ₦${walletBalance.toLocaleString("en-US")}.`,
+          requiredAmount: total,
+          walletBalance,
+        },
+        { status: 402 }
+      );
+    }
+    return safeErrorResponse(error, {
+      route: "/api/digital-accounts/orders",
+      userId: user.id,
+      status: 400,
+      context: { templateId, quantity: qty },
+    });
   }
 
   // Supabase's rpc() for a function returning a single composite row (not

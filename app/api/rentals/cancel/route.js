@@ -3,7 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelRental, DaisyError } from "@/lib/daisy";
 import { cancelActivation, DaisySimError } from "@/lib/daisysim";
-import { cancelActivation as cancelActivationUsa, GetatextError } from "@/lib/getatext";
+import { cancelActivation as cancelActivationUsa, checkSms as checkSmsUsa } from "@/lib/getatext";
 import { cancelActivation as cancelActivationServer7, checkStatus as checkStatusServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
 import { logError } from "@/lib/errorLog";
 
@@ -136,10 +136,44 @@ export async function POST(request) {
       const result = await cancelActivationUsa(rental.daisysim_usa_activation_id);
       providerRefundConfirmed = Boolean(result.refund);
     } catch (err) {
-      if (err instanceof GetatextError) {
-        return NextResponse.json({ error: err.message || "Could not cancel right now" }, { status: 502 });
+      // Getatext's `message` was assumed customer-safe (no provider
+      // name/jargon), but that assumption is exactly what leaked raw
+      // provider text to customers elsewhere on this same "US Only" product
+      // (see the server7 branch above) — never trust it. Re-check the
+      // rental's real status first: if a code actually arrived right as the
+      // cancel was attempted, that's authoritative regardless of what the
+      // cancel error said.
+      let statusAfterFailedCancel = null;
+      try {
+        statusAfterFailedCancel = await checkSmsUsa(rental.daisysim_usa_activation_id);
+      } catch {
+        // best effort — falls through to the generic handling below
       }
-      return NextResponse.json({ error: "Could not cancel right now" }, { status: 502 });
+
+      if (statusAfterFailedCancel?.status === "received") {
+        const { data: updated } = await admin
+          .from("rentals")
+          .update({
+            status: "received",
+            sms_code: statusAfterFailedCancel.code,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rentalId)
+          .select()
+          .single();
+        return NextResponse.json({
+          rental: updated,
+          error: "A code arrived just as you cancelled — this number wasn't cancelled.",
+        });
+      }
+
+      const referenceId = await logError({
+        error: err,
+        route: "/api/rentals/cancel",
+        userId: user.id,
+        context: { rentalId, provider: "daisysim_usa", backend: "getatext" },
+      });
+      return NextResponse.json({ error: `Could not cancel right now (ref ${referenceId})` }, { status: 502 });
     }
   } else {
     try {

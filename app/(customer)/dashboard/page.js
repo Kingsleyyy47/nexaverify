@@ -20,7 +20,7 @@ import WelcomeModal from "@/components/WelcomeModal";
 // there's no separate "view all" hop and Buy already goes straight to
 // checkout (components/DigitalAccountCard.js's ProductCard).
 export default async function DashboardPage() {
-  const { profile, supabase } = await getSessionProfile();
+  const { user, profile, supabase } = await getSessionProfile();
   const admin = isAdmin(profile);
 
   const [
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
     supabase.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
     supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
     supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
-    getUsOnlyCatalog(supabase),
+    getUsOnlyCatalog(supabase, user?.id),
     supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
     supabase.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
     supabase.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),

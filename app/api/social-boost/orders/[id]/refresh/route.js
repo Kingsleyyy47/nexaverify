@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderStatus, SocialBoostError } from "@/lib/socialboost";
-import { safeErrorResponse } from "@/lib/apiError";
+import { safeErrorResponse, customerSafeMessage } from "@/lib/apiError";
 
 // This panel is poll-only — no webhook — so a status refresh is always a
 // manual (or eventually scheduled) pull, unlike DaisySMS/iStar which push.
@@ -10,10 +10,11 @@ export async function POST(_request, { params }) {
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const isAdminCaller = isAdmin(profile);
   const admin = createAdminClient();
   const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (!isAdmin(profile) && order.user_id !== user.id) {
+  if (!isAdminCaller && order.user_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -37,7 +38,13 @@ export async function POST(_request, { params }) {
     return NextResponse.json({ order: updated });
   } catch (err) {
     if (err instanceof SocialBoostError) {
-      return NextResponse.json({ error: err.message }, { status: err.status || 502 });
+      const message = await customerSafeMessage(err, {
+        isAdminCaller,
+        route: "/api/social-boost/orders/[id]/refresh",
+        userId: user.id,
+        context: { orderId: order.id },
+      });
+      return NextResponse.json({ error: message }, { status: err.status || 502 });
     }
     return safeErrorResponse(err, { route: "/api/social-boost/orders/[id]/refresh", userId: user.id });
   }

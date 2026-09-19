@@ -191,7 +191,13 @@ function buildUnifiedOrders({ rentals, digitalOrders, telegramOrders, socialBoos
           <OrderCard
             title={product}
             subtitle={`@${order.recipient_username}`}
-            description={order.error_message}
+            // Never render telegram_gift_orders.error_message directly — it's
+            // populated with raw text in a few places (a wallet-debit error's
+            // .message, iStar's own raw failure text) that were never meant
+            // for a customer's screen. A failed order just says "failed";
+            // anything else needing investigation goes through Admin >
+            // Notifications like every other error in this app.
+            description={order.status === "failed" ? "This order failed — contact support if you were charged." : null}
             date={order.created_at}
             status={order.status}
             statusMap={TELEGRAM_STATUS_BADGE}
