@@ -44,21 +44,29 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const { data: accounts } = await admin
-    .from("virtual_accounts")
-    .select("user_id, account_number")
-    .eq("provider", "pocketfi");
-
-  const preview = (rows || []).map((row) => {
+  // Sept 2026 incident: this used to fetch the entire virtual_accounts table
+  // once and match in JavaScript, which silently returned only a partial,
+  // arbitrarily-ordered slice once the table passed Supabase's 1000-row
+  // default cap on an unfiltered select. Looking each candidate account
+  // number up directly means table size can't hide a real match again.
+  const preview = [];
+  for (const row of rows || []) {
     const { candidatePaymentId, candidateAccountNumber, amountNgn, reference } = deriveCandidates(row.payload);
-    const digitsOnly = candidateAccountNumber ? String(candidateAccountNumber).replace(/\D/g, "") : null;
-    const wouldMatchAccount = candidateAccountNumber
-      ? (accounts || []).find(
-          (a) => a.account_number === candidateAccountNumber || a.account_number.replace(/\D/g, "") === digitsOnly
-        )
-      : null;
+    let wouldMatchAccount = null;
+    if (candidateAccountNumber) {
+      const digitsOnly = String(candidateAccountNumber).replace(/\D/g, "");
+      const { data: matches } = await admin
+        .from("virtual_accounts")
+        .select("user_id, account_number")
+        .eq("provider", "pocketfi")
+        .or(`account_number.eq.${candidateAccountNumber},account_number.eq.${digitsOnly}`)
+        .limit(5);
+      wouldMatchAccount = (matches || []).find(
+        (a) => a.account_number === candidateAccountNumber || a.account_number.replace(/\D/g, "") === digitsOnly
+      );
+    }
 
-    return {
+    preview.push({
       id: row.id,
       received_at: row.received_at,
       reference,
@@ -67,8 +75,8 @@ export async function GET(request) {
       amountNgn,
       wouldMatchUserId: wouldMatchAccount?.user_id || null,
       resolvable: Boolean(candidatePaymentId || wouldMatchAccount),
-    };
-  });
+    });
+  }
 
   return NextResponse.json({
     totalUnmatched: preview.length,
