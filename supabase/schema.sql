@@ -758,9 +758,10 @@ create table if not exists public.rentals (
   sms_code text,
   full_text text,
   expires_at timestamptz,
-  -- LTR-specific fields, kept in sync from DaisySMS's GET /api/ltrs via the
-  -- admin "Sync LTRs" action (see lib/daisy.js getLtrs() and
-  -- app/api/admin/rentals/sync-ltrs/route.js). Null/false until synced.
+  -- LTR-specific fields. Auto-sync from DaisySMS is currently paused because
+  -- this .io account has no documented/working bulk list or expiry endpoint;
+  -- see lib/ltr-sync.js and app/api/admin/rentals/sync-ltrs/route.js.
+  -- Null/false until a verified sync source populates them.
   -- DaisySim has no long-term-rental concept, so these stay null there.
   daily_price numeric(12,2),
   auto_renew boolean not null default false,
