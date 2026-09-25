@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import PocketfiConfigForm from "@/components/PocketfiConfigForm";
+import PocketfiBackfillPanel from "@/components/PocketfiBackfillPanel";
 
 export default async function AdminPocketfiPage() {
   const admin = createAdminClient();
@@ -24,6 +25,8 @@ export default async function AdminPocketfiPage() {
       <div className="card card-pad">
         <PocketfiConfigForm config={config} />
       </div>
+
+      <PocketfiBackfillPanel />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { confirmAndCreditPocketfiPayment, creditVirtualAccountFromWebhook } from "@/lib/wallet-funding";
+import { logError } from "@/lib/errorLog";
 
 // Receives real-time payment notifications from PocketFi (configured on
 // their Dashboard -> Settings -> Webhooks). Always respond 2xx quickly once
@@ -86,9 +87,13 @@ export async function POST(request) {
       if (result.outcome === "credited" || result.outcome === "already_processed") {
         matched = candidatePaymentId;
       }
-    } catch {
-      // Logged below regardless; don't let a credit error turn into a
-      // webhook retry storm.
+    } catch (err) {
+      // Don't let a credit error turn into a webhook retry storm by
+      // rethrowing — but don't let it vanish either. Sept 2026 incident:
+      // an equivalent empty catch on the virtual-account path below hid a
+      // real bug for days because nothing here ever logged what actually
+      // went wrong.
+      await logError({ error: err, route: "pocketfi webhook (checkout match)", context: { candidatePaymentId } });
     }
   }
 
@@ -117,9 +122,22 @@ export async function POST(request) {
           matchedUserId = result.userId;
         } else if (result.outcome === "already_processed") {
           matched = reference || candidateAccountNumber;
+        } else if (result.referenceId) {
+          // lookup_failed / insert_failed / credit_failed: already logged
+          // with a reference ID inside creditVirtualAccountFromWebhook.
+          // Nothing further to do here besides not claiming `matched`.
         }
-      } catch {
-        // Same reasoning as above — logged, not thrown, to avoid a retry storm.
+      } catch (err) {
+        // Genuinely unexpected — creditVirtualAccountFromWebhook's own known
+        // failure modes now return an outcome instead of throwing, so
+        // anything that lands here is a real bug, not a routine provider
+        // hiccup. Log it instead of the old empty catch, which is exactly
+        // what let the Sept 2026 silent-failure bug hide for days.
+        await logError({
+          error: err,
+          route: "pocketfi webhook (virtual account match)",
+          context: { candidateAccountNumber, reference, amountNgn },
+        });
       }
     }
   }
