@@ -12,7 +12,7 @@
     "audit:settlements": "node --env-file=.env.local scripts/audit-settlements.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.2",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.446.0",
     "next": "15.5.26",
