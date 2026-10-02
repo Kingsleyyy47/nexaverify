@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -17,7 +18,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { orderedIds } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { orderedIds } = requestBody;
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
     return NextResponse.json({ error: "orderedIds must be a non-empty array." }, { status: 400 });
   }
@@ -30,7 +33,7 @@ export async function POST(request) {
 
   const existingIds = new Set((existing || []).map((c) => c.id));
   const providedIds = new Set(orderedIds);
-  if (existingIds.size !== providedIds.size || [...existingIds].some((id) => !providedIds.has(id))) {
+  if (orderedIds.length !== providedIds.size || existingIds.size !== providedIds.size || [...existingIds].some((id) => !providedIds.has(id))) {
     return NextResponse.json(
       { error: "This list doesn't match the current categories — refresh and try again." },
       { status: 400 }

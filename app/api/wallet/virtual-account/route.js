@@ -22,7 +22,7 @@ export async function POST() {
     .select("*")
     .eq("user_id", user.id)
     .eq("provider", "pocketfi")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (existing) {
     return NextResponse.json({ account: existing });
@@ -36,7 +36,7 @@ export async function POST() {
     .from("pocketfi_config")
     .select("*")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (config && !config.virtual_account_enabled) {
     return NextResponse.json(
@@ -95,7 +95,7 @@ export async function POST() {
       .select("*")
       .eq("user_id", user.id)
       .eq("provider", "pocketfi")
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (winner) return NextResponse.json({ account: winner });
     return NextResponse.json({ error: "Could not save the new account" }, { status: 500 });
   }

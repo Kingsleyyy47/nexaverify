@@ -1,13 +1,14 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ProductsList from "@/components/ProductsList";
 import SyncServicesButton from "@/components/SyncServicesButton";
 
 export default async function AdminProductsPage() {
   const admin = createAdminClient();
-  const { data: services } = await admin
+  const services = await fetchAllRows(() => admin
     .from("services")
     .select("*")
-    .order("name", { ascending: true }).throwOnError();
+    .order("name", { ascending: true }).throwOnError(), "id");
 
   // Needed to offer "show DaisySMS cost in ₦" — last_price is always in USD
   // (it's also the maxPrice cap sent to DaisySMS's getNumber call, which is

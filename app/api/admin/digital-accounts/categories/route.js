@@ -1,6 +1,8 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export async function GET() {
   const { profile } = await getSessionProfile();
@@ -13,13 +15,13 @@ export async function GET() {
   // route uses — see /admin/digital-accounts/category-shuffle — so this
   // list (and CategoryManager's display of it) always shows categories in
   // the exact order customers actually see them in.
-  const [{ data: categories }, { data: templates }] = await Promise.all([
-    admin
+  const [categories, templates] = await Promise.all([
+    fetchAllRows(() => admin
       .from("digital_categories")
       .select("*")
       .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-    admin.from("digital_product_templates").select("id, category_id"),
+      .order("created_at", { ascending: true }), "id"),
+    fetchAllRows(() => admin.from("digital_product_templates").select("id, category_id"), "id"),
   ]);
 
   const countByCategory = {};
@@ -41,7 +43,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, description, logoUrl, logoUrlDark } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { name, description, logoUrl, logoUrlDark } = requestBody;
   const trimmed = (name || "").trim();
   if (!trimmed) {
     return NextResponse.json({ error: "Category name is required" }, { status: 400 });

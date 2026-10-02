@@ -1,10 +1,11 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import CurrencyRateForm from "@/components/CurrencyRateForm";
 import LiveRateSyncButton from "@/components/LiveRateSyncButton";
 
 export default async function AdminCurrencyPage() {
   const admin = createAdminClient();
-  const { data: rows } = await admin.from("currency_rates").select("*");
+  const rows = await fetchAllRows(() => admin.from("currency_rates").select("*").throwOnError(), "currency");
 
   const rates = {};
   for (const currency of ["USD", "GBP", "EUR"]) {

@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
@@ -12,7 +13,7 @@ export default async function ProductsPage() {
     .from("daisysms_config")
     .select("enabled, long_term_enabled")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   // Fails open (missing row = enabled) so an un-migrated install isn't
   // silently broken — same reasoning as /api/rentals/buy.
   const enabled = providerConfig?.enabled ?? true;
@@ -34,13 +35,13 @@ export default async function ProductsPage() {
   // Favorited products (toggled in /admin/products) sort to the top of this
   // same list — not a separate section — everything else stays alphabetical
   // after them.
-  const { data: services } = await catalog
+  const services = await fetchAllRows(() => catalog
     .from("services")
     .select("*")
     .eq("enabled", true)
     .not("customer_price", "is", null)
     .order("favorite", { ascending: false })
-    .order("name", { ascending: true });
+    .order("name", { ascending: true }).throwOnError(), "id");
 
   return (
     <div>

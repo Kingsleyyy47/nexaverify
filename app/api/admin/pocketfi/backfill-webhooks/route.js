@@ -60,7 +60,7 @@ export async function GET(request) {
         .select("user_id, account_number")
         .eq("provider", "pocketfi")
         .or(`account_number.eq.${candidateAccountNumber},account_number.eq.${digitsOnly}`)
-        .limit(5);
+        .limit(5).throwOnError();
       wouldMatchAccount = (matches || []).find(
         (a) => a.account_number === candidateAccountNumber || a.account_number.replace(/\D/g, "") === digitsOnly
       );

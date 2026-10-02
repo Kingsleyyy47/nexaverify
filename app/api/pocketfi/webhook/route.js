@@ -22,13 +22,15 @@ import { logError } from "@/lib/errorLog";
 export async function POST(request) {
   const secret = process.env.POCKETFI_SECRET_KEY;
   const rawBody = await request.text();
+  if (rawBody.length > 128 * 1024) return NextResponse.json({ message: "Payload too large" }, { status: 413 });
 
   // Capture every incoming header so we can see, from a real delivery,
   // exactly which one actually carries PocketFi's signature — added after
   // the first live webhook came back signature_valid=false with none of our
-  // guessed header names matching. Nothing sensitive comes in on an inbound
-  // webhook request, so logging all of them is safe.
-  const headers = Object.fromEntries(request.headers.entries());
+  // guessed header names matching. Preserve names for diagnosis while
+  // redacting authentication, cookie, token and signature values.
+  const headers = Object.fromEntries([...request.headers.entries()].map(([name, value]) =>
+    [name, /authorization|cookie|secret|token|signature/i.test(name) ? "[redacted]" : value.slice(0, 1000)]));
 
   // PHP's $_SERVER['HTTP_POCKETFI_SIGNATURE'] convention maps to an incoming
   // header PocketFi's own docs don't spell out consistently (their Node.js

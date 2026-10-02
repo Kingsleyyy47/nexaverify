@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
@@ -35,7 +36,9 @@ export async function POST(request) {
   if (profileError || !profile) return NextResponse.json({ error: "Could not load your account. Please try again." }, { status: 503 });
   const admin_ = isAdmin(profile);
 
-  const { username, recipientHash, quantity, walletType } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { username, recipientHash, quantity, walletType } = requestBody;
   const qty = Number(quantity);
   if (!username || !recipientHash || !Number.isInteger(qty) || qty < 50 || qty > 1_000_000) {
     return NextResponse.json(

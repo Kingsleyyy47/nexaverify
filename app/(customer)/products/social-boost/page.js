@@ -15,7 +15,7 @@ export default async function SocialBoostPage() {
   if (!user) redirect("/login");
   const admin = isAdmin(profile);
 
-  const { data: config } = await createAdminClient().from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  const { data: config } = await createAdminClient().from("social_boost_config").select("*").eq("id", true).maybeSingle().throwOnError();
   const customerVisible = Boolean(config?.customer_visible);
 
   if (!admin && !customerVisible) {
@@ -40,7 +40,7 @@ export default async function SocialBoostPage() {
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(50).throwOnError();
 
   return (
     <div>

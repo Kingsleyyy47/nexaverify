@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { getPrices, computeNgnPrice, DaisySimError } from "@/lib/daisysim";
@@ -15,7 +16,9 @@ export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { countryId, serviceCode } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { countryId, serviceCode } = requestBody;
   if (!countryId || !serviceCode) {
     return NextResponse.json({ error: "countryId and serviceCode are required" }, { status: 400 });
   }
@@ -26,7 +29,7 @@ export async function POST(request) {
     .from("daisysim_config")
     .select("enabled, markup_amount_ngn")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "International numbers aren't available right now" }, { status: 403 });
   }
@@ -35,7 +38,7 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
   if (!usdRate) {
     return NextResponse.json(

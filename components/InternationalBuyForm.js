@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCurrency } from "./CurrencyProvider";
@@ -30,6 +30,8 @@ export default function InternationalBuyForm({ countries }) {
   const [buying, setBuying] = useState(false);
   const [buyError, setBuyError] = useState("");
   const [result, setResult] = useState(null);
+  const servicesRequest = useRef(0);
+  const tiersRequest = useRef(0);
 
   const filteredCountries = useMemo(() => {
     const q = countryQuery.trim().toLowerCase();
@@ -44,6 +46,10 @@ export default function InternationalBuyForm({ countries }) {
   }, [services, serviceQuery]);
 
   async function handleSelectCountry(c) {
+    const requestId = ++servicesRequest.current;
+    ++tiersRequest.current;
+    setTiersLoading(false);
+    setTiersError("");
     setCountry(c);
     setService(null);
     setTiers([]);
@@ -53,18 +59,20 @@ export default function InternationalBuyForm({ countries }) {
     setServicesError("");
     setServicesLoading(true);
     try {
-      const res = await fetch(`/api/international/services?countryId=${c.id}`);
+      const res = await fetch(`/api/international/services?countryId=${encodeURIComponent(c.id)}`);
       const data = await res.json();
+      if (requestId !== servicesRequest.current) return;
       if (!res.ok) throw new Error(data.error || "Could not load services");
       setServices(data.services || []);
     } catch (err) {
-      setServicesError(err.message);
+      if (requestId === servicesRequest.current) setServicesError(err.message);
     } finally {
-      setServicesLoading(false);
+      if (requestId === servicesRequest.current) setServicesLoading(false);
     }
   }
 
   async function handleSelectService(s) {
+    const requestId = ++tiersRequest.current;
     setService(s);
     setTiers([]);
     setSelectedTier(null);
@@ -78,19 +86,20 @@ export default function InternationalBuyForm({ countries }) {
         body: JSON.stringify({ countryId: country.id, serviceCode: s.code }),
       });
       const data = await res.json();
+      if (requestId !== tiersRequest.current) return;
       if (!res.ok) throw new Error(data.error || "Could not load prices");
       const t = data.tiers || [];
       setTiers(t);
       setSelectedTier(t[0] || null);
     } catch (err) {
-      setTiersError(err.message);
+      if (requestId === tiersRequest.current) setTiersError(err.message);
     } finally {
-      setTiersLoading(false);
+      if (requestId === tiersRequest.current) setTiersLoading(false);
     }
   }
 
   async function handleBuy() {
-    if (!country || !service || !selectedTier) return;
+    if (buying || !country || !service || !selectedTier) return;
     setBuying(true);
     setBuyError("");
     setResult(null);

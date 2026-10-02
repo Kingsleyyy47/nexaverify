@@ -1,5 +1,7 @@
 "use client";
 
+import LocalDateTime from "./LocalDateTime";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -103,7 +105,7 @@ export default function CurrencyRateForm({ rates }) {
                 </span>
                 <span className="text-gray-400 dark:text-night-400 ml-2">
                   {r.autoNgnPerUnit
-                    ? `Last refreshed ${new Date(r.updatedAt).toLocaleString("en-US")}`
+                    ? <>Last refreshed <LocalDateTime value={r.updatedAt} /></>
                     : 'Click "Refresh live rates" above'}
                 </span>
               </div>

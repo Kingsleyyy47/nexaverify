@@ -1,5 +1,7 @@
 "use client";
 
+import LocalDateTime from "./LocalDateTime";
+
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
@@ -22,7 +24,7 @@ const TELEGRAM_STATUS_BADGE = {
 };
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString("en-US") : "-";
+  return <LocalDateTime value={value} fallback="-" />;
 }
 
 function StatusBadge({ status, map = {} }) {

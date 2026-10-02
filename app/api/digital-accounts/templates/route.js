@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,12 +30,13 @@ export async function GET(request) {
       .from("digital_accounts_config")
       .select("customer_visible")
       .eq("id", true)
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (!config?.customer_visible) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
 
+  const buildQuery = () => {
   let query = admin
     .from("digital_product_templates")
     .select("id, category_id, name, description, price_ngn, favorite")
@@ -44,7 +46,10 @@ export async function GET(request) {
     query = query.eq("category_id", categoryId);
   }
 
-  const { data: templates } = await query;
+  return query;
+  };
+
+  const templates = await fetchAllRows(buildQuery, "id");
 
   const ids = (templates || []).map((t) => t.id);
   let stockCountByTemplate = {};
@@ -62,7 +67,7 @@ export async function GET(request) {
     // for customers even after the count function was in place, while the
     // unfiltered call (admin's) was correct. Filtering to just the ids we
     // need happens here in JS instead, against the one proven-correct call.
-    const { data: counts } = await admin.rpc("digital_stock_available_counts");
+    const counts = await fetchAllRows(() => admin.rpc("digital_stock_available_counts").throwOnError(), "template_id");
     const idSet = new Set(ids);
     for (const c of counts || []) {
       if (idSet.has(c.template_id)) {

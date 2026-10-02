@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { getServicesForCountry, DaisySimError } from "@/lib/daisysim";
@@ -13,7 +14,7 @@ export async function GET(request) {
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: config } = await admin.from("daisysim_config").select("enabled").eq("id", true).maybeSingle();
+  const { data: config } = await admin.from("daisysim_config").select("enabled").eq("id", true).maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "International numbers aren't available right now" }, { status: 403 });
   }
@@ -28,10 +29,10 @@ export async function GET(request) {
     // -> InternationalOverridesManager, public.daisysim_overrides) —
     // favorited services sort to the top, disabled ones are hidden entirely,
     // mirroring the DaisySMS Products favorite/enable pattern.
-    const { data: overrides } = await admin
+    const overrides = await fetchAllRows(() => admin
       .from("daisysim_overrides")
       .select("service_code, favorite, disabled")
-      .eq("country_id", countryId);
+      .eq("country_id", countryId).throwOnError(), "id");
 
     const overrideMap = new Map((overrides || []).map((o) => [o.service_code, o]));
 

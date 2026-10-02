@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
@@ -7,7 +8,9 @@ import { safeErrorResponse } from "@/lib/apiError";
 export async function POST(request) {
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { requestId, action } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { requestId, action } = requestBody;
   if (!requestId || !["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "requestId and a valid action are required" }, { status: 400 });
   }

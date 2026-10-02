@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,7 +24,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceIds, amount, auto } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { serviceIds, amount, auto } = requestBody;
   const margin = Number(amount);
 
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
@@ -39,7 +42,7 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
 
   if (!usdRate) {

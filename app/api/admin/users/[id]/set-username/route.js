@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +14,9 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { username } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { username } = requestBody;
   if (!isValidUsername(username)) {
     return NextResponse.json({ error: USERNAME_RULES_MESSAGE }, { status: 400 });
   }
@@ -24,7 +27,7 @@ export async function POST(request, { params }) {
     .from("profiles")
     .select("id")
     .ilike("username", escapeLikePattern(username))
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (existing && existing.id !== params.id) {
     return NextResponse.json({ error: "That username is already taken." }, { status: 409 });

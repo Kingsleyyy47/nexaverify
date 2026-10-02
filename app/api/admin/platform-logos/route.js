@@ -1,3 +1,5 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,10 +15,10 @@ export async function GET() {
   }
 
   const admin = createAdminClient();
-  const { data: logos } = await admin
+  const logos = await fetchAllRows(() => admin
     .from("platform_logos")
     .select("*")
-    .order("platform_name", { ascending: true });
+    .order("platform_name", { ascending: true }).throwOnError(), "id");
 
   return NextResponse.json({ logos: logos || [] });
 }
@@ -27,7 +29,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { platformName, logoUrl, logoUrlDark } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { platformName, logoUrl, logoUrlDark } = requestBody;
   const name = (platformName || "").trim();
   const url = (logoUrl || "").trim();
   const urlDark = (logoUrlDark || "").trim();

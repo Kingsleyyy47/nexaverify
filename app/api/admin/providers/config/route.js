@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,6 +21,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
   const {
     daisysmsEnabled,
     daisysmsLongTermEnabled,
@@ -28,7 +31,13 @@ export async function POST(request) {
     pocketfiVirtualAccountEnabled,
     istarEnabled,
     socialBoostEnabled,
-  } = await request.json();
+  } = requestBody;
+
+  if (![daisysmsEnabled, daisysmsLongTermEnabled, daisysimEnabled,
+    usOnlyEnabled, pocketfiVirtualAccountEnabled, istarEnabled,
+    socialBoostEnabled].every((flag) => typeof flag === "boolean")) {
+    return NextResponse.json({ error: "Send a true or false value for every provider switch." }, { status: 400 });
+  }
 
   const admin = createAdminClient();
   const now = new Date().toISOString();

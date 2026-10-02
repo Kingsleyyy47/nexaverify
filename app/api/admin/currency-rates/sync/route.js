@@ -41,37 +41,28 @@ export async function POST(request) {
   let overridden = 0;
 
   for (const currency of CURRENCIES) {
-    const { data: row } = await admin
-      .from("currency_rates")
-      .select("manual_override")
-      .eq("currency", currency)
-      .maybeSingle();
-
-    const autoValue = Number(live[currency].toFixed(4));
-
-    if (row?.manual_override) {
-      // Keep the admin's manual number in effect — only refresh the
-      // reference "live" value shown alongside it.
-      await admin
-        .from("currency_rates")
-        .update({ auto_ngn_per_unit: autoValue })
-        .eq("currency", currency);
-      overridden += 1;
-    } else {
-      await admin
-        .from("currency_rates")
-        .upsert(
-          {
-            currency,
-            auto_ngn_per_unit: autoValue,
-            ngn_per_unit: autoValue,
-            manual_override: false,
-            updated_at: now,
-          },
-          { onConflict: "currency" }
-        );
-      updated += 1;
+    const autoValue = Math.round(Number(live[currency]) * 10_000) / 10_000;
+    if (!Number.isFinite(autoValue) || autoValue <= 0 || autoValue > 99_999_999.9999) {
+      return NextResponse.json({ error: "The exchange service returned an invalid rate." }, { status: 502 });
     }
+    // Insert missing currencies without replacing any existing admin settings.
+    const { error: insertError } = await admin.from("currency_rates").upsert({
+      currency, auto_ngn_per_unit: autoValue, ngn_per_unit: autoValue,
+      manual_override: false, updated_at: now,
+    }, { onConflict: "currency", ignoreDuplicates: true });
+    if (insertError) return NextResponse.json({ error: "Could not save exchange rates." }, { status: 503 });
+
+    const { error: referenceError } = await admin.from("currency_rates")
+      .update({ auto_ngn_per_unit: autoValue }).eq("currency", currency);
+    if (referenceError) return NextResponse.json({ error: "Could not save live reference rates." }, { status: 503 });
+
+    // Check the override in the UPDATE itself, rather than using a stale read.
+    const { data: applied, error: effectiveError } = await admin.from("currency_rates")
+      .update({ ngn_per_unit: autoValue, updated_at: now })
+      .eq("currency", currency).eq("manual_override", false).select("currency");
+    if (effectiveError) return NextResponse.json({ error: "Could not update exchange rates." }, { status: 503 });
+    if (applied?.length) updated += 1;
+    else overridden += 1;
   }
 
   return NextResponse.json({ updated, overridden, fetchedAt: live.fetchedAt });

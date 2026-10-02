@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { readObjectBody } from "../lib/request-body.mjs";
 async function loadRoute(path, deps) {
+  deps = { readObjectBody, ...deps };
   const key = randomUUID(); globalThis[key] = deps;
   let source = await fs.readFile(new URL(path, import.meta.url), "utf8");
   source = source.replace(/^import[\s\S]*?;\r?\n/gm, "");
@@ -78,4 +80,110 @@ test("a reference-less bank webhook cannot generate a duplicateable wallet credi
   const route=await loadRoute("../lib/wallet-funding.js",d);
   const result=await route.creditVirtualAccountFromWebhook({accountNumber:"1234567890",amountNgn:100});
   assert.equal(result.outcome,"insert_failed");assert.equal(result.referenceId,"ERR-REFERENCE");
+});
+
+test("invalid login JSON and non-string usernames cannot reach authentication or the database", async () => {
+  const route = await loadRoute("../app/api/auth/login/route.js", {
+    NextResponse, createAdminClient: () => assert.fail("database"), createClient: () => assert.fail("auth"), escapeLikePattern: () => assert.fail("username lookup"),
+  });
+  for (const body of ["{", "null", "[]", JSON.stringify({ username: {}, password: "secret" })]) {
+    assert.equal((await route.POST(new Request("https://example.test/api/auth/login", { method: "POST", body }))).status, 400);
+  }
+});
+
+test("an incomplete provider-switch request cannot turn every provider off", async () => {
+  const route=await loadRoute("../app/api/admin/providers/config/route.js",{NextResponse,...adminAuth,createAdminClient:()=>assert.fail("database")});
+  for(const body of [{},{daisysmsEnabled:"false"}]) assert.equal((await route.POST({json:async()=>body})).status,400);
+});
+
+test("signup cannot overwrite a profile already created by the auth trigger", async () => {
+  const row = { id: "existing", username: "original", email: "original@example.test", balance: 123 };
+  const db = { from() { return { select() { return this; }, ilike() { return this; }, maybeSingle: async () => ({ data: null, error: null }),
+    async upsert(values, options) { if (!options.ignoreDuplicates) Object.assign(row, values); return { error: null }; } }; } };
+  const route = await loadRoute("../app/api/auth/signup/route.js", {
+    NextResponse, createAdminClient: () => db, escapeLikePattern: v => v, isValidUsername: () => true, USERNAME_RULES_MESSAGE: "invalid",
+    createClient: async () => ({ auth: { signUp: async () => ({ data: { user: { id: "existing" } }, error: null }) } }),
+  });
+  const response = await route.POST({ json: async () => ({ username: "replacement", email: "other@example.test", password: "secret" }), nextUrl: new URL("https://example.test") });
+  assert.equal(response.status, 200);
+  assert.equal(row.username, "original"); assert.equal(row.email, "original@example.test"); assert.equal(row.balance, 123);
+});
+
+function ratesDb({ fail = false, race = false } = {}) {
+  const rows = new Map(["USD", "GBP", "EUR"].map(currency => [currency, { currency, ngn_per_unit: 100, auto_ngn_per_unit: 100, manual_override: false }]));
+  let writes = 0;
+  return { rows, get writes() { return writes; }, from() {
+    let patch, filters = [], selected = false;
+    return { select() { selected = true; return this; }, eq(k, v) { filters.push([k,v]); return this; },
+      update(v) { patch=v; return this; }, async upsert(values, options) {
+        writes++; if(fail) return {error:{message:"offline"}};
+        for(const v of Array.isArray(values)?values:[values]) if(!options.ignoreDuplicates||!rows.has(v.currency)) Object.assign(rows.get(v.currency),v);
+        return {error:null};
+      }, then(resolve, reject) {
+        if(patch && race && patch.ngn_per_unit && filters.some(([k,v])=>k==="currency"&&v==="USD")) {
+          Object.assign(rows.get("USD"),{manual_override:true,ngn_per_unit:7777}); race=false;
+        }
+        const matches=[...rows.values()].filter(r=>filters.every(([k,v])=>r[k]===v));
+        if(patch){writes++;if(!fail)matches.forEach(r=>Object.assign(r,patch));}
+        return Promise.resolve({data:selected?matches:null,error:fail?{message:"offline"}:null}).then(resolve,reject);
+      } };
+  } };
+}
+const adminAuth = { getSessionProfile: async () => ({ user: { id: "admin" }, profile: { role: "admin" } }), isAdmin: p => p?.role === "admin" };
+test("currency sync preserves a manual rate saved during the sync", async () => {
+  const db=ratesDb({race:true});
+  const route=await loadRoute("../app/api/admin/currency-rates/sync/route.js", {NextResponse,...adminAuth,createAdminClient:()=>db,isAuthorizedCron:()=>true,fetchLiveNgnRates:async()=>({USD:1500,GBP:1900,EUR:1650})});
+  assert.equal((await route.POST({})).status,200);
+  assert.equal(db.rows.get("USD").ngn_per_unit,7777); assert.equal(db.rows.get("USD").auto_ngn_per_unit,1500); assert.equal(db.rows.get("GBP").ngn_per_unit,1900);
+});
+test("failed currency writes cannot report success", async () => {
+  const db=ratesDb({fail:true});
+  const route=await loadRoute("../app/api/admin/currency-rates/sync/route.js", {NextResponse,...adminAuth,createAdminClient:()=>db,isAuthorizedCron:()=>true,fetchLiveNgnRates:async()=>({USD:1500,GBP:1900,EUR:1650})});
+  assert.equal((await route.POST({})).status,503);
+});
+test("missing live rates are validated before any custom currencies are changed", async () => {
+  const db=ratesDb();db.rows.get("EUR").auto_ngn_per_unit=null;
+  const route=await loadRoute("../app/api/admin/currency-rates/route.js",{NextResponse,...adminAuth,createAdminClient:()=>db});
+  const response=await route.POST({json:async()=>({USD:{mode:"custom",value:3000},GBP:{mode:"custom",value:4000},EUR:{mode:"live"}})});
+  assert.equal(response.status,400);assert.equal(db.writes,0);assert.equal(db.rows.get("USD").ngn_per_unit,100);
+});
+
+test("service sync preserves manual prices alongside automatic products",async()=>{
+  const rows=[{id:"manual",name:"Manual",auto_markup:false,markup_amount:null,customer_price:2500}, {id:"auto",name:"Auto",auto_markup:true,markup_amount:100,customer_price:1000}];
+  const batches=[];
+  const db={from(table){let patch,filters=[];return {select(){return this;},eq(k,v){filters.push([k,v]);return this;},maybeSingle:async()=>({data:{ngn_per_unit:1500},error:null}),
+    async upsert(values){batches.push(values);for(const v of values)Object.assign(rows.find(r=>r.id===v.id),v);return {error:null};},update(v){patch=v;return this;},
+    then(resolve,reject){rows.filter(r=>filters.every(([k,v])=>r[k]===v)).forEach(r=>Object.assign(r,patch));return Promise.resolve({error:null}).then(resolve,reject);}};}};
+  const route=await loadRoute("../app/api/admin/services/sync/route.js",{NextResponse,...adminAuth,createAdminClient:()=>db,isAuthorizedCron:()=>true,
+    getPricesVerification:async()=>({manual:{cost:0.5,count:10},auto:{cost:0.2,count:5}}),fetchAllRows:async()=>rows.map(r=>({...r}))});
+  assert.equal((await route.POST({})).status,200);assert.equal(rows[0].customer_price,2500);assert.equal(rows[1].customer_price,400);
+  assert.ok(batches.every(batch=>batch.every(r=>!("customer_price" in r))));
+});
+
+test("a duplicate bank transfer is acknowledged only when its matching wallet credit exists", async () => {
+  for(const credited of [false,true]) {
+    const db={from(table){let inserting=false;return {select(){return this;},eq(){return this;},or(){return this;},limit(){return this;},
+      insert(){inserting=true;return this;},
+      async maybeSingle(){if(inserting)return {data:null,error:{code:"23505"}};return table==="payment_transactions"?{data:{id:"payment",user_id:"buyer",amount_ngn:100},error:null}:{data:credited?{id:"credit"}:null,error:null};},
+      then(resolve,reject){return Promise.resolve({data:[{user_id:"buyer",account_number:"1234567890"}],error:null}).then(resolve,reject);}};}};
+    const route=await loadRoute("../lib/wallet-funding.js",{createAdminClient:()=>db,adjustBalance:()=>assert.fail("blind duplicate credit"),
+      logError:async()=>"ERR-LEDGER",confirmPayment:async()=>{},isSuccessfulStatus:()=>false,isFailedStatus:()=>false,PocketfiError:class extends Error {}});
+    const result=await route.creditVirtualAccountFromWebhook({accountNumber:"1234567890",reference:"transfer",amountNgn:100});
+    assert.equal(result.outcome,credited?"already_processed":"credit_failed");
+  }
+});
+
+
+test("completed checkout markers require a matching wallet credit before reporting success", async () => {
+  for (const credited of [false,true]) {
+    const db = { from(table) { const query = { select() {return this;}, eq() {return this;}, limit() {return this;},
+      maybeSingle() {return this;}, throwOnError:async()=>({data:table === "payment_transactions"
+        ? {id:"payment",user_id:"buyer",status:"completed",amount_ngn:100,confirmed_amount_ngn:100}
+        : credited ? {id:"credit"} : null}) }; return query; } };
+    const route=await loadRoute("../lib/wallet-funding.js",{createAdminClient:()=>db,adjustBalance:()=>assert.fail("blind duplicate credit"),
+      logError:async()=>"ERR-LEDGER",confirmPayment:()=>assert.fail("provider"),isSuccessfulStatus:()=>false,isFailedStatus:()=>false,PocketfiError:class extends Error {}});
+    const result=await route.confirmAndCreditPocketfiPayment("checkout",{userId:"buyer"});
+    assert.equal(result.outcome,credited?"already_processed":"pending");
+    if(!credited)assert.equal(result.referenceId,"ERR-LEDGER");
+  }
 });

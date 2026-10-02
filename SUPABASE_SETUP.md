@@ -54,7 +54,7 @@ same `.env.local`:
 
 - `DAISYSMS_API_KEY` — from your DaisySMS dashboard.
 - `DAISYSMS_WEBHOOK_SECRET` — any random string you make up yourself (e.g. `openssl rand -hex 16`). Used in section 7.
-- `CRON_SECRET` — any random string you make up yourself. Used in section 9.
+- `CRON_SECRET` — at least 32 random characters. Store the same value in Supabase Vault as `nexaverify_cron_secret`; never commit it. Used in section 9.
 
 That's the complete list of secrets/keys the whole app needs. Nothing else requires a key —
 notably, the live currency-rate feature (section 6) calls a free public API that needs no signup
@@ -153,14 +153,15 @@ fourth job, long-term rental sync/billing, is currently commented out — see se
 **Set it up (one time, after you've deployed the site somewhere with a real domain):**
 
 1. Open `supabase/cron.sql` from this project.
-2. Replace `YOUR-DOMAIN.com` with your actual deployed domain, and `YOUR_CRON_SECRET` with the
-   value you set for `CRON_SECRET` in your hosting provider's environment variables (same variable
-   as in `.env.example`).
+2. Check that every URL uses your deployed domain. Create the Vault secret
+   `nexaverify_cron_secret` with the same value as your hosting environment's
+   `CRON_SECRET`. The SQL reads it at execution time; do not paste a real secret into the file.
 3. Paste the whole file into Supabase's **SQL Editor** and run it. This enables the `pg_cron` and
-   `pg_net` extensions and schedules three active jobs:
+   `pg_net` extensions and schedules four active jobs:
    - Service list + prices sync — every hour
    - Live currency rate refresh — every 6 hours (only touches currencies set to "Live")
    - Data backup — once a day
+   - Rental timeout sweep — every minute
 
 That's it — from then on, all three keep running on their own. You can check on them any time:
 
@@ -353,7 +354,7 @@ cancel manually at any time regardless of either countdown.)
    reports a stuck rental). It also backfills `refunded_at` for every rental already cancelled
    before this existed, so nothing gets double-refunded on first run.
 2. Run `cron.sql` again (or just the new `nexaverify-sweep-timeouts` job at the bottom if you've
-   already run the rest) — same `YOUR-DOMAIN.com` / `YOUR_CRON_SECRET` placeholders as the other
+   already run the rest) — same deployed URLs and Vault credential as the other
    jobs. It calls `/api/admin/rentals/sweep-timeouts` every minute.
 3. **What it actually does, and the ordering that makes it safe:**
    - Finds every `status = 'waiting'`, non-long-term rental older than 15 minutes.

@@ -18,18 +18,18 @@ export default async function AdminProductHistoryPage() {
 
   const [{ data: rentals }, { data: digitalOrders }, { data: telegramOrders }, { data: socialBoostOrders }] =
     await Promise.all([
-      admin.from("rentals").select("*").order("created_at", { ascending: false }).limit(RECENT_LIMIT),
-      admin.from("digital_orders").select("*").order("created_at", { ascending: false }).limit(RECENT_LIMIT),
+      admin.from("rentals").select("*").order("created_at", { ascending: false }).limit(RECENT_LIMIT).throwOnError(),
+      admin.from("digital_orders").select("*").order("created_at", { ascending: false }).limit(RECENT_LIMIT).throwOnError(),
       admin
         .from("telegram_gift_orders")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(RECENT_LIMIT),
+        .limit(RECENT_LIMIT).throwOnError(),
       admin
         .from("social_boost_orders")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(RECENT_LIMIT),
+        .limit(RECENT_LIMIT).throwOnError(),
     ]);
 
   const userIds = [

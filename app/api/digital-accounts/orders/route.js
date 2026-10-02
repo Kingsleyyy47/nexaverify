@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,7 +17,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { templateId, quantity } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { templateId, quantity } = requestBody;
   const qty = Number(quantity);
   if (!templateId) {
     return NextResponse.json({ error: "Pick a product" }, { status: 400 });
@@ -35,7 +38,7 @@ export async function POST(request) {
       .from("digital_accounts_config")
       .select("customer_visible")
       .eq("id", true)
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (!config?.customer_visible) {
       return NextResponse.json({ error: "This isn't available yet." }, { status: 403 });
     }
@@ -44,26 +47,30 @@ export async function POST(request) {
   // Pre-flight checks purely for a friendlier error message — the RPC itself
   // is the real, race-safe source of truth for both of these and will
   // refuse the purchase either way if something changed in between.
-  const { data: template } = await admin
+  const { data: template, error: templateError } = await admin
     .from("digital_product_templates")
     .select("id, name, price_ngn, archived")
     .eq("id", templateId)
     .maybeSingle();
+  if (templateError) return safeErrorResponse(templateError, { route: "/api/digital-accounts/orders", userId: user.id });
   if (!template || template.archived) {
     return NextResponse.json({ error: "This product is no longer available." }, { status: 404 });
   }
 
-  const { data: available } = await admin
+  const { count: available, error: stockError } = await admin
     .from("digital_stock_items")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("template_id", templateId)
-    .eq("status", "available")
-    .limit(qty);
-  if ((available || []).length < qty) {
+    .eq("status", "available");
+  if (stockError) return safeErrorResponse(stockError, { route: "/api/digital-accounts/orders", userId: user.id });
+  if ((available ?? 0) < qty) {
     return NextResponse.json({ error: "Not enough stock left for that quantity." }, { status: 409 });
   }
 
   const total = Math.round(Number(template.price_ngn) * qty * 100) / 100;
+  if (!Number.isFinite(total) || total < 0 || total > 9_999_999_999.99) {
+    return NextResponse.json({ error: "This quantity exceeds the supported order amount." }, { status: 400 });
+  }
   const { data: buyerProfile, error: balanceError } = await admin
     .from("profiles")
     .select("balance")
@@ -127,14 +134,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Could not complete the purchase." }, { status: 500 });
   }
 
-  const { data: stockItems } = await admin
-    .from("digital_stock_items")
-    .select("*")
-    .eq("order_id", orderRow.id)
-    .order("created_at", { ascending: true });
-
+  // The transaction returns the complete immutable snapshot; a second select
+  // can fail or truncate large orders after they have already been charged.
   const snapshotItems = Array.isArray(orderRow.credentials_snapshot) ? orderRow.credentials_snapshot : [];
-  const credentials = (stockItems || []).length > 0 ? stockItems : snapshotItems;
-
-  return NextResponse.json({ order: orderRow, credentials });
+  return NextResponse.json({ order: orderRow, credentials: snapshotItems });
 }

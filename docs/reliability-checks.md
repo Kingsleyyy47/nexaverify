@@ -2,6 +2,7 @@
 
 ## Checks before deployment
 
+- `npm run check:repository`: examines every tracked file plus new source files, parses JS/TS/JSON/CSS, checks local import names/case, server-only dependencies, admin role guards, SQL RLS patterns, credential patterns, and decodes images. These are static checks, not proof that every business rule is correct.
 - `npm test`: regression cases for wallet error propagation, uncertain RPC responses, refund limits, duplicate approvals, ownership, concurrent status updates, pricing, pagination, and chunk recovery.
 - `npm audit --omit=dev --audit-level=high`: dependency vulnerabilities.
 - `npm run build`: production compilation of all routes.
@@ -27,3 +28,18 @@ A read-only scan covered 5,833 wallet transactions, 2,028 rentals, 28 Telegram o
 ## Verification limits
 
 Regression tests exercise provider/database failure paths with mocks. Live checks verify actual authentication, account/admin data, prices, and access controls without placing paid provider orders. Provider billing and historical credit corrections require independent settlement evidence.
+
+## Cron credential rotation
+
+The old `supabase/cron.sql` included a real shared credential. Removing it
+from the file does not revoke copies in Git history. Rotate `CRON_SECRET`
+in Vercel, store the same new value in Supabase Vault under
+`nexaverify_cron_secret`, then run the updated cron SQL to replace job
+commands. Use at least 32 random characters. Verify all four jobs return
+successful HTTP responses and no cron command contains a literal credential.
+Management login is required for these live configuration changes. The
+repository update alone does not complete rotation.
+
+The updated refund backfill only sets markers when the same customer's
+linked purchase and refund ledger totals match. Applying this schema change
+requires database management access; it does not issue historical credits.

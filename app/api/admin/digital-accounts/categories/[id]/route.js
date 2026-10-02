@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +10,9 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, description, logoUrl, logoUrlDark } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { name, description, logoUrl, logoUrlDark } = requestBody;
   const trimmed = (name || "").trim();
   if (!trimmed) {
     return NextResponse.json({ error: "Category name is required" }, { status: 400 });

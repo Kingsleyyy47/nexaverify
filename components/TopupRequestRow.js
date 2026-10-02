@@ -1,5 +1,7 @@
 "use client";
 
+import LocalDateTime from "./LocalDateTime";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -39,7 +41,7 @@ export default function TopupRequestRow({ request, userEmail }) {
       <td className="py-3.5 font-semibold">₦{Number(request.amount_ngn).toLocaleString("en-US")}</td>
       <td className="py-3.5 text-gray-400 dark:text-night-400">{request.note || "—"}</td>
       <td className="py-3.5 text-gray-400 dark:text-night-400">
-        {new Date(request.created_at).toLocaleString("en-US")}
+        <LocalDateTime value={request.created_at} />
       </td>
       <td className="py-3.5">
         <span className={`badge ${STATUS_BADGE[request.status]}`}>{request.status}</span>
@@ -56,7 +58,7 @@ export default function TopupRequestRow({ request, userEmail }) {
           </div>
         ) : (
           <span className="text-xs text-gray-400 dark:text-night-400">
-            {request.reviewed_at ? new Date(request.reviewed_at).toLocaleDateString("en-US") : ""}
+            <LocalDateTime value={request.reviewed_at} mode="date" fallback="" />
           </span>
         )}
         {error && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}

@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
@@ -25,7 +26,7 @@ export async function GET() {
     .from("social_boost_orders")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(50).throwOnError();
 
   return NextResponse.json({ orders: orders || [] });
 }
@@ -38,7 +39,9 @@ export async function POST(request) {
   if (profileError || !profile) return NextResponse.json({ error: "Could not load your account. Please try again." }, { status: 503 });
   const isAdminCaller = isAdmin(profile);
 
-  const { serviceId, link, quantity, runs, interval } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { serviceId, link, quantity, runs, interval } = requestBody;
   if (runs != null || interval != null) return NextResponse.json({ error: "Repeated orders are not supported. Place a single order." }, { status: 400 });
   const service = Number(serviceId);
   const qty = Number(quantity);

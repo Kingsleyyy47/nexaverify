@@ -1,5 +1,7 @@
 "use client";
 
+import LocalDateTime from "./LocalDateTime";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -52,7 +54,7 @@ export default function PocketfiPaymentsList({ payments }) {
           <div>
             <div className="font-semibold text-sm">₦{Number(p.amount_ngn).toLocaleString("en-US")}</div>
             <div className="text-xs text-gray-400 dark:text-night-400">
-              {new Date(p.created_at).toLocaleString("en-US")}
+              <LocalDateTime value={p.created_at} />
             </div>
           </div>
           <div className="flex items-center gap-2">

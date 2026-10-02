@@ -5,6 +5,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OrderTopActions, CredentialsList } from "@/components/OrderCredentialsActions";
 import LocalDateTime from "@/components/LocalDateTime";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 // Server Component so ownership can be checked against the service role
 // key BEFORE any credential ever leaves the server — digital_stock_items has
@@ -17,19 +18,14 @@ export default async function DigitalOrderDetailsPage({ params }) {
   if (!user) notFound();
 
   const admin = createAdminClient();
-  const { data: order } = await admin.from("digital_orders").select("*").eq("id", params.id).maybeSingle();
+  let orderQuery = admin.from("digital_orders").select("*").eq("id", params.id);
+  if (!isAdmin(profile)) orderQuery = orderQuery.eq("user_id", user.id);
+  const { data: order } = await orderQuery.maybeSingle().throwOnError();
 
   if (!order || (order.user_id !== user.id && !isAdmin(profile))) {
     notFound();
   }
 
-  const { data: stockItems } = await admin
-    .from("digital_stock_items")
-    .select("*")
-    .eq("order_id", order.id)
-    .order("created_at", { ascending: true });
-
-  const liveItems = stockItems || [];
   const snapshotItems = Array.isArray(order.credentials_snapshot)
     ? order.credentials_snapshot.map((item, idx) => ({
         id: item.id || `${order.id}-snapshot-${idx}`,
@@ -48,6 +44,9 @@ export default async function DigitalOrderDetailsPage({ params }) {
       }))
     : [];
   const expectedQuantity = Number(order.quantity || 0);
+  const liveItems = snapshotItems.length >= expectedQuantity ? [] : await fetchAllRows(() => admin
+    .from("digital_stock_items").select("*").eq("order_id", order.id)
+    .order("created_at", { ascending: true }), "id");
   const items =
     liveItems.length >= expectedQuantity || snapshotItems.length <= liveItems.length
       ? liveItems

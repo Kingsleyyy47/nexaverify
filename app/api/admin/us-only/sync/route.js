@@ -32,7 +32,7 @@ export async function POST(request) {
     .from("daisysim_usa_config")
     .select("backend")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const backend = config?.backend === "daisysim" ? "daisysim" : "getatext";
 
   let apps;

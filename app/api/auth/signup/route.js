@@ -1,15 +1,18 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeLikePattern, isValidUsername, USERNAME_RULES_MESSAGE } from "@/lib/username";
 
 export async function POST(request) {
-  const { username, email, password } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { username, email, password } = requestBody;
 
   if (!isValidUsername(username)) {
     return NextResponse.json({ error: USERNAME_RULES_MESSAGE }, { status: 400 });
   }
-  if (!email || !password) {
+  if (typeof email !== "string" || !email.trim() || email.length > 254 || typeof password !== "string" || !password || password.length > 1024) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
 
@@ -18,11 +21,13 @@ export async function POST(request) {
   // Pre-check uniqueness so we can give a friendly error instead of a raw
   // database conflict. The trigger in schema.sql still guards against a
   // race condition where two people submit the same username at once.
-  const { data: existing } = await admin
+  const { data: existing, error: lookupError } = await admin
     .from("profiles")
     .select("id")
     .ilike("username", escapeLikePattern(username))
     .maybeSingle();
+
+  if (lookupError) return NextResponse.json({ error: "Sign-up is temporarily unavailable. Please try again." }, { status: 503 });
 
   if (existing) {
     return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
@@ -69,13 +74,15 @@ export async function POST(request) {
   }
 
   if (data.user?.id) {
+    // Signup responses are not authority to replace an existing profile.
+    // The auth trigger normally creates it; this only fills a missing row.
     const { error: profileError } = await admin.from("profiles").upsert(
       {
         id: data.user.id,
         email,
         username,
       },
-      { onConflict: "id" }
+      { onConflict: "id", ignoreDuplicates: true }
     );
 
     if (profileError) {

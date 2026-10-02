@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +9,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
   const {
     enabled,
     telegramUrl,
@@ -16,7 +19,7 @@ export async function POST(request) {
     welcomeIntro,
     buyInstructions,
     smsCostsText,
-  } = await request.json();
+  } = requestBody;
 
   if (!welcomeTitle || !welcomeIntro || !buyInstructions || !smsCostsText) {
     return NextResponse.json({ error: "Title and all text fields are required" }, { status: 400 });

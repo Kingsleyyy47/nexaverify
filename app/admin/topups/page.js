@@ -1,13 +1,14 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import TopupRequestRow from "@/components/TopupRequestRow";
 
 export default async function AdminTopupsPage() {
   const admin = createAdminClient();
 
-  const { data: requests } = await admin
+  const requests = await fetchAllRows(() => admin
     .from("topup_requests")
     .select("*")
-    .order("created_at", { ascending: false }).throwOnError();
+    .order("created_at", { ascending: false }).throwOnError(), "id");
 
   const userIds = [...new Set((requests || []).map((r) => r.user_id))];
   const { data: users } =

@@ -1,6 +1,8 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export async function GET() {
   const { profile } = await getSessionProfile();
@@ -16,10 +18,10 @@ export async function GET() {
   // truncated at Supabase's default 1000-row PostgREST response cap once a
   // large bulk upload pushed total stock rows past it, so some templates
   // showed "0 pcs / Sold out" here in admin even though they had real stock.
-  const [{ data: templates }, { data: categories }, { data: counts }] = await Promise.all([
-    admin.from("digital_product_templates").select("*").order("created_at", { ascending: false }),
-    admin.from("digital_categories").select("id, name"),
-    admin.rpc("digital_stock_available_counts"),
+  const [templates, categories, counts] = await Promise.all([
+    fetchAllRows(() => admin.from("digital_product_templates").select("*").order("created_at", { ascending: false }), "id"),
+    fetchAllRows(() => admin.from("digital_categories").select("id, name"), "id"),
+    fetchAllRows(() => admin.rpc("digital_stock_available_counts"), "template_id"),
   ]);
 
   const categoryById = {};
@@ -45,7 +47,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { categoryId, name, priceNgn, description } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { categoryId, name, priceNgn, description } = requestBody;
   const trimmedName = (name || "").trim();
   const price = Number(priceNgn);
 

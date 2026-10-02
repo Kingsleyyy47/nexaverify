@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
@@ -13,7 +14,9 @@ export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { rentalId } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { rentalId } = requestBody;
   const admin = createAdminClient();
   const { data: rental, error: lookupError } = await admin
     .from("rentals").select("*").eq("id", rentalId).eq("user_id", user.id).maybeSingle().throwOnError();

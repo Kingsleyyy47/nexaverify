@@ -18,7 +18,7 @@ export default async function InternationalProductsPage() {
     .from("daisysim_config")
     .select("enabled")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!config?.enabled) {
     return (

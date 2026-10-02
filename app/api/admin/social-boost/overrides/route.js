@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +15,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const payload = await request.json();
+  const payload = await readObjectBody(request);
+  if (!payload) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
   const { serviceId, serviceName, enabled, favorite } = payload;
   const id = Number(serviceId);
   if (!Number.isInteger(id) || id <= 0) {

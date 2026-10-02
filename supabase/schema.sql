@@ -867,11 +867,8 @@ alter table public.rentals add column if not exists refunded_at timestamptz;
 alter table public.rentals add column if not exists cancel_error text;
 alter table public.rentals add column if not exists refund_denied_by_provider boolean not null default false;
 
--- Backfill: every rental already sitting at status='cancelled' before this
--- feature existed was refunded synchronously in the same request by the
--- pre-existing manual cancel route — mark them refunded now so the new
--- idempotency guard doesn't try to refund any of them again.
-update public.rentals set refunded_at = updated_at where status = 'cancelled' and refunded_at is null;
+-- Refund markers must be backed by the ledger. The guarded backfill runs
+-- after transactions is created below; a cancelled status alone is not proof.
 
 create index if not exists rentals_user_id_idx on public.rentals(user_id);
 create index if not exists rentals_long_term_idx on public.rentals(is_long_term);
@@ -905,6 +902,23 @@ create table if not exists public.transactions (
 );
 
 create index if not exists transactions_user_id_idx on public.transactions(user_id);
+
+-- Re-runnable repair: only mark full refunds that actually exist in the ledger.
+-- Do not hide pending refunds or provider denials when installing another update.
+update public.rentals r
+   set refunded_at = proof.refunded_at
+  from (
+    select t.reference_id, t.user_id, max(t.created_at) filter (where t.type = 'refund') as refunded_at,
+           sum(t.amount) filter (where t.type = 'refund') as refunded,
+           -sum(t.amount) filter (where t.type = 'purchase') as paid
+      from public.transactions t
+     where t.type in ('purchase', 'refund')
+     group by t.reference_id, t.user_id
+  ) proof
+ where r.id = proof.reference_id and r.user_id = proof.user_id
+   and r.status = 'cancelled' and r.refunded_at is null
+   and not r.refund_denied_by_provider
+   and proof.paid > 0 and proof.refunded = proof.paid;
 
 alter table public.transactions enable row level security;
 

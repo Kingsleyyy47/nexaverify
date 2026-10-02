@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,7 +17,7 @@ export async function GET() {
   }
 
   const admin = createAdminClient();
-  const { data: logos } = await admin.from("platform_logos").select("platform_name, logo_url, logo_url_dark");
+  const logos = await fetchAllRows(() => admin.from("platform_logos").select("platform_name, logo_url, logo_url_dark").throwOnError(), "id");
 
   return NextResponse.json({
     logos: (logos || []).map((l) => ({

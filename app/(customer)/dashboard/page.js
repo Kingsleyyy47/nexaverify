@@ -35,13 +35,13 @@ export default async function DashboardPage() {
     { data: socialBoostConfig },
     { data: digitalAccountsConfig },
   ] = await Promise.all([
-    catalog.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
-    catalog.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
-    catalog.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
+    catalog.from("onboarding_config").select("*").eq("id", true).maybeSingle().throwOnError(),
+    catalog.from("daisysms_config").select("enabled").eq("id", true).maybeSingle().throwOnError(),
+    catalog.from("daisysim_config").select("enabled").eq("id", true).maybeSingle().throwOnError(),
     catalog.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle().throwOnError(),
-    catalog.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
-    catalog.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
-    catalog.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
+    catalog.from("istar_config").select("customer_visible").eq("id", true).maybeSingle().throwOnError(),
+    catalog.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle().throwOnError(),
+    catalog.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle().throwOnError(),
   ]);
 
   // All fail open/closed to their respective defaults — see /admin/providers.

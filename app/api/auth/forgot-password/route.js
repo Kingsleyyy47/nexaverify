@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,8 +11,10 @@ import { escapeLikePattern } from "@/lib/username";
 // never reveals whether a given username/email actually has an account,
 // same reasoning as the "Invalid username or password" login error.
 export async function POST(request) {
-  const { identifier } = await request.json();
-  if (!identifier) {
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { identifier } = requestBody;
+  if (typeof identifier !== "string" || !identifier.trim() || identifier.length > 254) {
     return NextResponse.json({ error: "Enter your username or email" }, { status: 400 });
   }
 
@@ -25,7 +28,7 @@ export async function POST(request) {
     .from("profiles")
     .select("email")
     .ilike("username", escapeLikePattern(identifier))
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   const emailToUse = profile?.email || (identifier.includes("@") ? identifier : null);
   if (!emailToUse) {

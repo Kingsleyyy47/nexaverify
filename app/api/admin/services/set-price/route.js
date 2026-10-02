@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceId, customerPrice } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { serviceId, customerPrice } = requestBody;
   const parsedPrice = Number(customerPrice);
 
   if (!serviceId || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
@@ -21,7 +24,7 @@ export async function POST(request) {
   const admin = createAdminClient();
   const { error } = await admin
     .from("services")
-    .update({ customer_price: parsedPrice })
+    .update({ customer_price: parsedPrice, auto_markup: false })
     .eq("id", serviceId);
 
   if (error) return NextResponse.json({ error: "Could not update price" }, { status: 500 });

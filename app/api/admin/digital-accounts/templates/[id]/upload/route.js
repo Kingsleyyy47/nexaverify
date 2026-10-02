@@ -20,7 +20,7 @@ export async function POST(request, { params }) {
     .from("digital_product_templates")
     .select("id, archived")
     .eq("id", params.id)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!template) {
     return NextResponse.json({ error: "Product template not found." }, { status: 404 });
   }
@@ -38,6 +38,9 @@ export async function POST(request, { params }) {
   const file = formData.get("file");
   if (!file || typeof file.text !== "function") {
     return NextResponse.json({ error: "Choose a CSV or TXT file to upload." }, { status: 400 });
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    return NextResponse.json({ error: "Upload is too large. Use a CSV or TXT file under 3 MB." }, { status: 400 });
   }
   const name = typeof file.name === "string" ? file.name.toLowerCase() : "";
   const type = typeof file.type === "string" ? file.type.toLowerCase() : "";

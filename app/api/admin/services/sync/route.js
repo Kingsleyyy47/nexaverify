@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPricesVerification } from "@/lib/daisy";
 import { isAuthorizedCron } from "@/lib/cron-auth";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 // Pulls the live service list + prices from DaisySMS (service => country =>
 // { cost, count }) and upserts it into public.services. New services default
@@ -71,9 +72,13 @@ export async function POST(request) {
   // what made syncing dozens/hundreds of DaisySMS services slow enough to
   // time out (each service previously cost up to 2 sequential round trips:
   // a lookup, then an insert or update).
-  const { data: existingRows } = await admin
-    .from("services")
-    .select("id, name, auto_markup, markup_amount");
+  let existingRows;
+  try {
+    existingRows = await fetchAllRows(() => admin.from("services")
+      .select("id, name, auto_markup, markup_amount"), "id");
+  } catch {
+    return NextResponse.json({ error: "Could not load admin pricing settings." }, { status: 503 });
+  }
   const existingById = new Map((existingRows || []).map((r) => [r.id, r]));
 
   // Only fetched if at least one existing service actually has auto_markup
@@ -81,11 +86,12 @@ export async function POST(request) {
   const needsUsdRate = (existingRows || []).some((r) => r.auto_markup && r.markup_amount != null);
   let usdRate = null;
   if (needsUsdRate) {
-    const { data: usdRateRow } = await admin
+    const { data: usdRateRow, error: rateError } = await admin
       .from("currency_rates")
       .select("ngn_per_unit")
       .eq("currency", "USD")
       .maybeSingle();
+    if (rateError) return NextResponse.json({ error: "Could not load the admin USD rate." }, { status: 503 });
     usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
   }
 
@@ -100,6 +106,7 @@ export async function POST(request) {
       last_synced_at: now,
     }));
 
+  const autoPrices = [];
   const toUpdate = rows
     .filter((r) => existingById.has(r.id))
     .map((r) => {
@@ -126,7 +133,10 @@ export async function POST(request) {
       // as they were, same as before this feature existed.
       if (existing.auto_markup && existing.markup_amount != null && usdRate) {
         const costNgn = r.cost * usdRate;
-        update.customer_price = Math.max(0, Math.round((costNgn + Number(existing.markup_amount)) * 100) / 100);
+        const price = Math.round((costNgn + Number(existing.markup_amount)) * 100) / 100;
+        if (Number.isFinite(price) && price > 0 && price <= 9_999_999_999.99) {
+          autoPrices.push({ id: r.id, price, markup: existing.markup_amount });
+        }
       }
 
       return update;
@@ -134,13 +144,13 @@ export async function POST(request) {
 
   // Bulk insert brand-new services (one call for all of them).
   if (toInsert.length > 0) {
-    const { error } = await admin.from("services").insert(toInsert);
+    const { error } = await admin.from("services").upsert(toInsert, { onConflict: "id", ignoreDuplicates: true });
     if (error) {
       return NextResponse.json({ error: `Could not insert new services: ${error.message}` }, { status: 500 });
     }
   }
 
-  // Bulk-refresh price/count for services that already exist. Never touches
+  // Bulk-refresh provider cost/count for services that already exist. Never touches
   // `enabled` — sync can't silently turn a product on or off. `customer_price`
   // is only ever included for services with auto_markup on (see above); for
   // every other (manual) service it's omitted entirely, so it's never
@@ -154,5 +164,13 @@ export async function POST(request) {
     }
   }
 
+  // Never mix priced and unpriced rows in a bulk upsert: omitted keys can
+  // become null. Apply auto prices only while the saved setting still matches.
+  for (let offset = 0; offset < autoPrices.length; offset += 25) {
+    const results = await Promise.all(autoPrices.slice(offset, offset + 25).map((r) =>
+      admin.from("services").update({ customer_price: r.price }).eq("id", r.id)
+        .eq("auto_markup", true).eq("markup_amount", r.markup)));
+    if (results.some((r) => r.error)) return NextResponse.json({ error: "Could not update automatic prices." }, { status: 503 });
+  }
   return NextResponse.json({ synced: toInsert.length + toUpdate.length });
 }

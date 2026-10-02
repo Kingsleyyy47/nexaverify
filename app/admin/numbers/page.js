@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SyncLtrsButton from "@/components/SyncLtrsButton";
 import LocalDateTime from "@/components/LocalDateTime";
@@ -5,11 +6,11 @@ import LocalDateTime from "@/components/LocalDateTime";
 export default async function AdminNumbersPage() {
   const admin = createAdminClient();
 
-  const { data: rentals } = await admin
+  const rentals = await fetchAllRows(() => admin
     .from("rentals")
     .select("*")
     .eq("is_long_term", true)
-    .order("created_at", { ascending: false }).throwOnError();
+    .order("created_at", { ascending: false }).throwOnError(), "id");
 
   const userIds = [...new Set((rentals || []).map((r) => r.user_id))];
   const { data: users } =

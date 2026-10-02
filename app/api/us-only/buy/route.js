@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { getApps } from "@/lib/getatext";
 import { getApps as getAppsUsa } from "@/lib/daisysimUsa";
 import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
@@ -31,7 +32,9 @@ export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { serviceCode, serviceName, priceUsd } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { serviceCode, serviceName, priceUsd } = requestBody;
   if (!serviceCode || priceUsd == null) {
     return NextResponse.json({ error: "serviceCode and priceUsd are required" }, { status: 400 });
   }

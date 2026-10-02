@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { confirmAndCreditPocketfiPayment } from "@/lib/wallet-funding";
@@ -10,7 +11,9 @@ export async function POST(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const { paymentId } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { paymentId } = requestBody;
   if (!paymentId) {
     return NextResponse.json({ error: "paymentId is required" }, { status: 400 });
   }

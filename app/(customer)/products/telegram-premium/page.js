@@ -21,7 +21,7 @@ export default async function TelegramPremiumPage() {
   // every price collapses to "—") any time a new istar_config column exists
   // in code but the SQL migration hasn't landed on this DB yet. select("*")
   // never errors just because extra columns exist that this page doesn't use.
-  const { data: config } = await catalog.from("istar_config").select("*").eq("id", true).maybeSingle();
+  const { data: config } = await catalog.from("istar_config").select("*").eq("id", true).maybeSingle().throwOnError();
 
   const customerVisible = Boolean(config?.customer_visible);
 
@@ -48,7 +48,7 @@ export default async function TelegramPremiumPage() {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
 
   let premiumPricing = { 3: null, 6: null, 12: null };

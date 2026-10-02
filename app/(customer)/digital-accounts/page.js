@@ -20,7 +20,7 @@ export default async function DigitalAccountsPage() {
     .from("digital_accounts_config")
     .select("customer_visible")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const customerVisible = Boolean(config?.customer_visible);
 
   if (!admin && !customerVisible) {

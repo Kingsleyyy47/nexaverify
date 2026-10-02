@@ -13,7 +13,7 @@ export async function POST(_request, { params }) {
 
   const isAdminCaller = isAdmin(profile);
   const admin = createAdminClient();
-  const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle();
+  const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle().throwOnError();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (!isAdminCaller && order.user_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

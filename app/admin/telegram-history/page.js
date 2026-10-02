@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { escapeLikePattern } from "@/lib/username";
@@ -33,10 +34,10 @@ export default async function AdminTelegramHistoryPage({ searchParams }) {
   let userIds = [];
   if (q) {
     const pattern = `%${escapeLikePattern(q)}%`;
-    const { data: matches } = await admin
+    const matches = await fetchAllRows(() => admin
       .from("profiles")
       .select("id")
-      .or(`username.ilike.${pattern},email.ilike.${pattern}`);
+      .or(`username.ilike.${pattern},email.ilike.${pattern}`).throwOnError(), "id");
     userIds = (matches || []).map((m) => m.id);
   }
 

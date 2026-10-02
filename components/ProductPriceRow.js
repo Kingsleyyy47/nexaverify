@@ -13,6 +13,7 @@ export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
   const [margin, setMargin] = useState(service.markup_amount ?? "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [priceError, setPriceError] = useState("");
   const [favBusy, setFavBusy] = useState(false);
   const [autoBusy, setAutoBusy] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
@@ -66,17 +67,20 @@ export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
   async function handleSavePrice() {
     setBusy(true);
     setSaved(false);
+    setPriceError("");
     try {
       const res = await fetch("/api/admin/services/set-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ serviceId: service.id, customerPrice: Number(price) }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save the price.");
+      setAutoMarkup(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // leave the input as-is so the admin can retry
+    } catch (err) {
+      setPriceError(err.message || "Could not save the price. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -199,6 +203,8 @@ export default function ProductPriceRow({ service, usdRate, showCostInNgn }) {
           <ToggleSwitch checked={enabled} disabled={busy} onChange={handleToggle} />
         </div>
       </div>
+
+      {priceError && <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-2">{priceError}</p>}
 
       {/* Auto-markup: keep this product's price recalculated automatically
           (DaisySMS cost + margin) on every future sync, instead of managing

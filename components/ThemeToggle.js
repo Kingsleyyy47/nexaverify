@@ -12,7 +12,8 @@ export default function ThemeToggle() {
     // Light is always the default. The site only switches to dark when the
     // visitor has explicitly tapped this toggle before — we never infer it
     // from the OS/browser color-scheme preference.
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    let saved;
+    try { saved = window.localStorage.getItem(STORAGE_KEY); } catch { saved = null; }
     setDark(saved === "dark");
   }, []);
 
@@ -20,7 +21,7 @@ export default function ThemeToggle() {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
-    window.localStorage.setItem(STORAGE_KEY, next ? "dark" : "light");
+    try { window.localStorage.setItem(STORAGE_KEY, next ? "dark" : "light"); } catch { /* Keep the current page theme. */ }
   }
 
   return (

@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,15 +29,20 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { services, amount, mode, scope } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { services, amount, mode, scope } = requestBody;
   const markup = Number(amount);
   const markupType = mode === "percent" ? "percent" : "flat";
 
   if (!Number.isFinite(markup) || markup < 0) {
     return NextResponse.json({ error: "Enter a valid amount" }, { status: 400 });
   }
-  if (markupType === "percent" && markup > 100000) {
+  if (markupType === "percent" && markup > 9999.99) {
     return NextResponse.json({ error: "Enter a realistic percentage" }, { status: 400 });
+  }
+  if (markupType === "flat" && markup > 9_999_999_999.99) {
+    return NextResponse.json({ error: "The markup exceeds the supported amount." }, { status: 400 });
   }
 
   const admin = createAdminClient();

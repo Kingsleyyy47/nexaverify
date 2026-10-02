@@ -6,12 +6,20 @@
 -- button-click would, carrying a shared secret instead of a login session
 -- (see lib/cron-auth.js).
 --
--- URL is set to https://nexaverify.org and the secret below matches
--- CRON_SECRET in .env.local. If you ever rotate CRON_SECRET in your hosting
--- provider's env vars, update it here too — it must match exactly.
+-- Store the current Vercel CRON_SECRET in Supabase Vault under the name
+-- nexaverify_cron_secret. Set it through the Vault dashboard; never commit
+-- its value. Jobs read it at execution time, including after rotation.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
+
+-- Refuse to replace existing schedules until secure configuration exists.
+do $$ begin
+  if not exists (select 1 from vault.decrypted_secrets
+                 where name = 'nexaverify_cron_secret' and length(decrypted_secret) >= 32) then
+    raise exception 'Create nexaverify_cron_secret in Supabase Vault first (at least 32 characters)';
+  end if;
+end $$;
 
 -- 1. Sync DaisySMS's service list + prices every hour.
 select cron.schedule(
@@ -20,7 +28,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://nexaverify.org/api/admin/services/sync',
-    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
   );
   $$
 );
@@ -44,7 +52,7 @@ select cron.schedule(
 --   $$
 --   select net.http_post(
 --     url := 'https://nexaverify.org/api/admin/rentals/sync-ltrs',
---     headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
+--     headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
 --   );
 --   $$
 -- );
@@ -57,7 +65,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://nexaverify.org/api/admin/backup/run',
-    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
   );
   $$
 );
@@ -72,7 +80,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://nexaverify.org/api/admin/currency-rates/sync',
-    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
   );
   $$
 );
@@ -88,7 +96,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://nexaverify.org/api/admin/rentals/sweep-timeouts',
-    headers := jsonb_build_object('x-cron-secret', '8mK2vW9pX4qR7zLb', 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
   );
   $$
 );

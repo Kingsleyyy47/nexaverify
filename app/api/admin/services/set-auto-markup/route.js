@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +15,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { serviceId, autoMarkup, markupAmount } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { serviceId, autoMarkup, markupAmount } = requestBody;
   if (!serviceId) {
     return NextResponse.json({ error: "serviceId is required" }, { status: 400 });
   }
@@ -39,7 +42,7 @@ export async function POST(request) {
       .from("services")
       .select("markup_amount")
       .eq("id", serviceId)
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (existing?.markup_amount == null) {
       return NextResponse.json(
         { error: "Set a margin amount before turning Auto on for this product." },

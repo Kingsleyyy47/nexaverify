@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,7 +17,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
+  const body = await readObjectBody(request);
+  if (!body) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
   const admin = createAdminClient();
 
   // Validate everything up front so we never partially apply a bad request.
@@ -27,54 +29,29 @@ export async function POST(request) {
     }
     if (entry.mode === "custom") {
       const value = Number(entry.value);
-      if (!Number.isFinite(value) || value <= 0) {
+      if (!Number.isFinite(value) || value < 0.0001 || value > 99_999_999.9999) {
         return NextResponse.json({ error: `Invalid rate for ${currency}` }, { status: 400 });
       }
     }
   }
 
+  // Resolve every requested live rate before applying any changes.
+  const { data: rates, error: readError } = await admin.from("currency_rates").select("currency, auto_ngn_per_unit");
+  if (readError) return NextResponse.json({ error: "Could not load exchange rates." }, { status: 503 });
+  const liveRates = Object.fromEntries((rates || []).map((r) => [r.currency, Number(r.auto_ngn_per_unit)]));
   for (const currency of CURRENCIES) {
-    const entry = body[currency];
-    const now = new Date().toISOString();
-
-    if (entry.mode === "custom") {
-      await admin
-        .from("currency_rates")
-        .upsert(
-          {
-            currency,
-            ngn_per_unit: Number(entry.value),
-            manual_override: true,
-            updated_at: now,
-          },
-          { onConflict: "currency" }
-        );
-    } else {
-      // Switch back to live. Requires a live value to already exist —
-      // otherwise there's nothing to fall back to yet.
-      const { data: row } = await admin
-        .from("currency_rates")
-        .select("auto_ngn_per_unit")
-        .eq("currency", currency)
-        .maybeSingle();
-
-      if (!row?.auto_ngn_per_unit) {
-        return NextResponse.json(
-          { error: `No live rate has been fetched yet for ${currency} — click "Refresh live rates" first.` },
-          { status: 400 }
-        );
-      }
-
-      await admin
-        .from("currency_rates")
-        .update({
-          ngn_per_unit: row.auto_ngn_per_unit,
-          manual_override: false,
-          updated_at: now,
-        })
-        .eq("currency", currency);
+    if (body[currency].mode === "live" && (!Number.isFinite(liveRates[currency]) || liveRates[currency] <= 0)) {
+      return NextResponse.json({ error: `Refresh live rates before switching ${currency} to live.` }, { status: 400 });
     }
   }
+  const updates = CURRENCIES.map((currency) => ({
+    currency,
+    ngn_per_unit: body[currency].mode === "custom" ? Number(body[currency].value) : liveRates[currency],
+    manual_override: body[currency].mode === "custom",
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await admin.from("currency_rates").upsert(updates, { onConflict: "currency" });
+  if (error) return NextResponse.json({ error: "Could not save exchange rates." }, { status: 503 });
 
   return NextResponse.json({ ok: true });
 }

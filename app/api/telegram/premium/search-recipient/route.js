@@ -15,7 +15,7 @@ export async function GET(request) {
   const admin_ = isAdmin(profile);
   if (!admin_) {
     const admin = createAdminClient();
-    const { data: config } = await admin.from("istar_config").select("customer_visible").eq("id", true).maybeSingle();
+    const { data: config } = await admin.from("istar_config").select("customer_visible").eq("id", true).maybeSingle().throwOnError();
     if (!config?.customer_visible) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

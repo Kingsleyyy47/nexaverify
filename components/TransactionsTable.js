@@ -1,5 +1,7 @@
 "use client";
 
+import LocalDateTime from "./LocalDateTime";
+
 import { useCurrency } from "./CurrencyProvider";
 
 export default function TransactionsTable({ transactions, emptyMessage = "No transactions yet." }) {
@@ -30,7 +32,7 @@ export default function TransactionsTable({ transactions, emptyMessage = "No tra
               <td className="py-3.5 capitalize dark:text-night-200">{t.type.replace("_", " ")}</td>
               <td className="py-3.5 text-gray-400 dark:text-night-400">{t.note || "—"}</td>
               <td className="py-3.5 text-gray-400 dark:text-night-400">
-                {new Date(t.created_at).toLocaleString("en-US")}
+                <LocalDateTime value={t.created_at} />
               </td>
               <td
                 className={`py-3.5 text-right font-semibold ${

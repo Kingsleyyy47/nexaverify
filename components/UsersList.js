@@ -1,3 +1,4 @@
+import LocalDateTime from "./LocalDateTime";
 import Link from "next/link";
 
 export default function UsersList({ users, query = "" }) {
@@ -34,7 +35,7 @@ export default function UsersList({ users, query = "" }) {
                   </td>
                   <td className="py-3.5 font-semibold">₦{Number(u.balance).toLocaleString("en-US")}</td>
                   <td className="py-3.5 text-gray-400 dark:text-night-400">
-                    {new Date(u.created_at).toLocaleDateString("en-US")}
+                    <LocalDateTime value={u.created_at} mode="date" />
                   </td>
                   <td className="py-3.5">
                     <Link href={`/admin/users/${u.id}`} className="btn-ghost btn-sm">

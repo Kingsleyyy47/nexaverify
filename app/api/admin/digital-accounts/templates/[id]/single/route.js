@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,7 +24,7 @@ export async function POST(request, { params }) {
     .from("digital_product_templates")
     .select("id, archived")
     .eq("id", params.id)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!template) {
     return NextResponse.json({ error: "Product template not found." }, { status: 404 });
   }
@@ -31,7 +32,8 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "Unarchive this product template before adding stock to it." }, { status: 400 });
   }
 
-  const body = await request.json();
+  const body = await readObjectBody(request);
+  if (!body) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
   const trim = (v) => (typeof v === "string" ? v.trim() : "");
 
   const username = trim(body.username);

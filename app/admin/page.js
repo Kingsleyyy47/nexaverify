@@ -91,29 +91,29 @@ export default async function AdminOverviewPage() {
     depositTotalRows,
     depositTodayRows,
   ] = await Promise.all([
-    admin.from("profiles").select("id", { count: "exact", head: true }),
-    admin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", todayIso),
+    admin.from("profiles").select("id", { count: "exact", head: true }).throwOnError(),
+    admin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", todayIso).throwOnError(),
     fetchAllProfileBalances(admin),
-    admin.from("rentals").select("id", { count: "exact", head: true }).eq("status", "waiting"),
+    admin.from("rentals").select("id", { count: "exact", head: true }).eq("status", "waiting").throwOnError(),
     admin
       .from("rentals")
       .select("id", { count: "exact", head: true })
       .eq("status", "waiting")
-      .gte("created_at", todayIso),
-    admin.from("rentals").select("id", { count: "exact", head: true }).eq("is_long_term", true),
+      .gte("created_at", todayIso).throwOnError(),
+    admin.from("rentals").select("id", { count: "exact", head: true }).eq("is_long_term", true).throwOnError(),
     admin
       .from("rentals")
       .select("id", { count: "exact", head: true })
       .eq("is_long_term", true)
-      .gte("created_at", todayIso),
-    admin.from("rentals").select("id", { count: "exact", head: true }),
-    admin.from("rentals").select("id", { count: "exact", head: true }).gte("created_at", todayIso),
-    admin.from("services").select("id", { count: "exact", head: true }).eq("enabled", true),
+      .gte("created_at", todayIso).throwOnError(),
+    admin.from("rentals").select("id", { count: "exact", head: true }).throwOnError(),
+    admin.from("rentals").select("id", { count: "exact", head: true }).gte("created_at", todayIso).throwOnError(),
+    admin.from("services").select("id", { count: "exact", head: true }).eq("enabled", true).throwOnError(),
     admin
       .from("services")
       .select("id", { count: "exact", head: true })
       .eq("enabled", true)
-      .gte("created_at", todayIso),
+      .gte("created_at", todayIso).throwOnError(),
     // Every deposit that's ever landed in a customer's wallet, from any
     // source (manual top-up approval, PocketFi checkout, PocketFi
     // virtual-account transfer) — all three write transactions.type='deposit'

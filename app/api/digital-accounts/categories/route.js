@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 // Public (any signed-in customer) — only names/descriptions, nothing
 // sensitive. Only returns categories that actually have at least one
@@ -22,24 +23,24 @@ export async function GET() {
       .from("digital_accounts_config")
       .select("customer_visible")
       .eq("id", true)
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (!config?.customer_visible) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
 
-  const [{ data: categories }, { data: templates }] = await Promise.all([
+  const [categories, templates] = await Promise.all([
     // Ordered by the admin's manual arrangement (see
     // /admin/digital-accounts/category-shuffle) first, falling back to
     // creation order for anything never manually reordered (default
     // sort_order is 0 for every category, so ties just keep looking like
     // creation order until an admin actually rearranges something).
-    admin
+    fetchAllRows(() => admin
       .from("digital_categories")
       .select("id, name, description, logo_url, logo_url_dark")
       .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-    admin.from("digital_product_templates").select("category_id").eq("archived", false),
+      .order("created_at", { ascending: true }), "id"),
+    fetchAllRows(() => admin.from("digital_product_templates").select("category_id").eq("archived", false), "id"),
   ]);
 
   const categoryIdsWithTemplates = new Set((templates || []).map((t) => t.category_id));

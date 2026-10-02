@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCountries, DaisySimError } from "@/lib/daisysim";
 import InternationalConfigForm from "@/components/InternationalConfigForm";
@@ -8,7 +9,7 @@ export default async function AdminInternationalPage() {
 
   const [{ data: row }, { data: overrides }] = await Promise.all([
     admin.from("daisysim_config").select("*").eq("id", true).maybeSingle().throwOnError(),
-    admin.from("daisysim_overrides").select("*"),
+    fetchAllRows(() => admin.from("daisysim_overrides").select("*"), "id").then(data => ({ data })),
   ]);
 
   const config = {

@@ -11,8 +11,9 @@ import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutFor
 // order record remains available from /history afterward.
 export default async function DigitalAccountsCheckoutPage({ params, searchParams }) {
   [params, searchParams] = await Promise.all([params, searchParams]);
-  const { user, profile } = await getSessionProfile();
+  const { user, profile, profileError } = await getSessionProfile();
   if (!user) notFound();
+  if (profileError || !profile) throw new Error("Could not load your wallet balance.");
 
   const admin = createAdminClient();
 
@@ -25,7 +26,7 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
       .from("digital_accounts_config")
       .select("customer_visible")
       .eq("id", true)
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     if (!config?.customer_visible) notFound();
   }
 
@@ -33,20 +34,20 @@ export default async function DigitalAccountsCheckoutPage({ params, searchParams
     .from("digital_product_templates")
     .select("id, category_id, name, description, price_ngn, archived")
     .eq("id", params.templateId)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!template || template.archived) notFound();
 
   const { data: category } = await admin
     .from("digital_categories")
     .select("id, name, description, logo_url, logo_url_dark")
     .eq("id", template.category_id)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   const { count: availableCount } = await admin
     .from("digital_stock_items")
     .select("id", { count: "exact", head: true })
     .eq("template_id", template.id)
-    .eq("status", "available");
+    .eq("status", "available").throwOnError();
 
   const requestedQty = Number(searchParams?.qty);
   const initialQuantity = Number.isInteger(requestedQty) && requestedQty > 0 ? requestedQty : "";

@@ -1,3 +1,4 @@
+import { readObjectBody } from "@/lib/request-body.mjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,9 +21,11 @@ import { escapeLikePattern } from "@/lib/username";
 // redirects anyone with no username to /set-username before letting them
 // use the rest of the site.
 export async function POST(request) {
-  const { username, password } = await request.json();
+  const requestBody = await readObjectBody(request);
+  if (!requestBody) return NextResponse.json({ error: "Send a valid JSON object." }, { status: 400 });
+  const { username, password } = requestBody;
 
-  if (!username || !password) {
+  if (typeof username !== "string" || !username.trim() || typeof password !== "string" || !password || username.length > 254 || password.length > 1024) {
     return NextResponse.json({ error: "Username and password are required" }, { status: 400 });
   }
 
