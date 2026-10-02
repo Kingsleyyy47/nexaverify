@@ -3,6 +3,7 @@ import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber, cancelRental, DaisyError } from "@/lib/daisy";
 import { safeErrorResponse } from "@/lib/apiError";
+import { logError } from "@/lib/errorLog";
 
 // NexaVerify charges customers in NGN using the admin-set `customer_price`
 // on the service (see /admin/products) — NOT whatever DaisySMS's live USD
@@ -83,6 +84,21 @@ export async function POST(request) {
     });
   } catch (err) {
     if (err instanceof DaisyError) {
+      if (err.code === "PROVIDER_TEMPORARILY_UNAVAILABLE") {
+        const referenceId = await logError({
+          error: err,
+          route: "/api/rentals/buy",
+          userId: user.id,
+          context: { serviceId, daisyErrorCode: err.code },
+        });
+        return NextResponse.json(
+          {
+            error: `The number provider could not complete this rental. Your wallet was not charged. Please try again later. If this keeps happening, contact support with error ${referenceId}.`,
+            referenceId,
+          },
+          { status: 503 }
+        );
+      }
       const messages = {
         MAX_PRICE_EXCEEDED: "This product's cost has changed — an admin needs to re-sync and re-price it.",
         NO_NUMBERS: "No numbers are available for this service right now.",
