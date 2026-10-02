@@ -71,3 +71,11 @@ test("simultaneous status polls save received SMS history only once",async()=>{
   const responses=await Promise.all([route.GET(statusRequest()),route.GET(statusRequest())]);assert.equal(db.sms,1);
   for(const r of responses)assert.equal((await r.json()).rental.status,"received");
 });
+
+test("a reference-less bank webhook cannot generate a duplicateable wallet credit", async () => {
+  const d={createAdminClient:()=>assert.fail("database"),adjustBalance:()=>assert.fail("credit"),
+    logError:async()=>"ERR-REFERENCE",confirmPayment:async()=>{},isSuccessfulStatus:()=>false,isFailedStatus:()=>false,PocketfiError:class extends Error {}};
+  const route=await loadRoute("../lib/wallet-funding.js",d);
+  const result=await route.creditVirtualAccountFromWebhook({accountNumber:"1234567890",amountNgn:100});
+  assert.equal(result.outcome,"insert_failed");assert.equal(result.referenceId,"ERR-REFERENCE");
+});

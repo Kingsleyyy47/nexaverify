@@ -1,7 +1,6 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
-import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickLinksGrid from "@/components/QuickLinksGrid";
 import DigitalAccountsBrowser from "@/components/DigitalAccountsBrowser";
@@ -31,7 +30,7 @@ export default async function DashboardPage() {
     { data: onboardingConfig },
     { data: daisysmsConfig },
     { data: daisysimConfig },
-    usOnlyCatalog,
+    { data: usOnlyConfig },
     { data: istarConfig },
     { data: socialBoostConfig },
     { data: digitalAccountsConfig },
@@ -39,7 +38,7 @@ export default async function DashboardPage() {
     catalog.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
     catalog.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
     catalog.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
-    getUsOnlyCatalog(catalog, user?.id),
+    catalog.from("daisysim_usa_config").select("enabled").eq("id", true).maybeSingle().throwOnError(),
     catalog.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
     catalog.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
     catalog.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
@@ -52,7 +51,7 @@ export default async function DashboardPage() {
   // of the nav).
   const daisysmsEnabled = daisysmsConfig?.enabled ?? true;
   const daisysimEnabled = daisysimConfig?.enabled ?? false;
-  const usOnlyEnabled = usOnlyCatalog.enabled;
+  const usOnlyEnabled = usOnlyConfig?.enabled ?? false;
   const istarCustomerVisible = istarConfig?.customer_visible ?? false;
   const socialBoostCustomerVisible = socialBoostConfig?.customer_visible ?? false;
   const digitalAccountsCustomerVisible = digitalAccountsConfig?.customer_visible ?? false;
