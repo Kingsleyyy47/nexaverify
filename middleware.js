@@ -65,11 +65,29 @@ export async function middleware(request) {
   }
 
   if (user && (isAdminRoute || isCustomerRoute || isSetUsernameRoute)) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role, username")
       .eq("id", user.id)
       .single();
+
+    // Oct 2026 incident: this used to ignore `error` entirely, so a failed
+    // profile lookup (an RLS hiccup, a rejected/stale JWT, any transient
+    // Supabase issue) looked IDENTICAL to "this user has no username yet" —
+    // `profile` came back undefined either way. Since this runs on every
+    // page load for every signed-in user, that silently bounced the entire
+    // site to /set-username the moment the lookup started failing, even for
+    // users who'd had a username for months. Admin access still fails
+    // closed below (no readable profile => not admin, same as before) since
+    // that's the safe default for a permissions check, but a lookup error
+    // must not be treated as "no username" — that's a data fact we don't
+    // actually know when the query itself failed.
+    if (profileError) {
+      if (isAdminRoute) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+      return response;
+    }
 
     if (isAdminRoute && (!profile || profile.role !== "admin")) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
