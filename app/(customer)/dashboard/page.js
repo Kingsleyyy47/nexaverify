@@ -66,7 +66,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mb-7">
-        <WalletBalanceCard balance={profile?.balance || 0} />
+        <WalletBalanceCard balance={profile?.balance ?? null} />
       </div>
 
       <QuickLinksGrid

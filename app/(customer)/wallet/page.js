@@ -21,7 +21,7 @@ export default async function WalletPage() {
         </p>
       </div>
 
-      <WalletBalanceCard balance={profile?.balance || 0} />
+      <WalletBalanceCard balance={profile?.balance ?? null} />
 
       <div className="card card-pad">
         <div className="flex items-center justify-between mb-4">

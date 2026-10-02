@@ -6,6 +6,9 @@ import { useCurrency } from "./CurrencyProvider";
 
 export default function WalletBalanceCard({ balance }) {
   const { currency, rateMap } = useCurrency();
+  const display = (selectedCurrency) => balance == null
+    ? "Unavailable"
+    : formatMoney(convertFromNgn(balance, selectedCurrency, rateMap), selectedCurrency);
 
   return (
     <div className="relative card card-pad bg-gradient-to-br from-brand-800 to-brand-500 text-white border-0 overflow-hidden">
@@ -17,7 +20,7 @@ export default function WalletBalanceCard({ balance }) {
       />
       <div className="text-sm text-white/70 font-semibold mb-2">Wallet balance</div>
       <div className="text-4xl font-bold mb-1">
-        {formatMoney(convertFromNgn(balance, currency, rateMap), currency)}
+        {display(currency)}
       </div>
       <div className="flex flex-wrap gap-4 mt-5 pt-5 border-t border-white/15">
         {CURRENCIES.map((c) => (
@@ -26,7 +29,7 @@ export default function WalletBalanceCard({ balance }) {
               {CURRENCY_SYMBOLS[c]} {c}
             </div>
             <div className="text-sm font-semibold">
-              {formatMoney(convertFromNgn(balance, c, rateMap), c)}
+              {display(c)}
             </div>
           </div>
         ))}

@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 // Route protection:
@@ -14,6 +15,20 @@ import { NextResponse } from "next/server";
 export async function middleware(request) {
   let response = NextResponse.next({ request: { headers: request.headers } });
 
+  function updateResponseCookie(name, value, options) {
+    request.cookies.set({ name, value, ...options });
+    const previousCookies = response.cookies.getAll();
+    response = NextResponse.next({ request: { headers: request.headers } });
+    previousCookies.forEach((cookie) => response.cookies.set(cookie));
+    response.cookies.set({ name, value, ...options });
+  }
+
+  function redirectWithCookies(path) {
+    const redirect = NextResponse.redirect(new URL(path, request.url));
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -23,14 +38,10 @@ export async function middleware(request) {
           return request.cookies.get(name)?.value;
         },
         set(name, value, options) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
-          response.cookies.set({ name, value, ...options });
+          updateResponseCookie(name, value, options);
         },
         remove(name, options) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
-          response.cookies.set({ name, value: "", ...options });
+          updateResponseCookie(name, "", options);
         },
       },
     }
@@ -57,51 +68,50 @@ export async function middleware(request) {
   ].some((prefix) => pathname.startsWith(prefix));
 
   if (!user && (isAdminRoute || isCustomerRoute || isSetUsernameRoute)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return redirectWithCookies("/login");
   }
 
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return redirectWithCookies("/dashboard");
   }
 
   if (user && (isAdminRoute || isCustomerRoute || isSetUsernameRoute)) {
-    const { data: profile, error: profileError } = await supabase
+    // getUser() above verifies the session. Use the server-side key for this
+    // one row, just as getSessionProfile() does in page and API renders.
+    const admin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+    const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("role, username")
       .eq("id", user.id)
       .single();
 
-    // Oct 2026 incident: this used to ignore `error` entirely, so a failed
-    // profile lookup (an RLS hiccup, a rejected/stale JWT, any transient
-    // Supabase issue) looked IDENTICAL to "this user has no username yet" —
-    // `profile` came back undefined either way. Since this runs on every
-    // page load for every signed-in user, that silently bounced the entire
-    // site to /set-username the moment the lookup started failing, even for
-    // users who'd had a username for months. Admin access still fails
-    // closed below (no readable profile => not admin, same as before) since
-    // that's the safe default for a permissions check, but a lookup error
-    // must not be treated as "no username" — that's a data fact we don't
-    // actually know when the query itself failed.
+    // A failed lookup does not mean this user lacks a username. Keep admin
+    // access closed on an error, but let customer pages show their account
+    // data error rather than redirecting everyone to /set-username.
     if (profileError) {
       if (isAdminRoute) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+        return redirectWithCookies("/dashboard");
       }
       return response;
     }
 
     if (isAdminRoute && (!profile || profile.role !== "admin")) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return redirectWithCookies("/dashboard");
     }
 
     // No username yet (the rare signup race condition) — force them to set
     // one before anything else, admin or customer.
     if (!isSetUsernameRoute && !profile?.username) {
-      return NextResponse.redirect(new URL("/set-username", request.url));
+      return redirectWithCookies("/set-username");
     }
 
     // Already have a username — nothing to do on /set-username.
     if (isSetUsernameRoute && profile?.username) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return redirectWithCookies("/dashboard");
     }
   }
 

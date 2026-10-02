@@ -52,12 +52,10 @@ export default async function CustomerLayout({ children }) {
         <main className="flex-1 p-4 pb-24 md:p-9 max-w-6xl w-full">
           {profileError && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-              Couldn&apos;t load your account data just now — the balance and menu below may be
-              wrong until you refresh. This is usually a brief connection hiccup, not anything
-              wrong with your account.
+              Couldn&apos;t load your account data just now. Please refresh the page.
             </div>
           )}
-          <CustomerTopBar balance={profile?.balance || 0} />
+          <CustomerTopBar balance={profile?.balance ?? null} />
           {children}
         </main>
       </div>

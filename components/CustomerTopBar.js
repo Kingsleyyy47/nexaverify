@@ -9,8 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 
 // Sits at the top of every customer page: balance in the visitor's chosen
 // display currency, the currency switcher (₦ / $ / £ / €), and the
-// light/dark toggle. `balance` is always the real NGN number from the
-// profile — this component just converts it for display.
+// light/dark toggle. A null balance means the profile could not be read.
 //
 // On mobile, the currency switcher + theme toggle live in the header bar
 // (CustomerSidebar's mobile top bar) instead, to keep this row from getting
@@ -18,6 +17,7 @@ import ThemeToggle from "./ThemeToggle";
 // breakpoint and only show at md+ where there's room for both.
 export default function CustomerTopBar({ balance }) {
   const { format } = useCurrency();
+  const displayBalance = balance == null ? "Unavailable" : format(balance);
   const pathname = usePathname();
   const isDigitalCheckout = pathname.startsWith("/digital-accounts/checkout");
 
@@ -34,7 +34,7 @@ export default function CustomerTopBar({ balance }) {
           <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-night-400">
             Wallet balance
           </div>
-          <div className="text-sm font-bold dark:text-night-100">{format(balance)}</div>
+          <div className="text-sm font-bold dark:text-night-100">{displayBalance}</div>
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export default function CustomerTopBar({ balance }) {
         <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-night-400 font-bold">
           Wallet balance
         </div>
-        <div className="text-lg font-bold dark:text-night-100">{format(balance)}</div>
+        <div className="text-lg font-bold dark:text-night-100">{displayBalance}</div>
       </div>
       <div className="hidden md:flex items-center gap-2">
         <CurrencySwitcher />
