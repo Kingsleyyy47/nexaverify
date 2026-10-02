@@ -11,7 +11,7 @@ import SocialBoostBuyForm from "@/components/SocialBoostBuyForm";
 // shape as Telegram Premium — see istar_config's comment in schema.sql for
 // the original reasoning.
 export default async function SocialBoostPage() {
-  const { user, profile, supabase } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user) redirect("/login");
   const admin = isAdmin(profile);
 
@@ -34,11 +34,8 @@ export default async function SocialBoostPage() {
     );
   }
 
-  // Each customer only ever sees their own orders (RLS-scoped client, same
-  // as every other "my history" query in this app) — admins see the same,
-  // just from their own admin account, not a cross-customer view (that's
-  // what /admin/social-boost's own order log is for, if ever added).
-  const { data: orders } = await supabase
+  // Scope the server-side read to the verified customer identity.
+  const { data: orders } = await createAdminClient()
     .from("social_boost_orders")
     .select("*")
     .eq("user_id", user.id)

@@ -1,6 +1,7 @@
 import { getSessionProfile } from "@/lib/auth";
 import VirtualAccountCard from "@/components/VirtualAccountCard";
 import PocketfiPaymentsList from "@/components/PocketfiPaymentsList";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const FUNDED_BANNER = {
   success: {
@@ -22,17 +23,19 @@ const FUNDED_BANNER = {
 };
 
 export default async function TopupPage({ searchParams }) {
-  const { supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
+  const admin = createAdminClient();
   const funded = searchParams?.funded;
   const banner = funded ? FUNDED_BANNER[funded] : null;
 
   const [{ data: payments }, { data: pocketfiConfig }] = await Promise.all([
-    supabase
+    admin
       .from("payment_transactions")
       .select("*")
+      .eq("user_id", user.id)
       .in("provider", ["pocketfi", "pocketfi_virtual_account"])
       .order("created_at", { ascending: false }),
-    supabase.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
+    admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
   ]);
 
   const virtualAccountEnabled = pocketfiConfig?.virtual_account_enabled ?? true;

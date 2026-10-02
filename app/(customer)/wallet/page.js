@@ -2,13 +2,15 @@ import Link from "next/link";
 import { getSessionProfile } from "@/lib/auth";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import TransactionsTable from "@/components/TransactionsTable";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function WalletPage() {
-  const { profile, supabase } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
 
-  const { data: transactions } = await supabase
+  const { data: transactions } = await createAdminClient()
     .from("transactions")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5);
 

@@ -5,23 +5,27 @@ import { getStatus, DaisyError } from "@/lib/daisy";
 import { checkSms, DaisySimError } from "@/lib/daisysim";
 import { checkSms as checkSmsUsa, GetatextError } from "@/lib/getatext";
 import { checkStatus as checkStatusDaisySimUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { safeErrorResponse } from "@/lib/apiError";
 
 export async function GET(request) {
-  const { user, supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-  // RLS scopes this to rentals owned by the caller — returns null otherwise.
-  const { data: rental } = await supabase.from("rentals").select("*").eq("id", id).single();
+  // Auth verified the caller above. Scope the service-role lookup explicitly:
+  // PostgREST can reject fresh user JWTs as "issued at future", which made
+  // real purchases appear missing immediately after checkout.
+  const admin = createAdminClient();
+  const { data: rental, error: lookupError } = await admin
+    .from("rentals").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
+  if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/status", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
   if (rental.status !== "waiting") {
     return NextResponse.json({ rental });
   }
-
-  const admin = createAdminClient();
 
   if (rental.provider === "daisysim") {
     try {

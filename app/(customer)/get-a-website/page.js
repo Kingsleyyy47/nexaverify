@@ -1,5 +1,5 @@
-import { getSessionProfile } from "@/lib/auth";
 import WebsiteServicesSection from "@/components/WebsiteServicesSection";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Same content as app/website/page.js (the public version) — can't reuse
 // that exact URL here since Next's route groups are transparent to the path
@@ -8,8 +8,7 @@ import WebsiteServicesSection from "@/components/WebsiteServicesSection";
 // instead of the marketing header/footer — see
 // components/WebsiteServicesSection.js for the shared copy.
 export default async function CustomerWebsitePage() {
-  const { supabase } = await getSessionProfile();
-  const { data: config } = await supabase
+  const { data: config } = await createAdminClient()
     .from("onboarding_config")
     .select("support_url")
     .eq("id", true)

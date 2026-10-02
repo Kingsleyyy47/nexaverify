@@ -6,20 +6,22 @@ import { cancelActivation, DaisySimError } from "@/lib/daisysim";
 import { cancelActivation as cancelActivationUsa, checkSms as checkSmsUsa } from "@/lib/getatext";
 import { cancelActivation as cancelActivationServer7, checkStatus as checkStatusServer7, DaisySimUsaError } from "@/lib/daisysimUsa";
 import { logError } from "@/lib/errorLog";
+import { safeErrorResponse } from "@/lib/apiError";
 
 export async function POST(request) {
-  const { user, supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const { rentalId } = await request.json();
-  const { data: rental } = await supabase.from("rentals").select("*").eq("id", rentalId).single();
+  const admin = createAdminClient();
+  const { data: rental, error: lookupError } = await admin
+    .from("rentals").select("*").eq("id", rentalId).eq("user_id", user.id).maybeSingle();
+  if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/cancel", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
   if (rental.status !== "waiting") {
     return NextResponse.json({ error: "Only rentals still waiting for a code can be cancelled" }, { status: 400 });
   }
-
-  const admin = createAdminClient();
 
   // Set below for daisysim only — its /cancel response includes an explicit
   // `refund` boolean confirming THEIR side actually credited our master

@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getExtraActivation, DaisyError } from "@/lib/daisy";
+import { safeErrorResponse } from "@/lib/apiError";
 
 // Requests an additional SMS code on a number the customer already rented
 // (see "Additional rentals" in the DaisySMS docs). Mainly used for long-term
 // numbers that need to receive more than one code over their lifetime.
 export async function POST(request) {
-  const { user, supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const { rentalId } = await request.json();
-  const { data: rental } = await supabase.from("rentals").select("*").eq("id", rentalId).single();
+  const admin = createAdminClient();
+  const { data: rental, error: lookupError } = await admin
+    .from("rentals").select("*").eq("id", rentalId).eq("user_id", user.id).maybeSingle();
+  if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/extra", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
   let result;
@@ -26,8 +30,6 @@ export async function POST(request) {
     }
     return NextResponse.json({ error: "Could not request another code right now" }, { status: 502 });
   }
-
-  const admin = createAdminClient();
 
   const { data: updated } = await admin
     .from("rentals")
