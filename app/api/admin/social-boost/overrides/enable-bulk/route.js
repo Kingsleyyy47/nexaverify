@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchRowsInChunks, upsertRowsInChunks } from "@/lib/supabase/fetchAllRows";
 
 // Bulk version of /api/admin/social-boost/overrides — used by "Enable all"
 // on /admin/social-boost, scoped to whatever's currently visible (respects
@@ -26,8 +27,13 @@ export async function POST(request) {
     return NextResponse.json({ error: "Every service needs a valid service ID" }, { status: 400 });
   }
 
-  const { data: existing } = await admin.from("social_boost_overrides").select("*").in("service_id", ids);
-  const existingMap = new Map((existing || []).map((o) => [o.service_id, o]));
+  let existing;
+  try {
+    existing = await fetchRowsInChunks(ids, (chunk) => admin.from("social_boost_overrides").select("*").in("service_id", chunk));
+  } catch {
+    return NextResponse.json({ error: "Could not load saved product settings" }, { status: 500 });
+  }
+  const existingMap = new Map(existing.map((o) => [o.service_id, o]));
 
   const now = new Date().toISOString();
   const updates = services.map((s) => {
@@ -46,8 +52,11 @@ export async function POST(request) {
     };
   });
 
-  const { error } = await admin.from("social_boost_overrides").upsert(updates, { onConflict: "service_id" });
-  if (error) return NextResponse.json({ error: "Could not update services" }, { status: 500 });
+  try {
+    await upsertRowsInChunks(admin, "social_boost_overrides", updates, "service_id");
+  } catch {
+    return NextResponse.json({ error: "Could not update services" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, updated: updates.length });
 }

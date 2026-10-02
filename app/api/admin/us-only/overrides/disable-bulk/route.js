@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchRowsInChunks, upsertRowsInChunks } from "@/lib/supabase/fetchAllRows";
 
 // Bulk "Disable all" — see enable-bulk/route.js for the reasoning behind
 // fetching existing rows first and upserting the full row.
@@ -18,12 +19,17 @@ export async function POST(request) {
 
   const admin = createAdminClient();
   const codes = services.map((s) => s.serviceCode);
-  const { data: existing } = await admin
-    .from("daisysim_usa_overrides")
-    .select("*")
-    .eq("backend", resolvedBackend)
-    .in("service_code", codes);
-  const existingMap = new Map((existing || []).map((o) => [o.service_code, o]));
+  let existing;
+  try {
+    existing = await fetchRowsInChunks(codes, (chunk) => admin
+      .from("daisysim_usa_overrides")
+      .select("*")
+      .eq("backend", resolvedBackend)
+      .in("service_code", chunk));
+  } catch {
+    return NextResponse.json({ error: "Could not load saved product settings" }, { status: 500 });
+  }
+  const existingMap = new Map(existing.map((o) => [o.service_code, o]));
 
   const rows = services.map((s) => {
     const prior = existingMap.get(s.serviceCode);
@@ -38,8 +44,11 @@ export async function POST(request) {
     };
   });
 
-  const { error } = await admin.from("daisysim_usa_overrides").upsert(rows, { onConflict: "service_code,backend" });
-  if (error) return NextResponse.json({ error: "Could not disable services" }, { status: 500 });
+  try {
+    await upsertRowsInChunks(admin, "daisysim_usa_overrides", rows, "service_code,backend");
+  } catch {
+    return NextResponse.json({ error: "Could not disable services" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, updated: rows.length });
 }

@@ -51,12 +51,15 @@ export async function POST(request) {
   // disabled, same principle as re-validating price/balance below. Also
   // carries this service's own markup override, if an admin has set one —
   // see the big comment on daisysim_usa_overrides.markup_ngn in schema.sql.
-  const { data: override } = await admin
+  const { data: override, error: overrideError } = await admin
     .from("daisysim_usa_overrides")
     .select("disabled, markup_ngn")
     .eq("backend", backend)
     .eq("service_code", serviceCode)
     .maybeSingle();
+  if (overrideError) {
+    return NextResponse.json({ error: "Could not verify this service's price. Please try again." }, { status: 503 });
+  }
   if (override?.disabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }

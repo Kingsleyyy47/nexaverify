@@ -1,4 +1,6 @@
 import { getSessionProfile } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import { getCountries } from "@/lib/daisysim";
 import InternationalBuyForm from "@/components/InternationalBuyForm";
 import { logError, customerErrorMessage } from "@/lib/errorLog";
@@ -9,9 +11,10 @@ import { logError, customerErrorMessage } from "@/lib/errorLog";
 // to customers (same white-labeling as the rest of the app never mentioning
 // DaisySMS) — just "international numbers".
 export default async function InternationalProductsPage() {
-  const { user, supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
+  if (!user) redirect("/login");
 
-  const { data: config } = await supabase
+  const { data: config } = await createAdminClient()
     .from("daisysim_config")
     .select("enabled")
     .eq("id", true)

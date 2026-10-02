@@ -1,10 +1,14 @@
 import { getSessionProfile } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import BuyForm from "@/components/BuyForm";
 
 export default async function ProductsPage() {
-  const { supabase } = await getSessionProfile();
+  const { user } = await getSessionProfile();
+  if (!user) redirect("/login");
+  const catalog = createAdminClient();
 
-  const { data: providerConfig } = await supabase
+  const { data: providerConfig } = await catalog
     .from("daisysms_config")
     .select("enabled, long_term_enabled")
     .eq("id", true)
@@ -30,7 +34,7 @@ export default async function ProductsPage() {
   // Favorited products (toggled in /admin/products) sort to the top of this
   // same list — not a separate section — everything else stays alphabetical
   // after them.
-  const { data: services } = await supabase
+  const { data: services } = await catalog
     .from("services")
     .select("*")
     .eq("enabled", true)

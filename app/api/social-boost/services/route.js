@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getServices, SocialBoostError } from "@/lib/socialboost";
 import { detectPlatform } from "@/lib/socialboost-platform";
 import { safeErrorResponse, customerSafeMessage } from "@/lib/apiError";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 // Admins can always reach this (their own testing flow, AND the catalog
 // manager at /admin/social-boost); everyone else additionally needs
@@ -37,7 +38,10 @@ export async function GET() {
   const isAdminCaller = isAdmin(profile);
 
   const admin = createAdminClient();
-  const { data: config } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  const { data: config, error: configError } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  if (configError) {
+    return NextResponse.json({ error: "Could not load product pricing. Please try again." }, { status: 503 });
+  }
   // Admins can always browse/manage the catalog (e.g. to set up markups at
   // /admin/social-boost) even before flipping "Enabled" on — mirrors
   // /admin/us-only's own catalog browser, which isn't gated on its provider
@@ -52,12 +56,12 @@ export async function GET() {
   }
 
   try {
-    const [services, { data: overrides }] = await Promise.all([
+    const [services, overrides] = await Promise.all([
       getServices(),
-      admin.from("social_boost_overrides").select("*"),
+      fetchAllRows(() => admin.from("social_boost_overrides").select("*"), "service_id"),
     ]);
 
-    const overrideMap = new Map((overrides || []).map((o) => [o.service_id, o]));
+    const overrideMap = new Map(overrides.map((o) => [o.service_id, o]));
     const globalMarkupType = config?.markup_type === "percent" ? "percent" : "flat";
     const globalMarkupNgn = Number(config?.markup_ngn || 0);
     const globalMarkupPercent = Number(config?.markup_percent || 0);

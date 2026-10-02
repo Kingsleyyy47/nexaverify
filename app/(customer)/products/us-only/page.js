@@ -1,4 +1,6 @@
 import { getSessionProfile } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import UsOnlyBuyList from "@/components/UsOnlyBuyList";
 
@@ -8,8 +10,9 @@ import UsOnlyBuyList from "@/components/UsOnlyBuyList";
 // list rather than a country/tier drill-down. Deliberately never names the
 // provider to customers, same white-labeling as the rest of the app.
 export default async function UsOnlyProductsPage() {
-  const { user, supabase } = await getSessionProfile();
-  const { enabled, services, error } = await getUsOnlyCatalog(supabase, user?.id);
+  const { user } = await getSessionProfile();
+  if (!user) redirect("/login");
+  const { enabled, services, error } = await getUsOnlyCatalog(createAdminClient(), user?.id);
 
   return (
     <div>

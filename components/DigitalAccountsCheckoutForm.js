@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Minus, PackageCheck, Plus, ShieldCheck, X, Zap } from "lucide-react";
 import AdaptiveLogo from "./AdaptiveLogo";
 import { CredentialsList } from "./OrderCredentialsActions";
+import { useCurrency } from "./CurrencyProvider";
 
 const INPUT_CLASS =
   "w-full rounded-lg border border-gray-200 dark:border-night-600 dark:bg-night-950 dark:text-night-100 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900";
@@ -16,6 +17,7 @@ const QUICK_QUANTITIES = [1, 2, 5, 10];
 // order record and details link afterward.
 export default function DigitalAccountsCheckoutForm({ template, initialQuantity }) {
   const router = useRouter();
+  const { format } = useCurrency();
   const outOfStock = template.availableCount <= 0;
   const startingQuantity = Number(initialQuantity);
   const [quantity, setQuantity] = useState(() =>
@@ -82,7 +84,7 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
     }
     if (insufficientBalance) {
       setError(
-        `Insufficient wallet balance. Required ₦${totalNgn.toLocaleString("en-US")}, wallet ₦${walletBalance.toLocaleString("en-US")}.`
+        `Insufficient wallet balance. Required ${format(totalNgn)}, wallet ${format(walletBalance)}.`
       );
       return;
     }
@@ -167,7 +169,7 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
           <div>
             <div className="text-xs font-semibold text-gray-500 dark:text-night-400">Price per account</div>
             <div className="mt-0.5 text-2xl font-bold text-gray-950 dark:text-night-100">
-              ₦{template.priceNgn.toLocaleString("en-US")}
+              {format(template.priceNgn)}
             </div>
           </div>
 
@@ -234,21 +236,21 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
               <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5 dark:border-night-700">
                 <span className="text-xs font-semibold text-gray-500 dark:text-night-300">Subtotal</span>
                 <span className="text-sm font-bold">
-                  {totalNgn == null ? "Enter quantity" : `₦${totalNgn.toLocaleString("en-US")}`}
+                  {totalNgn == null ? "Enter quantity" : format(totalNgn)}
                 </span>
               </div>
               <div className="flex items-center justify-between bg-gray-50 px-3 py-2.5 dark:bg-night-800">
                 <span className="text-sm font-bold text-gray-700 dark:text-night-200">You pay</span>
                 <div className="text-right">
                   <div className="text-lg font-bold text-brand-700 dark:text-brand-300">
-                    {totalNgn == null ? "₦0" : `₦${totalNgn.toLocaleString("en-US")}`}
+                    {totalNgn == null ? format(0) : format(totalNgn)}
                   </div>
                   <div
                     className={`text-[10px] font-semibold leading-3 ${
                       balanceAfter < 0 ? "text-red-600 dark:text-red-400" : "text-gray-400 dark:text-night-400"
                     }`}
                   >
-                    Balance after ₦{balanceAfter.toLocaleString("en-US")}
+                    Balance after {format(balanceAfter)}
                   </div>
                 </div>
               </div>
@@ -261,7 +263,7 @@ export default function DigitalAccountsCheckoutForm({ template, initialQuantity 
             )}
             {insufficientBalance && (
               <p className="text-sm text-red-600 dark:text-red-400">
-                Required ₦{totalNgn.toLocaleString("en-US")}; wallet has ₦{walletBalance.toLocaleString("en-US")}.
+                Required {format(totalNgn)}; wallet has {format(walletBalance)}.
               </p>
             )}
 

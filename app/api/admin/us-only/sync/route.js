@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getApps, GetatextError } from "@/lib/getatext";
 import { getApps as getAppsUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { upsertRowsInChunks } from "@/lib/supabase/fetchAllRows";
 
 // Unlike DaisySMS's /api/admin/services/sync (which caches a manually-priced
 // catalog locally — see components/SyncServicesButton.js), "US Only" has no
@@ -58,7 +59,12 @@ export async function POST(request) {
       updated_at: new Date().toISOString(),
     }));
 
-  const { error } = await admin.from("daisysim_usa_overrides").upsert(rows, { onConflict: "service_code,backend" });
+  let error;
+  try {
+    await upsertRowsInChunks(admin, "daisysim_usa_overrides", rows, "service_code,backend");
+  } catch (err) {
+    error = err;
+  }
   // Surfaces the real Postgres error (e.g. "no unique or exclusion constraint
   // matching the ON CONFLICT specification" if supabase/schema.sql's
   // daisysim_usa_overrides.backend migration hasn't been run against this

@@ -1,4 +1,6 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import { getUsOnlyCatalog } from "@/lib/usOnlyCatalog";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import QuickLinksGrid from "@/components/QuickLinksGrid";
@@ -20,8 +22,10 @@ import WelcomeModal from "@/components/WelcomeModal";
 // there's no separate "view all" hop and Buy already goes straight to
 // checkout (components/DigitalAccountCard.js's ProductCard).
 export default async function DashboardPage() {
-  const { user, profile, supabase } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
+  if (!user) redirect("/login");
   const admin = isAdmin(profile);
+  const catalog = createAdminClient();
 
   const [
     { data: onboardingConfig },
@@ -32,13 +36,13 @@ export default async function DashboardPage() {
     { data: socialBoostConfig },
     { data: digitalAccountsConfig },
   ] = await Promise.all([
-    supabase.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
-    supabase.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
-    supabase.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
-    getUsOnlyCatalog(supabase, user?.id),
-    supabase.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
-    supabase.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
-    supabase.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
+    catalog.from("onboarding_config").select("*").eq("id", true).maybeSingle(),
+    catalog.from("daisysms_config").select("enabled").eq("id", true).maybeSingle(),
+    catalog.from("daisysim_config").select("enabled").eq("id", true).maybeSingle(),
+    getUsOnlyCatalog(catalog, user?.id),
+    catalog.from("istar_config").select("customer_visible").eq("id", true).maybeSingle(),
+    catalog.from("social_boost_config").select("customer_visible").eq("id", true).maybeSingle(),
+    catalog.from("digital_accounts_config").select("customer_visible").eq("id", true).maybeSingle(),
   ]);
 
   // All fail open/closed to their respective defaults — see /admin/providers.

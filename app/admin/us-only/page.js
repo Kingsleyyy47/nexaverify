@@ -4,6 +4,7 @@ import { getApps as getAppsUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
 import UsOnlyConfigForm from "@/components/UsOnlyConfigForm";
 import UsOnlyOverridesManager from "@/components/UsOnlyOverridesManager";
 import UsOnlySyncButton from "@/components/UsOnlySyncButton";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export default async function AdminUsOnlyPage() {
   const admin = createAdminClient();
@@ -23,10 +24,10 @@ export default async function AdminUsOnlyPage() {
   // Scoped to the currently selected backend — see schema.sql's comment on
   // daisysim_usa_overrides.backend. Fetched after `config` so the filter can
   // use its already-resolved backend value.
-  const { data: overrides } = await admin
-    .from("daisysim_usa_overrides")
-    .select("*")
-    .eq("backend", config.backend);
+  const overrides = await fetchAllRows(
+    () => admin.from("daisysim_usa_overrides").select("*").eq("backend", config.backend),
+    "service_code"
+  );
 
   // Needed to offer "show cost in ₦" in the catalog manager below — same
   // pattern as /admin/products' "Show DaisySMS cost in ₦" toggle, and the
@@ -90,7 +91,7 @@ export default async function AdminUsOnlyPage() {
         ) : (
           <UsOnlyOverridesManager
             services={services}
-            overrides={overrides || []}
+            overrides={overrides}
             usdRate={usdRate}
             markupAmountNgn={config.markupAmountNgn}
             backend={config.backend}

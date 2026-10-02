@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Star, ChevronRight } from "lucide-react";
 import AdaptiveLogo from "./AdaptiveLogo";
 import { categoryBannerGradient } from "@/lib/categoryColors";
+import { useCurrency } from "./CurrencyProvider";
 
 // Shared between the full /digital-accounts page
 // (components/DigitalAccountsBrowser.js) and the dashboard's "Logs" preview
@@ -49,6 +50,7 @@ export function CategoryBanner({ category, action, compact = false }) {
 // dashboard's `stockCount`) should normalize it before passing the template
 // in, so this component only ever has one contract to satisfy.
 export function ProductCard({ template: t, logo }) {
+  const { format } = useCurrency();
   const outOfStock = t.availableCount <= 0;
 
   return (
@@ -81,7 +83,7 @@ export function ProductCard({ template: t, logo }) {
               <span className={`badge ${outOfStock ? "badge-danger" : "badge-success"}`}>
                 {t.availableCount} pcs
               </span>
-              <span className="badge badge-neutral">₦{Number(t.price_ngn).toLocaleString("en-US")}</span>
+              <span className="badge badge-neutral">{format(t.price_ngn)}</span>
             </div>
             {outOfStock ? (
               <span className="badge badge-danger shrink-0">Sold out</span>

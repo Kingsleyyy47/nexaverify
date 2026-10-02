@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { ratesToMap, convertFromNgn, formatMoney } from "@/lib/currency";
+import { CURRENCIES, ratesToMap, convertFromNgn, formatMoney } from "@/lib/currency";
 
 const CurrencyContext = createContext(null);
 
@@ -16,10 +16,11 @@ export function CurrencyProvider({ rates, children }) {
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) setCurrencyState(saved);
-  }, []);
+    setCurrencyState(CURRENCIES.includes(saved) && (saved === "NGN" || rateMap[saved]) ? saved : "NGN");
+  }, [rateMap]);
 
   function setCurrency(next) {
+    if (!CURRENCIES.includes(next) || (next !== "NGN" && !rateMap[next])) return;
     setCurrencyState(next);
     window.localStorage.setItem(STORAGE_KEY, next);
   }

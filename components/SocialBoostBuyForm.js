@@ -264,7 +264,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
               {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-              <button type="submit" disabled={placing} className="btn-primary">
+              <button type="submit" disabled={placing || !usdRate} className="btn-primary">
                 {placing ? "Placing order…" : "Place order"}
               </button>
 
@@ -369,7 +369,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                       </div>
                     </div>
                     <div className="pl-9 text-xs font-semibold text-brand-700 dark:text-brand-400 shrink-0 sm:pl-0 sm:text-right sm:text-gray-500 sm:dark:text-night-300">
-                      {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : `$${s.rate}/1000`}
+                      {usdRate ? `${format(markedUpRatePer1000(s))}/1000` : "Rate unavailable"}
                       <span className="hidden sm:inline"> · min {s.min}</span>
                     </div>
                   </button>

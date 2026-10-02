@@ -82,11 +82,14 @@ export async function POST(request) {
   // an admin disabled this specific service via /admin/social-boost's
   // catalog manager, without touching the global on/off switch. Re-enable it
   // there to test it again.
-  const { data: override } = await admin
+  const { data: override, error: overrideError } = await admin
     .from("social_boost_overrides")
     .select("*")
     .eq("service_id", service)
     .maybeSingle();
+  if (overrideError) {
+    return NextResponse.json({ error: "Could not verify this service's price. Please try again." }, { status: 503 });
+  }
   if (override && override.enabled === false) {
     return NextResponse.json({ error: "This service is currently unavailable." }, { status: 403 });
   }

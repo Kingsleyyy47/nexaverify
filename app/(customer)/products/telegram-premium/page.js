@@ -1,4 +1,6 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import { getPremiumPackages, buildPremiumPricing, starConfigFromRow } from "@/lib/istar";
 import TelegramGiftBuyForm from "@/components/TelegramGiftBuyForm";
 
@@ -9,15 +11,17 @@ import TelegramGiftBuyForm from "@/components/TelegramGiftBuyForm";
 // /admin/telegram-premium only once you're happy with testing. See that
 // column's comment in schema.sql for the reasoning.
 export default async function TelegramPremiumPage() {
-  const { profile, supabase } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
+  if (!user) redirect("/login");
   const admin = isAdmin(profile);
+  const catalog = createAdminClient();
 
   // select("*") on purpose, matching /admin/telegram-premium — an explicit
   // column list here silently breaks (query errors, config comes back null,
   // every price collapses to "—") any time a new istar_config column exists
   // in code but the SQL migration hasn't landed on this DB yet. select("*")
   // never errors just because extra columns exist that this page doesn't use.
-  const { data: config } = await supabase.from("istar_config").select("*").eq("id", true).maybeSingle();
+  const { data: config } = await catalog.from("istar_config").select("*").eq("id", true).maybeSingle();
 
   const customerVisible = Boolean(config?.customer_visible);
 
@@ -40,7 +44,7 @@ export default async function TelegramPremiumPage() {
   // Best-effort live pricing for display only — the buy route always
   // re-fetches and re-computes this itself at purchase time, so a failure
   // here just means the price preview is blank, not that pricing is wrong.
-  const { data: usdRateRow } = await supabase
+  const { data: usdRateRow } = await catalog
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")

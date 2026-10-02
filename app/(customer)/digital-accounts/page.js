@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import DigitalAccountsBrowser from "@/components/DigitalAccountsBrowser";
 
 // Admins always see the real catalog here (so you can check your own
@@ -10,10 +12,11 @@ import DigitalAccountsBrowser from "@/components/DigitalAccountsBrowser";
 // separate "enabled" switch since there's no external provider here to test
 // against — see public.digital_accounts_config's own comment for why.
 export default async function DigitalAccountsPage() {
-  const { profile, supabase } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
+  if (!user) redirect("/login");
   const admin = isAdmin(profile);
 
-  const { data: config } = await supabase
+  const { data: config } = await createAdminClient()
     .from("digital_accounts_config")
     .select("customer_visible")
     .eq("id", true)

@@ -1,4 +1,6 @@
 import { getSessionProfile, isAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import SocialBoostBuyForm from "@/components/SocialBoostBuyForm";
 
 // Admins always see the real buy flow here (to test it end-to-end with their
@@ -10,9 +12,10 @@ import SocialBoostBuyForm from "@/components/SocialBoostBuyForm";
 // the original reasoning.
 export default async function SocialBoostPage() {
   const { user, profile, supabase } = await getSessionProfile();
+  if (!user) redirect("/login");
   const admin = isAdmin(profile);
 
-  const { data: config } = await supabase.from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  const { data: config } = await createAdminClient().from("social_boost_config").select("*").eq("id", true).maybeSingle();
   const customerVisible = Boolean(config?.customer_visible);
 
   if (!admin && !customerVisible) {
