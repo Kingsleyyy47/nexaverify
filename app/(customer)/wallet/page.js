@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSessionProfile } from "@/lib/auth";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
@@ -6,13 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function WalletPage() {
   const { user, profile } = await getSessionProfile();
+  if (!user) redirect("/login");
 
   const { data: transactions } = await createAdminClient()
     .from("transactions")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(5).throwOnError();
 
   return (
     <div className="space-y-7">

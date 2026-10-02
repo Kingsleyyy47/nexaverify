@@ -6,20 +6,21 @@ import ResetPasswordForm from "@/components/ResetPasswordForm";
 import LocalDateTime from "@/components/LocalDateTime";
 
 export default async function AdminUserDetailPage({ params }) {
+  params = await params;
   const admin = createAdminClient();
 
   const [{ data: user }, { data: transactions }, { data: rentals }] = await Promise.all([
-    admin.from("profiles").select("*").eq("id", params.id).single(),
+    admin.from("profiles").select("*").eq("id", params.id).single().throwOnError(),
     admin
       .from("transactions")
       .select("*")
       .eq("user_id", params.id)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }).throwOnError(),
     admin
       .from("rentals")
       .select("*")
       .eq("user_id", params.id)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }).throwOnError(),
   ]);
 
   if (!user) notFound();

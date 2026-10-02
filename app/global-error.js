@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { recoverChunkError } from "@/lib/chunkRecovery.mjs";
 
 // Same idea as app/error.js, but for an error thrown by the ROOT layout
 // itself — Next.js requires this file to render its own <html>/<body> since
@@ -12,6 +13,7 @@ export default function GlobalError({ error, reset }) {
   const [referenceId, setReferenceId] = useState(null);
 
   useEffect(() => {
+    if (recoverChunkError(error, window)) return;
     let cancelled = false;
     fetch("/api/log-client-error", {
       method: "POST",

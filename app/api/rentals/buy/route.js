@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,50 +13,45 @@ import { logError } from "@/lib/errorLog";
 // customer pays (customer_price, NGN) and what DaisySMS actually charges
 // (cost_usd, USD) is NexaVerify's margin — both are stored on the rental.
 export async function POST(request) {
-  const { user, profile } = await getSessionProfile();
+  const { user, profile, profileError } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  if (profileError || !profile) return NextResponse.json({ error: "Could not load your account. Please try again." }, { status: 503 });
 
   const { serviceId, duration } = await request.json();
   if (!serviceId) return NextResponse.json({ error: "serviceId is required" }, { status: 400 });
 
   // duration is a string like "1D" / "12H" / "1M" for long-term rentals, or
   // omitted entirely for a normal short-term (5-15 min) rental.
+  if (duration && !["12H", "1D", "7D", "1M"].includes(duration)) return NextResponse.json({ error: "Choose a supported rental duration." }, { status: 400 });
   const isLongTerm = Boolean(duration);
 
   const admin = createAdminClient();
 
-  // Master on/off switch (see /admin/providers, public.daisysms_config) —
-  // checked here server-side so a stale link or a direct API call can't
-  // buy while DaisySMS is switched off, even if the customer-facing UI is
-  // hidden. Fails OPEN (missing row = still enabled) so a schema.sql that
-  // hasn't been re-run yet doesn't silently break every purchase.
+  // Verify provider settings before spending provider or customer funds.
   const { data: providerConfig } = await admin
     .from("daisysms_config")
     .select("enabled, long_term_enabled")
     .eq("id", true)
-    .maybeSingle();
-  if (providerConfig && !providerConfig.enabled) {
+    .maybeSingle().throwOnError();
+  if (!providerConfig?.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
 
-  // Same fail-open reasoning as `enabled` above (missing row = still allowed,
-  // so an un-migrated install isn't silently broken) — but once the column
-  // exists and is explicitly off, reject a duration server-side too, not
-  // just hide it in the UI (see /admin/providers, components/BuyForm.js).
-  if (isLongTerm && providerConfig && providerConfig.long_term_enabled === false) {
+  if (isLongTerm && !providerConfig?.long_term_enabled) {
     return NextResponse.json(
       { error: "Long-term rentals are currently unavailable — choose the short-term option instead." },
       { status: 403 }
     );
   }
 
-  const { data: service } = await admin.from("services").select("*").eq("id", serviceId).single();
+  const { data: service } = await admin.from("services").select("*").eq("id", serviceId).single().throwOnError();
   if (!service || !service.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
 
   const customerPrice = Number(service.customer_price);
-  if (!customerPrice || customerPrice <= 0) {
+  if (!Number.isFinite(customerPrice) || customerPrice <= 0) {
     return NextResponse.json(
       { error: "This product hasn't been priced yet — check back soon." },
       { status: 403 }
@@ -162,7 +158,7 @@ export async function POST(request) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: -customerPrice,
       p_type: "purchase",
@@ -179,7 +175,7 @@ export async function POST(request) {
       // best effort only
     }
     await admin.from("rentals").update({ status: "cancelled" }).eq("id", rental.id);
-    return NextResponse.json({ error: "Insufficient balance at time of purchase." }, { status: 402 });
+    return safeErrorResponse(err, { route: "/api/rentals/buy", userId: user.id, context: { rentalId: rental.id, stage: "wallet-debit" } });
   }
 
   return NextResponse.json({ rental });

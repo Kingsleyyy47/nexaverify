@@ -7,6 +7,7 @@ import { safeErrorResponse, customerSafeMessage } from "@/lib/apiError";
 // This panel is poll-only — no webhook — so a status refresh is always a
 // manual (or eventually scheduled) pull, unlike DaisySMS/iStar which push.
 export async function POST(_request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

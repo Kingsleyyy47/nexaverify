@@ -12,6 +12,7 @@ import LocalDateTime from "@/components/LocalDateTime";
 // page has to do that check explicitly rather than leaning on RLS for
 // something this sensitive.
 export default async function DigitalOrderDetailsPage({ params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user) notFound();
 

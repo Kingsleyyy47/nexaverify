@@ -1,3 +1,6 @@
+import { getApps } from "@/lib/getatext";
+import { getApps as getAppsUsa } from "@/lib/daisysimUsa";
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,7 +42,7 @@ export async function POST(request) {
     .from("daisysim_usa_config")
     .select("enabled, markup_amount_ngn, backend")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
@@ -56,7 +59,7 @@ export async function POST(request) {
     .select("disabled, markup_ngn")
     .eq("backend", backend)
     .eq("service_code", serviceCode)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (overrideError) {
     return NextResponse.json({ error: "Could not verify this service's price. Please try again." }, { status: 503 });
   }
@@ -70,19 +73,28 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
-  if (!usdRate) {
+  if (!Number.isFinite(usdRate) || usdRate <= 0) {
     return NextResponse.json({ error: "Pricing isn't set up yet." }, { status: 503 });
   }
 
-  const { data: profile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
+  const { data: profile, error: balanceError } = await admin.from("profiles").select("balance").eq("id", user.id).single().throwOnError();
+  if (balanceError) return safeErrorResponse(balanceError, { route: "/api/us-only/buy", userId: user.id });
 
   // Pre-check only — an estimate from whatever the client last saw, used to
   // avoid needlessly spending Getatext balance on an order the customer
   // clearly can't afford. Not what they'll actually be charged.
-  const estimatedPrice = computeNgnPrice(priceUsd, usdRate, effectiveMarkupNgn);
-  if (!estimatedPrice || estimatedPrice <= 0) {
+  let quotedService;
+  try {
+    const apps = backend === "daisysim" ? await getAppsUsa() : await getApps();
+    quotedService = apps.find((app) => String(app.code) === String(serviceCode));
+  } catch (err) {
+    return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id, status: 503 });
+  }
+  if (!quotedService) return NextResponse.json({ error: "This service is no longer available. Refresh the list." }, { status: 409 });
+  const estimatedPrice = computeNgnPrice(quotedService.price, usdRate, effectiveMarkupNgn);
+  if (!Number.isFinite(estimatedPrice) || estimatedPrice <= 0) {
     return NextResponse.json({ error: "Could not price this number — try again." }, { status: 400 });
   }
   if (Number(profile?.balance || 0) < estimatedPrice) {
@@ -147,7 +159,7 @@ export async function POST(request) {
   // the client's last fetch and this purchase.
   const customerPrice = computeNgnPrice(purchase.amountCharged, usdRate, effectiveMarkupNgn);
 
-  if (!customerPrice || customerPrice <= 0) {
+  if (!Number.isFinite(customerPrice) || customerPrice <= 0) {
     await cancelPurchase();
     return NextResponse.json({ error: "Could not price this number — try again." }, { status: 500 });
   }
@@ -185,7 +197,7 @@ export async function POST(request) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: -customerPrice,
       p_type: "purchase",
@@ -198,7 +210,7 @@ export async function POST(request) {
     // purchase). Undo: best-effort cancel with the provider and mark cancelled.
     await cancelPurchase();
     await admin.from("rentals").update({ status: "cancelled" }).eq("id", rental.id);
-    return NextResponse.json({ error: "Insufficient balance at time of purchase." }, { status: 402 });
+    return safeErrorResponse(err, { route: "/api/us-only/buy", userId: user.id, context: { rentalId: rental.id, stage: "wallet-debit" } });
   }
 
   return NextResponse.json({ rental });

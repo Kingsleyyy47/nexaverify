@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { getSessionProfile } from "@/lib/auth";
 import NumberCard from "@/components/NumberCard";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -5,11 +7,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export default async function RentalsPage() {
   const { user } = await getSessionProfile();
 
-  const { data: rentals } = await createAdminClient()
-    .from("rentals")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  if (!user) redirect("/login");
+  const rentals = await fetchAllRows(() => createAdminClient().from("rentals")
+    .select("*").eq("user_id", user.id), "id");
+  rentals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const all = rentals || [];
   const longTerm = all.filter((r) => r.is_long_term);

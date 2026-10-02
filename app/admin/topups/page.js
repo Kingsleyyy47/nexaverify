@@ -7,7 +7,7 @@ export default async function AdminTopupsPage() {
   const { data: requests } = await admin
     .from("topup_requests")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).throwOnError();
 
   const userIds = [...new Set((requests || []).map((r) => r.user_id))];
   const { data: users } =

@@ -74,6 +74,7 @@ export async function POST(request) {
   const reference = payload?.transaction?.reference || null;
   const amountNgn = payload?.order?.amount != null ? Number(payload.order.amount) : null;
 
+  let processingFailed = false;
   let matched = null;
   let matchedUserId = null;
 
@@ -93,6 +94,7 @@ export async function POST(request) {
       // an equivalent empty catch on the virtual-account path below hid a
       // real bug for days because nothing here ever logged what actually
       // went wrong.
+      processingFailed = true;
       await logError({ error: err, route: "pocketfi webhook (checkout match)", context: { candidatePaymentId } });
     }
   }
@@ -123,6 +125,7 @@ export async function POST(request) {
         } else if (result.outcome === "already_processed") {
           matched = reference || candidateAccountNumber;
         } else if (result.referenceId) {
+          processingFailed = true;
           // lookup_failed / insert_failed / credit_failed: already logged
           // with a reference ID inside creditVirtualAccountFromWebhook.
           // Nothing further to do here besides not claiming `matched`.
@@ -133,6 +136,7 @@ export async function POST(request) {
         // anything that lands here is a real bug, not a routine provider
         // hiccup. Log it instead of the old empty catch, which is exactly
         // what let the Sept 2026 silent-failure bug hide for days.
+        processingFailed = true;
         await logError({
           error: err,
           route: "pocketfi webhook (virtual account match)",
@@ -150,5 +154,6 @@ export async function POST(request) {
     matched_user_id: matchedUserId,
   });
 
+  if (processingFailed && !matched) return NextResponse.json({ message: "Payment processing temporarily unavailable. Retry delivery." }, { status: 503 });
   return NextResponse.json({ message: "success" });
 }

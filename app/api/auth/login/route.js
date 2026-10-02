@@ -27,11 +27,13 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("email")
     .ilike("username", escapeLikePattern(username))
     .maybeSingle();
+
+  if (profileError) return NextResponse.json({ error: "Sign-in is temporarily unavailable. Please try again." }, { status: 503 });
 
   const emailToUse = profile?.email || (username.includes("@") ? username : null);
 
@@ -42,7 +44,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({
     email: emailToUse,
     password,

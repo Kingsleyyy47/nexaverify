@@ -7,7 +7,7 @@ export default async function AdminProductsPage() {
   const { data: services } = await admin
     .from("services")
     .select("*")
-    .order("name", { ascending: true });
+    .order("name", { ascending: true }).throwOnError();
 
   // Needed to offer "show DaisySMS cost in ₦" — last_price is always in USD
   // (it's also the maxPrice cap sent to DaisySMS's getNumber call, which is
@@ -17,7 +17,7 @@ export default async function AdminProductsPage() {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
 
   return (

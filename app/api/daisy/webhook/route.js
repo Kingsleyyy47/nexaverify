@@ -32,7 +32,7 @@ export async function POST(request) {
     .eq("daisy_id", String(activationId))
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!rental) {
     // Unknown activation id — nothing to do, but still ack with 2xx so
@@ -40,13 +40,14 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, matched: false });
   }
 
-  await admin.from("sms_messages").insert({
+  const { error: smsError } = await admin.from("sms_messages").insert({
     rental_id: rental.id,
     daisy_message_id: messageId ?? null,
     code: code ?? null,
     text: text ?? null,
     received_at: receivedAt ? new Date(receivedAt) : new Date(),
   });
+  if (smsError && smsError.code !== "23505") return NextResponse.json({ error: "Could not save message; retry delivery." }, { status: 503 });
 
   await admin
     .from("rentals")
@@ -56,7 +57,9 @@ export async function POST(request) {
       full_text: text ?? rental.full_text,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", rental.id);
+    .eq("id", rental.id)
+    .eq("status", rental.status)
+    .throwOnError();
 
   return NextResponse.json({ ok: true, matched: true });
 }

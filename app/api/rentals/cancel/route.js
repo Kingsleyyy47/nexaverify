@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,7 +16,7 @@ export async function POST(request) {
   const { rentalId } = await request.json();
   const admin = createAdminClient();
   const { data: rental, error: lookupError } = await admin
-    .from("rentals").select("*").eq("id", rentalId).eq("user_id", user.id).maybeSingle();
+    .from("rentals").select("*").eq("id", rentalId).eq("user_id", user.id).maybeSingle().throwOnError();
   if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/cancel", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
@@ -59,7 +60,7 @@ export async function POST(request) {
           })
           .eq("id", rentalId)
           .select()
-          .single();
+          .single().throwOnError();
         return NextResponse.json({
           rental: updated,
           error: "A code arrived just as you cancelled — this number wasn't cancelled.",
@@ -101,7 +102,7 @@ export async function POST(request) {
           })
           .eq("id", rentalId)
           .select()
-          .single();
+          .single().throwOnError();
         return NextResponse.json({
           rental: updated,
           error: "A code arrived just as you cancelled — this number wasn't cancelled.",
@@ -162,7 +163,7 @@ export async function POST(request) {
           })
           .eq("id", rentalId)
           .select()
-          .single();
+          .single().throwOnError();
         return NextResponse.json({
           rental: updated,
           error: "A code arrived just as you cancelled — this number wasn't cancelled.",
@@ -209,7 +210,7 @@ export async function POST(request) {
       .eq("id", rentalId)
       .eq("status", "waiting")
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     return NextResponse.json({
       rental: cancelledNoRefund || rental,
       error: "Cancelled, but the provider didn't confirm a refund — support has been notified to review this.",
@@ -234,17 +235,17 @@ export async function POST(request) {
     .eq("status", "waiting")
     .is("refunded_at", null)
     .select()
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!updated) {
     // Lost the race (e.g. the timeout sweep already cancelled + refunded
     // this exact rental in between) — it's still cancelled, just not by us.
-    const { data: current } = await admin.from("rentals").select("*").eq("id", rentalId).single();
+    const { data: current } = await admin.from("rentals").select("*").eq("id", rentalId).single().throwOnError();
     return NextResponse.json({ rental: current });
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: rental.price,
       p_type: "refund",

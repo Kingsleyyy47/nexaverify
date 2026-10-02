@@ -24,6 +24,7 @@ const STATUS_BADGE = {
 // and public.istar_config), so this doubles as an audit trail of admin test
 // purchases until the feature opens up to customers.
 export default async function AdminTelegramHistoryPage({ searchParams }) {
+  searchParams = await searchParams;
   const admin = createAdminClient();
 
   const q = (searchParams?.q || "").trim();

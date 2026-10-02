@@ -35,7 +35,7 @@ export async function POST(request) {
   }
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, "");
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(emailToUse, {
     redirectTo: `${siteUrl}/reset-password`,
   });

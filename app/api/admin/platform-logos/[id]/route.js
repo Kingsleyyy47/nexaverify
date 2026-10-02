@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function PATCH(request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -42,6 +43,7 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(_request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

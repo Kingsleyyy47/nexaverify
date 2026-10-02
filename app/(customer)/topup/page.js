@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSessionProfile } from "@/lib/auth";
 import VirtualAccountCard from "@/components/VirtualAccountCard";
 import PocketfiPaymentsList from "@/components/PocketfiPaymentsList";
@@ -23,7 +24,9 @@ const FUNDED_BANNER = {
 };
 
 export default async function TopupPage({ searchParams }) {
+  searchParams = await searchParams;
   const { user } = await getSessionProfile();
+  if (!user) redirect("/login");
   const admin = createAdminClient();
   const funded = searchParams?.funded;
   const banner = funded ? FUNDED_BANNER[funded] : null;
@@ -34,8 +37,8 @@ export default async function TopupPage({ searchParams }) {
       .select("*")
       .eq("user_id", user.id)
       .in("provider", ["pocketfi", "pocketfi_virtual_account"])
-      .order("created_at", { ascending: false }),
-    admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle(),
+      .order("created_at", { ascending: false }).throwOnError(),
+    admin.from("pocketfi_config").select("virtual_account_enabled").eq("id", true).maybeSingle().throwOnError(),
   ]);
 
   const virtualAccountEnabled = pocketfiConfig?.virtual_account_enabled ?? true;

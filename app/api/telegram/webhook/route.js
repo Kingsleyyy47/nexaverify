@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,7 +51,7 @@ export async function POST(request) {
     .from("telegram_gift_orders")
     .select("*")
     .eq("istar_order_id", order.id)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!existing) {
     return NextResponse.json({ ok: true, matched: false });
@@ -77,7 +78,7 @@ export async function POST(request) {
       // recording completion (or learning its cost) in our own DB.
       .in("status", ["pending", "processing"])
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
 
     // Self-learning star pricing — see lib/istar.js#learnStarCostFromOrder.
     // `order.amount` is the real, final charged amount for this order (the
@@ -112,12 +113,13 @@ export async function POST(request) {
       })
       .eq("id", existing.id)
       .is("refunded_at", null)
+      .in("status", ["pending", "processing", "failed"])
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
 
     if (claimed) {
       try {
-        await admin.rpc("adjust_balance", {
+        await adjustBalance(admin, {
           p_user_id: claimed.user_id,
           p_amount: claimed.price,
           p_type: "refund",
@@ -129,7 +131,8 @@ export async function POST(request) {
         // Un-claim just the refund so a later manual status check can retry
         // the credit without re-processing the failure itself.
         console.error(`[telegram/webhook] refund failed for order ${claimed.id}:`, err.message);
-        await admin.from("telegram_gift_orders").update({ refunded_at: null }).eq("id", claimed.id);
+        await admin.from("telegram_gift_orders").update({ refunded_at: null }).eq("id", claimed.id).throwOnError();
+        return NextResponse.json({ error: "Refund could not be settled. Please retry delivery." }, { status: 503 });
       }
     }
     return NextResponse.json({ ok: true, matched: true });

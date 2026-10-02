@@ -26,6 +26,7 @@ const STATUS_BADGE = {
 // stays as-is for the long-term-only view with renewal controls; this is
 // the full, unfiltered purchase history.)
 export default async function AdminNumberHistoryPage({ searchParams }) {
+  searchParams = await searchParams;
   const admin = createAdminClient();
 
   const q = (searchParams?.q || "").trim();

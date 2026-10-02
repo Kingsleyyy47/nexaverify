@@ -10,6 +10,7 @@ export const revalidate = 0;
 const PAGE_SIZE = 100;
 
 export default async function AdminUsersPage({ searchParams }) {
+  searchParams = await searchParams;
   const admin = createAdminClient();
 
   const q = (searchParams?.q || "").trim();

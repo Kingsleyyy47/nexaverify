@@ -28,7 +28,7 @@ export default function PurchasedNumberDropdown({ rental }) {
       </button>
       {open && (
         <div className="p-3 bg-white dark:bg-night-900">
-          <NumberCard rental={rental} />
+          <NumberCard key={rental.id} rental={rental} />
         </div>
       )}
     </div>

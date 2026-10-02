@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 // via the service role key (error_logs has no client-facing select policy
 // at all, same pattern as digital_stock_items).
 export default async function AdminNotificationsPage({ searchParams }) {
+  searchParams = await searchParams;
   const admin = createAdminClient();
 
   const q = (searchParams?.q || "").trim();

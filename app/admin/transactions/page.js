@@ -15,6 +15,7 @@ const PAGE_SIZE = 50;
 // already the complete, authoritative deposit ledger. Nothing new to wire
 // in; this page is just the first place to actually look at it.
 export default async function AdminTransactionsPage({ searchParams }) {
+  searchParams = await searchParams;
   const admin = createAdminClient();
 
   const q = (searchParams?.q || "").trim();

@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -98,12 +99,12 @@ async function retryPendingRefund(admin, rental, results) {
     .is("refunded_at", null)
     .eq("refund_denied_by_provider", false)
     .select()
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!claimed) return;
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: claimed.user_id,
       p_amount: claimed.price,
       p_type: "refund",
@@ -352,7 +353,7 @@ async function processExpiredRental(admin, rental, results) {
     .eq("status", "waiting")
     .is("refunded_at", null)
     .select()
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!claimed) {
     // Lost the race to a manual cancel — already handled, nothing more to do.
@@ -362,7 +363,7 @@ async function processExpiredRental(admin, rental, results) {
   results.cancelled++;
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: claimed.user_id,
       p_amount: claimed.price,
       p_type: "refund",

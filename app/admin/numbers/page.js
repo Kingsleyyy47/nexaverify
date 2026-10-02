@@ -9,7 +9,7 @@ export default async function AdminNumbersPage() {
     .from("rentals")
     .select("*")
     .eq("is_long_term", true)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).throwOnError();
 
   const userIds = [...new Set((rentals || []).map((r) => r.user_id))];
   const { data: users } =

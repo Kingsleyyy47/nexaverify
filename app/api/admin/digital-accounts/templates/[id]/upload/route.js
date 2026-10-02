@@ -9,6 +9,7 @@ import { parseAndValidateAccountsCsv } from "@/lib/digitalAccountsCsv";
 // upload or leave a partially-stocked batch. See
 // lib/digitalAccountsCsv.js#parseAndValidateAccountsCsv for the actual rules.
 export async function POST(request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

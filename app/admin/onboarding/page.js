@@ -3,7 +3,7 @@ import OnboardingConfigForm from "@/components/OnboardingConfigForm";
 
 export default async function AdminOnboardingPage() {
   const admin = createAdminClient();
-  const { data: row } = await admin.from("onboarding_config").select("*").eq("id", true).maybeSingle();
+  const { data: row } = await admin.from("onboarding_config").select("*").eq("id", true).maybeSingle().throwOnError();
 
   const config = {
     enabled: row?.enabled ?? true,

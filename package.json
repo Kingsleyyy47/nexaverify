@@ -6,20 +6,26 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test tests/*.test.mjs",
+    "check:live": "node scripts/check-live.mjs",
+    "audit:settlements": "node --env-file=.env.local scripts/audit-settlements.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.446.0",
-    "next": "14.2.15",
+    "next": "15.5.26",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47",
+    "postcss": "^8.5.23",
     "tailwindcss": "^3.4.13"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }

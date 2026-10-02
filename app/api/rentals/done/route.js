@@ -15,6 +15,9 @@ export async function POST(request) {
   if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/done", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
 
+  if (rental.status === "done") return NextResponse.json({ rental });
+  if (rental.status !== "received") return NextResponse.json({ error: "A code must arrive before this rental can be marked done." }, { status: 409 });
+
   // DaisySim (both "All countries" and "US Only") has no "mark done"
   // equivalent (no setStatus-style endpoint) — once a code arrives there's
   // nothing further to tell the provider, so this is purely a local status
@@ -30,12 +33,15 @@ export async function POST(request) {
     }
   }
 
-  const { data: updated } = await admin
+  const { data: updated, error: updateError } = await admin
     .from("rentals")
     .update({ status: "done", updated_at: new Date().toISOString() })
     .eq("id", rentalId)
+    .eq("status", "received")
     .select()
-    .single();
+    .maybeSingle();
 
+  if (updateError) return safeErrorResponse(updateError, { route: "/api/rentals/done", userId: user.id });
+  if (!updated) return NextResponse.json({ error: "Rental status changed. Refresh and try again." }, { status: 409 });
   return NextResponse.json({ rental: updated });
 }

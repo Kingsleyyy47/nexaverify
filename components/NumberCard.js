@@ -19,6 +19,7 @@ export default function NumberCard({ rental }) {
   const [state, setState] = useState(rental);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [pollError, setPollError] = useState("");
   const [copied, setCopied] = useState(false);
   const [numberCopied, setNumberCopied] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(null);
@@ -38,17 +39,22 @@ export default function NumberCard({ rental }) {
   useEffect(() => {
     if (state.status !== "waiting") return;
 
-    const interval = setInterval(async () => {
+    let stopped = false, timer, failures = 0;
+    const controller = new AbortController();
+    async function poll() {
       try {
-        const res = await fetch(`/api/rentals/status?id=${state.id}`);
+        const res = await fetch(`/api/rentals/status?id=${state.id}`, { cache: "no-store", signal: controller.signal });
         const data = await res.json();
-        if (res.ok && data.rental) setState(data.rental);
+        if (!res.ok || !data.rental) throw new Error("Status unavailable");
+        if (!stopped) { setState(data.rental); setPollError(""); failures = 0; }
       } catch {
-        // ignore transient poll errors
+        if (!stopped && ++failures >= 3) setPollError("Status checks are temporarily unavailable. Retrying automatically; you can also check Rentals.");
+      } finally {
+        if (!stopped) timer = setTimeout(poll, 5000);
       }
-    }, 5000);
-
-    return () => clearInterval(interval);
+    }
+    timer = setTimeout(poll, 5000);
+    return () => { stopped = true; clearTimeout(timer); controller.abort(); };
   }, [state.status, state.id]);
 
   // Live countdown to when the server-side sweep (see
@@ -84,7 +90,10 @@ export default function NumberCard({ rental }) {
         body: JSON.stringify({ rentalId: state.id, ...extraBody }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Action failed");
+      if (!res.ok) {
+        if (action === "extra" && Number.isFinite(data.price)) setState((s) => ({ ...s, extra_price: data.price }));
+        throw new Error(data.error || "Action failed");
+      }
       if (data.rental) setState(data.rental);
       // Some responses are a 200 with BOTH an updated rental AND an
       // informational error (e.g. "refund still processing", or a code that
@@ -157,15 +166,15 @@ export default function NumberCard({ rental }) {
               {" "}
               {secondsLeft > 0 ? (
                 <>
-                  Auto-cancels &amp; refunds in{" "}
+                  Suggested waiting time:{" "}
                   <span className="font-mono font-semibold text-gray-500 dark:text-night-300">
                     {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
                     {String(secondsLeft % 60).padStart(2, "0")}
                   </span>{" "}
-                  if no code arrives.
+                  then you can cancel if no code arrives.
                 </>
               ) : (
-                "Cancelling and refunding now…"
+                "You can cancel now. Automatic cancellation is checked after 15 minutes if no code arrives."
               )}
             </>
           )}
@@ -179,6 +188,7 @@ export default function NumberCard({ rental }) {
         </div>
       )}
 
+      {pollError && <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{pollError}</p>}
       {error && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -192,9 +202,9 @@ export default function NumberCard({ rental }) {
             Mark done
           </button>
         )}
-        {state.is_long_term && (state.status === "done" || state.status === "received") && (
-          <button disabled={busy} onClick={() => act("extra")} className="btn-primary btn-sm">
-            Request another code
+        {state.is_long_term && (!state.provider || state.provider === "daisysms") && (state.status === "done" || state.status === "received") && (
+          <button disabled={busy} onClick={() => act("extra", { expectedPrice: state.extra_price ?? state.price })} className="btn-primary btn-sm">
+            Request another code (up to {format(state.extra_price ?? state.price)})
           </button>
         )}
       </div>

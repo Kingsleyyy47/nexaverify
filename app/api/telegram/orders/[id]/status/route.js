@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,6 +13,7 @@ import { safeErrorResponse } from "@/lib/apiError";
 // webhook firing later can never double-refund an order this route already
 // resolved (and vice versa).
 export async function GET(request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -24,20 +26,20 @@ export async function GET(request, { params }) {
     .from("telegram_gift_orders")
     .select("*")
     .eq("id", params.id)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!orderRow || orderRow.user_id !== user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Already resolved locally — no need to hit iStar again.
-  if (orderRow.status === "completed" || orderRow.status === "failed") {
+  if (orderRow.status === "completed" || (orderRow.status === "failed" && orderRow.refunded_at)) {
     return NextResponse.json({ order: orderRow });
   }
 
   let remote;
   try {
-    remote = await getOrderStatus(orderRow.istar_order_id);
+    remote = orderRow.status === "failed" ? { status: "failed", error: orderRow.error_message } : await getOrderStatus(orderRow.istar_order_id);
   } catch (err) {
     if (err instanceof IStarError) {
       return NextResponse.json(
@@ -65,7 +67,7 @@ export async function GET(request, { params }) {
       // completed (or learned from) on a later one.
       .in("status", ["pending", "processing"])
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
 
     // Self-learning star pricing — see lib/istar.js#learnStarCostFromOrder.
     // `remote.amount` is the real, final charged amount reported directly by
@@ -96,12 +98,13 @@ export async function GET(request, { params }) {
       })
       .eq("id", orderRow.id)
       .is("refunded_at", null)
+      .in("status", ["pending", "processing", "failed"])
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
 
     if (claimed) {
       try {
-        await admin.rpc("adjust_balance", {
+        await adjustBalance(admin, {
           p_user_id: claimed.user_id,
           p_amount: claimed.price,
           p_type: "refund",
@@ -111,7 +114,8 @@ export async function GET(request, { params }) {
         });
       } catch (err) {
         console.error(`[telegram/orders/status] refund failed for order ${claimed.id}:`, err.message);
-        await admin.from("telegram_gift_orders").update({ refunded_at: null }).eq("id", claimed.id);
+        await admin.from("telegram_gift_orders").update({ refunded_at: null }).eq("id", claimed.id).throwOnError();
+        return safeErrorResponse(err, { route: "/api/telegram/orders/[id]/status", userId: user.id, context: { orderId: claimed.id, stage: "refund" } });
       }
       return NextResponse.json({ order: claimed });
     }
@@ -124,8 +128,9 @@ export async function GET(request, { params }) {
       .from("telegram_gift_orders")
       .update({ status: remote.status, updated_at: now })
       .eq("id", orderRow.id)
+      .in("status", ["pending", "processing"])
       .select()
-      .maybeSingle();
+      .maybeSingle().throwOnError();
     return NextResponse.json({ order: updated || orderRow });
   }
 

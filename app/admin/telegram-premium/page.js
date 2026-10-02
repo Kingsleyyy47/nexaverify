@@ -14,8 +14,8 @@ export default async function AdminTelegramPremiumPage() {
   const admin = createAdminClient();
 
   const [{ data: row }, { data: usdRateRow }] = await Promise.all([
-    admin.from("istar_config").select("*").eq("id", true).maybeSingle(),
-    admin.from("currency_rates").select("ngn_per_unit").eq("currency", "USD").maybeSingle(),
+    admin.from("istar_config").select("*").eq("id", true).maybeSingle().throwOnError(),
+    admin.from("currency_rates").select("ngn_per_unit").eq("currency", "USD").maybeSingle().throwOnError(),
   ]);
 
   const config = {

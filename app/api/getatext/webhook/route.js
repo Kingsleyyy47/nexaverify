@@ -53,17 +53,18 @@ export async function POST(request) {
     .eq("daisysim_usa_activation_id", String(activationId))
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!rental) {
     return NextResponse.json({ ok: true, matched: false });
   }
 
-  await admin.from("sms_messages").insert({
+  const { error: smsError } = await admin.from("sms_messages").insert({
     rental_id: rental.id,
     code: String(code),
     text: String(code),
   });
+  if (smsError && smsError.code !== "23505") return NextResponse.json({ error: "Could not save message; retry delivery." }, { status: 503 });
 
   await admin
     .from("rentals")
@@ -72,7 +73,9 @@ export async function POST(request) {
       sms_code: rental.sms_code || String(code),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", rental.id);
+    .eq("id", rental.id)
+    .eq("status", rental.status)
+    .throwOnError();
 
   return NextResponse.json({ ok: true, matched: true });
 }

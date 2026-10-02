@@ -12,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // sending the full state keeps the client's local optimistic state and the
 // server in sync.
 export async function PATCH(request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -69,6 +70,7 @@ export async function PATCH(request, { params }) {
 // exist, reject hard deletion so customers' past Order Details pages can
 // still show the credentials they bought; use Archive to take it off sale.
 export async function DELETE(_request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

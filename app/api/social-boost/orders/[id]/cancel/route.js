@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -64,19 +65,20 @@ function extractCancelResult(response, providerOrderId) {
 //      deliberately withheld and flagged for admin review rather than
 //      guessing an amount.
 export async function POST(_request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const isAdminCaller = isAdmin(profile);
   const admin = createAdminClient();
-  const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle();
+  const { data: order } = await admin.from("social_boost_orders").select("*").eq("id", params.id).maybeSingle().throwOnError();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (!isAdminCaller && order.user_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Step 1: already fully processed on our side — nothing to do.
-  if (order.refunded_at || order.status === "Canceled" || order.status === "Cancelled") {
+  if (order.refunded_at) {
     return NextResponse.json({ order });
   }
 
@@ -182,12 +184,12 @@ export async function POST(_request, { params }) {
     .eq("id", order.id)
     .is("refunded_at", null)
     .select()
-    .maybeSingle();
+    .maybeSingle().throwOnError();
 
   if (!claimed) {
     // Lost the race to a concurrent request that claimed it a moment
     // earlier — it's already handled, just return the current row.
-    const { data: current } = await admin.from("social_boost_orders").select("*").eq("id", order.id).single();
+    const { data: current } = await admin.from("social_boost_orders").select("*").eq("id", order.id).single().throwOnError();
     return NextResponse.json({ order: current });
   }
 
@@ -205,7 +207,7 @@ export async function POST(_request, { params }) {
       })
       .eq("id", claimed.id)
       .select()
-      .single();
+      .single().throwOnError();
     return NextResponse.json({
       order: flagged || claimed,
       error: "Cancelled, but the refund needs admin review since the provider's status couldn't be confirmed.",
@@ -217,7 +219,7 @@ export async function POST(_request, { params }) {
   // an order that hadn't started at all (remains >= quantity) gets a full
   // refund, same as rentals' all-or-nothing cancel.
   const quantity = Number(order.quantity) || 0;
-  const undeliveredRatio = quantity > 0 ? Math.min(remains, quantity) / quantity : 0;
+  const undeliveredRatio = quantity > 0 ? Math.max(0, Math.min(remains, quantity)) / quantity : 0;
   const refundNgn = Math.round(Number(order.price_ngn || 0) * undeliveredRatio * 100) / 100;
 
   if (refundNgn <= 0) {
@@ -228,7 +230,7 @@ export async function POST(_request, { params }) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: claimed.user_id,
       p_amount: refundNgn,
       p_type: "refund",

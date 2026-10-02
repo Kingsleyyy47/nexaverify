@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { recoverChunkError } from "@/lib/chunkRecovery.mjs";
 
 // Next.js App Router error boundary — automatically wraps every page/layout
 // below the root layout (NOT the root layout itself; see global-error.js for
@@ -14,6 +15,7 @@ export default function ErrorBoundary({ error, reset }) {
   const [referenceId, setReferenceId] = useState(null);
 
   useEffect(() => {
+    if (recoverChunkError(error, window)) return;
     let cancelled = false;
     fetch("/api/log-client-error", {
       method: "POST",

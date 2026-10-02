@@ -11,7 +11,7 @@ export default async function WebsitePage() {
   // Public page — no login required. onboarding_config has a select-all RLS
   // policy, so the plain anon-key client can read the same support link the
   // welcome popup uses, no service role needed here.
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: config } = await supabase
     .from("onboarding_config")
     .select("support_url")

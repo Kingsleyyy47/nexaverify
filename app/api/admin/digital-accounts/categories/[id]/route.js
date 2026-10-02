@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function PATCH(request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -39,6 +40,7 @@ export async function PATCH(request, { params }) {
 // credentials exist under the category, reject hard deletion so customers'
 // past Order Details pages can still show the credentials they bought.
 export async function DELETE(_request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

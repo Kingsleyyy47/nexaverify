@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // flow. Straight service-role auth admin call, no email/token involved, so
 // the new password is live immediately.
 export async function POST(request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

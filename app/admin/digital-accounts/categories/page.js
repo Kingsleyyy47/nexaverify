@@ -8,7 +8,7 @@ export default async function AdminDigitalCategoriesPage() {
     .from("digital_accounts_config")
     .select("customer_visible")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const config = { customerVisible: Boolean(row?.customer_visible) };
 
   return (

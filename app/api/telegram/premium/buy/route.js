@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -18,7 +19,7 @@ function customerSafeMessage(err, admin) {
 }
 
 export async function POST(request) {
-  const { user, profile } = await getSessionProfile();
+  const { user, profile, profileError } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -34,13 +35,14 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
+  if (profileError || !profile) return NextResponse.json({ error: "Could not load your account. Please try again." }, { status: 503 });
   const admin_ = isAdmin(profile);
 
   const { data: config } = await admin
     .from("istar_config")
     .select("enabled, customer_visible, premium_markup_3, premium_markup_6, premium_markup_12")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "Telegram gifting isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
   }
@@ -52,9 +54,9 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
-  if (!usdRate) {
+  if (!Number.isFinite(usdRate) || usdRate <= 0) {
     return NextResponse.json({ error: "Pricing isn't set up yet — set a USD rate first." }, { status: 503 });
   }
 
@@ -81,11 +83,12 @@ export async function POST(request) {
     );
   }
   const price = pricing.priceNgn;
-  if (!price || price <= 0) {
+  if (!Number.isFinite(price) || price <= 0) {
     return NextResponse.json({ error: "Could not price this package — try again." }, { status: 400 });
   }
 
-  const { data: buyerProfile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
+  const { data: buyerProfile, error: balanceError } = await admin.from("profiles").select("balance").eq("id", user.id).single().throwOnError();
+  if (balanceError) return safeErrorResponse(balanceError, { route: "/api/telegram/premium/buy", userId: user.id });
   if (Number(buyerProfile?.balance || 0) < price) {
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
@@ -138,7 +141,7 @@ export async function POST(request) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: -price,
       p_type: "purchase",
@@ -152,6 +155,9 @@ export async function POST(request) {
       .from("telegram_gift_orders")
       .update({ error_message: `wallet debit failed: ${err.message}`.slice(0, 500) })
       .eq("id", orderRow.id);
+    const response = await safeErrorResponse(err, { route: "/api/telegram/premium/buy", userId: user.id, context: { orderId: orderRow.id, stage: "wallet-debit" } });
+    const { referenceId } = await response.json();
+    return NextResponse.json({ order: orderRow, error: `Your order was placed, but wallet settlement needs review. Contact support with ${referenceId}; do not place it again.` }, { status: 202 });
   }
 
   return NextResponse.json({ order: orderRow });

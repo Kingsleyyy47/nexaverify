@@ -4,149 +4,52 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStatus, DaisyError } from "@/lib/daisy";
 import { checkSms, DaisySimError } from "@/lib/daisysim";
 import { checkSms as checkSmsUsa, GetatextError } from "@/lib/getatext";
-import { checkStatus as checkStatusDaisySimUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
+import { checkStatus as checkStatusUsa, DaisySimUsaError } from "@/lib/daisysimUsa";
 import { safeErrorResponse } from "@/lib/apiError";
+import { logError } from "@/lib/errorLog";
 
 export async function GET(request) {
   const { user } = await getSessionProfile();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
-
-  // Auth verified the caller above. Scope the service-role lookup explicitly:
-  // PostgREST can reject fresh user JWTs as "issued at future", which made
-  // real purchases appear missing immediately after checkout.
   const admin = createAdminClient();
-  const { data: rental, error: lookupError } = await admin
-    .from("rentals").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
-  if (lookupError) return safeErrorResponse(lookupError, { route: "/api/rentals/status", userId: user.id });
+  const lookup = () => admin.from("rentals").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
+  const { data: rental, error } = await lookup();
+  if (error) return safeErrorResponse(error, { route: "/api/rentals/status", userId: user.id });
   if (!rental) return NextResponse.json({ error: "Rental not found" }, { status: 404 });
-
-  if (rental.status !== "waiting") {
-    return NextResponse.json({ rental });
-  }
-
-  if (rental.provider === "daisysim") {
-    try {
-      const result = await checkSms(rental.daisysim_activation_id);
-
-      if (result.status === "received") {
-        const { data: updated } = await admin
-          .from("rentals")
-          .update({ status: "received", sms_code: result.code, updated_at: new Date().toISOString() })
-          .eq("id", rental.id)
-          .select()
-          .single();
-
-        await admin.from("sms_messages").insert({ rental_id: rental.id, code: result.code, text: result.code });
-
-        return NextResponse.json({ rental: updated });
-      }
-
-      if (result.status === "cancelled") {
-        const { data: updated } = await admin
-          .from("rentals")
-          .update({ status: "cancelled", updated_at: new Date().toISOString() })
-          .eq("id", rental.id)
-          .select()
-          .single();
-        return NextResponse.json({ rental: updated });
-      }
-
-      return NextResponse.json({ rental }); // still waiting
-    } catch (err) {
-      if (err instanceof DaisySimError && err.code === "NOT_FOUND") {
-        return NextResponse.json({ rental }); // transient — just report current state
-      }
-      return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });
-    }
-  }
-
-  if (rental.provider === "daisysim_usa") {
-    // "US Only" has two interchangeable backends — which one actually
-    // fulfilled THIS rental is stamped on the row at purchase time
-    // (us_only_backend), independent of whatever daisysim_usa_config.backend
-    // currently says. Legacy rows from before this column existed have
-    // us_only_backend === null and were always Getatext-backed, so null
-    // falls through to the Getatext branch same as before.
-    const isServer7 = rental.us_only_backend === "daisysim";
-    try {
-      const result = isServer7
-        ? await checkStatusDaisySimUsa(rental.daisysim_server7_activation_id)
-        : await checkSmsUsa(rental.daisysim_usa_activation_id);
-
-      if (result.status === "received") {
-        const { data: updated } = await admin
-          .from("rentals")
-          .update({ status: "received", sms_code: result.code, updated_at: new Date().toISOString() })
-          .eq("id", rental.id)
-          .select()
-          .single();
-
-        await admin.from("sms_messages").insert({ rental_id: rental.id, code: result.code, text: result.code });
-
-        return NextResponse.json({ rental: updated });
-      }
-
-      if (result.status === "cancelled") {
-        const { data: updated } = await admin
-          .from("rentals")
-          .update({ status: "cancelled", updated_at: new Date().toISOString() })
-          .eq("id", rental.id)
-          .select()
-          .single();
-        return NextResponse.json({ rental: updated });
-      }
-
-      return NextResponse.json({ rental }); // still waiting
-    } catch (err) {
-      if (
-        (!isServer7 && err instanceof GetatextError && err.code === "NOT_FOUND") ||
-        (isServer7 && err instanceof DaisySimUsaError && ["NOT_FOUND", "USER_NOT_FOUND"].includes(err.code))
-      ) {
-        return NextResponse.json({ rental }); // transient — just report current state
-      }
-      return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });
-    }
-  }
-
+  if (rental.status !== "waiting") return NextResponse.json({ rental });
+  let result;
   try {
-    const result = await getStatus(rental.daisy_id, { wantFullText: true });
-
-    if (result.status === "received") {
-      const { data: updated } = await admin
-        .from("rentals")
-        .update({ status: "received", sms_code: result.code, full_text: result.fullText, updated_at: new Date().toISOString() })
-        .eq("id", rental.id)
-        .select()
-        .single();
-
-      await admin.from("sms_messages").insert({
-        rental_id: rental.id,
-        code: result.code,
-        text: result.fullText,
-      });
-
-      return NextResponse.json({ rental: updated });
-    }
-
-    if (result.status === "cancelled") {
-      const { data: updated } = await admin
-        .from("rentals")
-        .update({ status: "cancelled", updated_at: new Date().toISOString() })
-        .eq("id", rental.id)
-        .select()
-        .single();
-      return NextResponse.json({ rental: updated });
-    }
-
-    // still waiting
-    return NextResponse.json({ rental });
+    if (rental.provider === "daisysim") result = await checkSms(rental.daisysim_activation_id);
+    else if (rental.provider === "daisysim_usa") result = rental.us_only_backend === "daisysim"
+      ? await checkStatusUsa(rental.daisysim_server7_activation_id)
+      : await checkSmsUsa(rental.daisysim_usa_activation_id);
+    else result = await getStatus(rental.daisy_id, { wantFullText: true });
   } catch (err) {
-    if (err instanceof DaisyError && err.code === "NO_ACTIVATION") {
-      return NextResponse.json({ rental }); // transient — just report current state
+    if ((err instanceof DaisyError && err.code === "NO_ACTIVATION") ||
+        (err instanceof DaisySimError && err.code === "NOT_FOUND") ||
+        (err instanceof GetatextError && err.code === "NOT_FOUND") ||
+        (err instanceof DaisySimUsaError && ["NOT_FOUND", "USER_NOT_FOUND"].includes(err.code))) {
+      return NextResponse.json({ rental });
     }
     return NextResponse.json({ error: "Could not check status right now" }, { status: 502 });
   }
+  if (!["received", "cancelled"].includes(result.status)) return NextResponse.json({ rental });
+  const patch = { status: result.status, updated_at: new Date().toISOString() };
+  if (result.status === "received") { patch.sms_code = result.code; patch.full_text = result.fullText || null; }
+  // Only one poll can resolve a waiting rental; a late poll cannot revive a cancelled/refunded one.
+  const { data: updated, error: updateError } = await admin.from("rentals").update(patch)
+    .eq("id", id).eq("user_id", user.id).eq("status", "waiting").select().maybeSingle();
+  if (updateError) return safeErrorResponse(updateError, { route: "/api/rentals/status", userId: user.id });
+  if (!updated) {
+    const { data: current, error: currentError } = await lookup();
+    if (currentError) return safeErrorResponse(currentError, { route: "/api/rentals/status", userId: user.id });
+    return NextResponse.json({ rental: current });
+  }
+  if (result.status === "received") {
+    const { error: smsError } = await admin.from("sms_messages").insert({ rental_id: id, code: result.code, text: result.fullText || result.code });
+    if (smsError) await logError({ error: smsError, route: "/api/rentals/status", userId: user.id, context: { rentalId: id, stage: "save-sms-history" } });
+  }
+  return NextResponse.json({ rental: updated });
 }

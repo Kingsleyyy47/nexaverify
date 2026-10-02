@@ -140,6 +140,7 @@ function GiftFlow({ mode, router, isAdminView, starPricingConfig = {}, premiumPr
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Purchase failed");
       setOrder(data.order);
+      if (data.error) setError(data.error);
       router.refresh();
     } catch (err) {
       setError(err.message);

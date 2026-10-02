@@ -7,6 +7,7 @@ import { escapeLikePattern, isValidUsername, USERNAME_RULES_MESSAGE } from "@/li
 // signup race-condition recovery as /set-username, but without waiting on
 // the affected customer to notice and log back in.
 export async function POST(request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

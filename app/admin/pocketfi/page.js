@@ -4,7 +4,7 @@ import PocketfiBackfillPanel from "@/components/PocketfiBackfillPanel";
 
 export default async function AdminPocketfiPage() {
   const admin = createAdminClient();
-  const { data: row } = await admin.from("pocketfi_config").select("*").eq("id", true).maybeSingle();
+  const { data: row } = await admin.from("pocketfi_config").select("*").eq("id", true).maybeSingle().throwOnError();
 
   const config = {
     virtualAccountEnabled: row?.virtual_account_enabled ?? true,

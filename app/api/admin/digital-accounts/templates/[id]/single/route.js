@@ -12,6 +12,7 @@ import { validateAccountFields, looksLikeLink } from "@/lib/digitalAccountsCsv";
 // one are indistinguishable to a customer buying it — same required fields
 // (password always; email OR username), same optional 2FA/recovery columns.
 export async function POST(request, { params }) {
+  params = await params;
   const { profile } = await getSessionProfile();
   if (!isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

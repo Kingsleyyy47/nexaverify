@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +15,7 @@ function customerSafeMessage(err, isAdminCaller) {
 }
 
 export async function GET() {
-  const { user, profile } = await getSessionProfile();
+  const { user, profile, profileError } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -34,9 +35,11 @@ export async function POST(request) {
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (profileError || !profile) return NextResponse.json({ error: "Could not load your account. Please try again." }, { status: 503 });
   const isAdminCaller = isAdmin(profile);
 
   const { serviceId, link, quantity, runs, interval } = await request.json();
+  if (runs != null || interval != null) return NextResponse.json({ error: "Repeated orders are not supported. Place a single order." }, { status: 400 });
   const service = Number(serviceId);
   const qty = Number(quantity);
   if (!Number.isInteger(service) || service <= 0) {
@@ -51,7 +54,7 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  const { data: config } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  const { data: config } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "Social Boost isn't enabled yet — turn it on in admin settings first." }, { status: 403 });
   }
@@ -86,7 +89,7 @@ export async function POST(request) {
     .from("social_boost_overrides")
     .select("*")
     .eq("service_id", service)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (overrideError) {
     return NextResponse.json({ error: "Could not verify this service's price. Please try again." }, { status: 503 });
   }
@@ -109,9 +112,9 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
-  if (!usdRate) {
+  if (!Number.isFinite(usdRate) || usdRate <= 0) {
     return NextResponse.json({ error: "No USD exchange rate configured — set one at /admin/currency first." }, { status: 400 });
   }
 
@@ -135,11 +138,12 @@ export async function POST(request) {
     effectiveMarkupType === "percent"
       ? Math.max(0, Math.round((costNgn * (1 + effectiveMarkupPercent / 100)) * 100) / 100)
       : Math.max(0, Math.round((costNgn + effectiveMarkupNgn) * 100) / 100);
-  if (!priceNgn || priceNgn <= 0) {
+  if (!Number.isFinite(priceNgn) || priceNgn <= 0) {
     return NextResponse.json({ error: "Could not compute a price for this order." }, { status: 400 });
   }
 
-  const { data: buyerProfile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
+  const { data: buyerProfile, error: balanceError } = await admin.from("profiles").select("balance").eq("id", user.id).single().throwOnError();
+  if (balanceError) return safeErrorResponse(balanceError, { route: "/api/social-boost/orders", userId: user.id });
   if (Number(buyerProfile?.balance || 0) < priceNgn) {
     return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 402 });
   }
@@ -164,7 +168,7 @@ export async function POST(request) {
   }
 
   if (!providerOrder?.order) {
-    return NextResponse.json({ error: "The provider didn't return an order ID — nothing was charged." }, { status: 502 });
+    return NextResponse.json({ error: "Could not confirm the order. Contact support before placing it again." }, { status: 502 });
   }
 
   const { data: orderRow, error: insertError } = await admin
@@ -202,7 +206,7 @@ export async function POST(request) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: -priceNgn,
       p_type: "purchase",
@@ -211,7 +215,9 @@ export async function POST(request) {
       p_created_by: null,
     });
   } catch (err) {
-    console.error(`[social-boost/orders] order ${orderRow.id} placed but wallet debit failed:`, err.message);
+    const response = await safeErrorResponse(err, { route: "/api/social-boost/orders", userId: user.id, context: { orderId: orderRow.id, stage: "wallet-debit" } });
+    const { referenceId } = await response.json();
+    return NextResponse.json({ order: orderRow, priceNgn, error: `Your order was placed, but wallet settlement needs review. Contact support with ${referenceId}; do not place it again.` }, { status: 202 });
   }
 
   return NextResponse.json({ order: orderRow, priceNgn });

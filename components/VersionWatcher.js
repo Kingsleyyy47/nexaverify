@@ -19,6 +19,7 @@ export default function VersionWatcher() {
       if (stopped || document.visibilityState === "hidden") return;
       try {
         const res = await fetch("/api/build-version", { cache: "no-store" });
+        if (!res.ok) return;
         const data = await res.json();
         const currentVersion = window.__NEXA_BUILD_ID__;
         if (data.version && currentVersion && data.version !== currentVersion) {
@@ -30,6 +31,7 @@ export default function VersionWatcher() {
       }
     }
 
+    checkVersion();
     const interval = setInterval(checkVersion, CHECK_INTERVAL_MS);
     document.addEventListener("visibilitychange", checkVersion);
     window.addEventListener("focus", checkVersion);

@@ -7,7 +7,7 @@ export default async function AdminInternationalPage() {
   const admin = createAdminClient();
 
   const [{ data: row }, { data: overrides }] = await Promise.all([
-    admin.from("daisysim_config").select("*").eq("id", true).maybeSingle(),
+    admin.from("daisysim_config").select("*").eq("id", true).maybeSingle().throwOnError(),
     admin.from("daisysim_overrides").select("*"),
   ]);
 

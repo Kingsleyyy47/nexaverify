@@ -28,7 +28,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,

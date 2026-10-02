@@ -3,6 +3,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request, { params }) {
+  params = await params;
   const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

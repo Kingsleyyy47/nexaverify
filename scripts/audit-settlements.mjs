@@ -1,0 +1,10 @@
+import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "../lib/pagination.mjs";
+import { auditSettlements } from "../lib/settlement-audit.mjs";
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Database audit requires the server environment");
+const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+const names = ["transactions", "rentals", "telegram_gift_orders", "social_boost_orders", "payment_transactions", "topup_requests"];
+const entries = await Promise.all(names.map(async name => [name, await fetchAllRows(() => admin.from(name).select("*"), "id")]));
+const tables = Object.fromEntries(entries), findings = auditSettlements(tables);
+console.log(JSON.stringify({ counts: Object.fromEntries(entries.map(([name,rows]) => [name, rows.length])), findings }, null, 2));
+if (findings.length) process.exitCode = 1;

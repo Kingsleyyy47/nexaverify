@@ -6,7 +6,7 @@ import SocialBoostCatalogManager from "@/components/SocialBoostCatalogManager";
 export default async function AdminSocialBoostPage() {
   const admin = createAdminClient();
 
-  const { data: row } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle();
+  const { data: row } = await admin.from("social_boost_config").select("*").eq("id", true).maybeSingle().throwOnError();
   const config = {
     enabled: Boolean(row?.enabled),
     customerVisible: Boolean(row?.customer_visible),
@@ -30,7 +30,7 @@ export default async function AdminSocialBoostPage() {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
 
   return (

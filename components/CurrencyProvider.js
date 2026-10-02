@@ -15,14 +15,15 @@ export function CurrencyProvider({ rates, children }) {
   const [currency, setCurrencyState] = useState("NGN");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    let saved;
+    try { saved = window.localStorage.getItem(STORAGE_KEY); } catch { saved = "NGN"; }
     setCurrencyState(CURRENCIES.includes(saved) && (saved === "NGN" || rateMap[saved]) ? saved : "NGN");
   }, [rateMap]);
 
   function setCurrency(next) {
     if (!CURRENCIES.includes(next) || (next !== "NGN" && !rateMap[next])) return;
     setCurrencyState(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
+    try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* Keep the in-memory selection. */ }
   }
 
   const value = useMemo(

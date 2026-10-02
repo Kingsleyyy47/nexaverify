@@ -1,3 +1,4 @@
+import { adjustBalance } from "@/lib/wallet-adjustment.mjs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,7 +30,7 @@ export async function POST(request) {
     .from("daisysim_config")
     .select("enabled, markup_amount_ngn")
     .eq("id", true)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (!config?.enabled) {
     return NextResponse.json({ error: "International numbers aren't available right now" }, { status: 403 });
   }
@@ -44,7 +45,7 @@ export async function POST(request) {
     .select("disabled")
     .eq("country_id", countryId)
     .eq("service_code", serviceCode)
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   if (override?.disabled) {
     return NextResponse.json({ error: "This service isn't available right now" }, { status: 403 });
   }
@@ -53,16 +54,17 @@ export async function POST(request) {
     .from("currency_rates")
     .select("ngn_per_unit")
     .eq("currency", "USD")
-    .maybeSingle();
+    .maybeSingle().throwOnError();
   const usdRate = usdRateRow ? Number(usdRateRow.ngn_per_unit) : null;
-  if (!usdRate) {
+  if (!Number.isFinite(usdRate) || usdRate <= 0) {
     return NextResponse.json({ error: "Pricing isn't set up yet." }, { status: 503 });
   }
 
-  const { data: profile } = await admin.from("profiles").select("balance").eq("id", user.id).single();
+  const { data: profile, error: balanceError } = await admin.from("profiles").select("balance").eq("id", user.id).single().throwOnError();
+  if (balanceError) return safeErrorResponse(balanceError, { route: "/api/international/buy", userId: user.id });
   const customerPrice = computeNgnPrice(priceUsd, usdRate, config.markup_amount_ngn);
 
-  if (!customerPrice || customerPrice <= 0) {
+  if (!Number.isFinite(customerPrice) || customerPrice <= 0) {
     return NextResponse.json({ error: "Could not price this number — try again." }, { status: 400 });
   }
   if (Number(profile?.balance || 0) < customerPrice) {
@@ -130,7 +132,7 @@ export async function POST(request) {
   }
 
   try {
-    await admin.rpc("adjust_balance", {
+    await adjustBalance(admin, {
       p_user_id: user.id,
       p_amount: -customerPrice,
       p_type: "purchase",
@@ -147,7 +149,7 @@ export async function POST(request) {
       // best effort only
     }
     await admin.from("rentals").update({ status: "cancelled" }).eq("id", rental.id);
-    return NextResponse.json({ error: "Insufficient balance at time of purchase." }, { status: 402 });
+    return safeErrorResponse(err, { route: "/api/international/buy", userId: user.id, context: { rentalId: rental.id, stage: "wallet-debit" } });
   }
 
   return NextResponse.json({ rental });

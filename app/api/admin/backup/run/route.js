@@ -1,3 +1,5 @@
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { safeErrorResponse } from "@/lib/apiError";
 import { NextResponse } from "next/server";
 import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,11 +24,16 @@ export async function POST(request) {
 
   const admin = createAdminClient();
 
-  const [{ data: profiles }, { data: transactions }, { data: rentals }] = await Promise.all([
-    admin.from("profiles").select("*"),
-    admin.from("transactions").select("*"),
-    admin.from("rentals").select("*"),
-  ]);
+  let profiles, transactions, rentals;
+  try {
+    [profiles, transactions, rentals] = await Promise.all([
+      fetchAllRows(() => admin.from("profiles").select("*"), "id"),
+      fetchAllRows(() => admin.from("transactions").select("*"), "id"),
+      fetchAllRows(() => admin.from("rentals").select("*"), "id"),
+    ]);
+  } catch (error) {
+    return safeErrorResponse(error, { route: "/api/admin/backup/run" });
+  }
 
   const snapshot = {
     generated_at: new Date().toISOString(),
@@ -53,17 +60,19 @@ export async function POST(request) {
 
   // Prune anything beyond the retention count so storage doesn't grow forever.
   // Filenames are ISO timestamps, so alphabetical order is chronological order.
-  const { data: files } = await admin.storage.from(BUCKET).list("", {
+  const { data: files, error: listError } = await admin.storage.from(BUCKET).list("", {
     limit: 1000,
     sortBy: { column: "name", order: "asc" },
   });
 
   let pruned = 0;
+  let pruneError = listError?.message || null;
   if (files && files.length > RETENTION_COUNT) {
     const toDelete = files.slice(0, files.length - RETENTION_COUNT).map((f) => f.name);
     if (toDelete.length > 0) {
-      await admin.storage.from(BUCKET).remove(toDelete);
-      pruned = toDelete.length;
+      const { error } = await admin.storage.from(BUCKET).remove(toDelete);
+      if (error) pruneError = error.message;
+      else pruned = toDelete.length;
     }
   }
 
@@ -76,5 +85,6 @@ export async function POST(request) {
       rentals: rentals?.length || 0,
     },
     pruned,
+    pruneError,
   });
 }

@@ -166,6 +166,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not place order");
       setOrders((prev) => [data.order, ...prev]);
+      if (data.error) setError(data.error);
       setLink("");
       setQuantity("");
       setSelectedId(null);

@@ -10,6 +10,7 @@ import DigitalAccountsCheckoutForm from "@/components/DigitalAccountsCheckoutFor
 // and opens the purchased credentials in a modal immediately; the permanent
 // order record remains available from /history afterward.
 export default async function DigitalAccountsCheckoutPage({ params, searchParams }) {
+  [params, searchParams] = await Promise.all([params, searchParams]);
   const { user, profile } = await getSessionProfile();
   if (!user) notFound();
 
