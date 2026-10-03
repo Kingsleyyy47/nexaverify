@@ -28,7 +28,7 @@ section 4 (already done if `.env.local` exists in this project). The site runs a
      — from your Supabase project (Project Settings → API).
    - `DAISYSMS_API_KEY` — from your DaisySMS dashboard. **Must be a real key, not the
      placeholder** — nothing that rents a number will work until this is real.
-   - `DAISYSMS_WEBHOOK_SECRET` and `CRON_SECRET` — long random secrets (at least 32 characters)
+   - `DAISYSMS_WEBHOOK_SECRET` — long random secrets (at least 32 characters)
      (not the `change-me` placeholders).
 4. Deploy. Vercel gives you a working URL like `nexaverify-xyz.vercel.app` — test the whole
    site there first.
@@ -45,7 +45,7 @@ changes or a redeploy. Four things live outside the codebase need the real domai
 
 1. **Supabase → Authentication → URL Configuration** — set Site URL to `https://nexaverify.org`
    and add it to Redirect URLs.
-2. **`supabase/cron.sql`** — check the domain, store `CRON_SECRET` in Supabase Vault as
+2. **`supabase/cron.sql`** — check the domain, apply the cron Vault-auth migration, store a random credential in Supabase Vault as
    `nexaverify_cron_secret`, and run the SQL Editor script to register the four jobs.
 3. **DaisySMS dashboard → webhook URL** — update it to
    `https://nexaverify.org/api/daisy/webhook?secret=YOUR_DAISYSMS_WEBHOOK_SECRET`.

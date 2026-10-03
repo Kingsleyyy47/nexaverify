@@ -15,7 +15,7 @@ const RETENTION_COUNT = 30; // keep the most recent 30 backups, prune anything o
 //
 // Callable by a logged-in admin, or by a scheduled job carrying CRON_SECRET.
 export async function POST(request) {
-  if (!isAuthorizedCron(request)) {
+  if (!(await isAuthorizedCron(request))) {
     const { user, profile } = await getSessionProfile();
     if (!user || !isAdmin(profile)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

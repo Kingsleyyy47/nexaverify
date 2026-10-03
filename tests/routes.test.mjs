@@ -187,3 +187,23 @@ test("completed checkout markers require a matching wallet credit before reporti
     if(!credited)assert.equal(result.referenceId,"ERR-LEDGER");
   }
 });
+
+
+test("cron authentication checks the current Vault credential and cannot reuse a stale environment key", async () => {
+  const current="c".repeat(64), revoked="r".repeat(64);const calls=[];
+  const route=await loadRoute("../lib/cron-auth.js",{createAdminClient:()=>({rpc(name,args){calls.push({name,args});return {abortSignal(){return this;},throwOnError:async()=>({data:args.p_secret===current})};}})});
+  const request=value=>new Request("https://example.test/api/admin/services/sync",{headers:value?{"x-cron-secret":value}:{}});
+  const previous=process.env.CRON_SECRET;process.env.CRON_SECRET=revoked;
+  try {
+    assert.equal(await route.isAuthorizedCron(request(current)),true);
+    assert.equal(await route.isAuthorizedCron(request(revoked)),false);
+    assert.equal(await route.isAuthorizedCron(new Request("https://example.test?cronSecret="+current)),false);
+    assert.equal(await route.isAuthorizedCron(request("short")),false);
+    assert.equal(calls.length,2);assert.ok(calls.every(call=>call.name==="is_valid_cron_secret"));
+  } finally {if(previous===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=previous;}
+});
+
+test("unavailable Vault validation cannot authorize a scheduled money operation",async()=>{
+  const route=await loadRoute("../lib/cron-auth.js",{createAdminClient:()=>({rpc(){return {abortSignal(){return this;},throwOnError:async()=>{throw new Error("database unavailable");}};}})});
+  await assert.rejects(route.isAuthorizedCron(new Request("https://example.test",{headers:{"x-cron-secret":"c".repeat(64)}})),/database unavailable/);
+});

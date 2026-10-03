@@ -31,14 +31,12 @@ Regression tests exercise provider/database failure paths with mocks. Live check
 
 ## Cron credential rotation
 
-The old `supabase/cron.sql` included a real shared credential. Removing it
-from the file does not revoke copies in Git history. Rotate `CRON_SECRET`
-in Vercel, store the same new value in Supabase Vault under
-`nexaverify_cron_secret`, then run the updated cron SQL to replace job
-commands. Use at least 32 random characters. Verify all four jobs return
-successful HTTP responses and no cron command contains a literal credential.
-Management login is required for these live configuration changes. The
-repository update alone does not complete rotation.
+The old cron SQL contained a shared credential. Cron validation now uses
+Supabase Vault through the service-only `is_valid_cron_secret` RPC and does
+not accept an environment fallback. Apply the Vault-auth migration before
+deploying this handler. Jobs read `nexaverify_cron_secret` at execution time;
+rotate it in Vault, then verify all four job responses and rejection of the
+old header. Use at least 32 random characters and never commit the value.
 
 The updated refund backfill only sets markers when the same customer's
 linked purchase and refund ledger totals match. Applying this schema change

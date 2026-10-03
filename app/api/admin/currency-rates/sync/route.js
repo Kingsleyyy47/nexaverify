@@ -18,7 +18,7 @@ const CURRENCIES = ["USD", "GBP", "EUR"];
 // admin clicking "Refresh live rates" in /admin/currency, or a scheduled job
 // carrying CRON_SECRET (see lib/cron-auth.js and supabase/cron.sql).
 export async function POST(request) {
-  if (!isAuthorizedCron(request)) {
+  if (!(await isAuthorizedCron(request))) {
     const { user, profile } = await getSessionProfile();
     if (!user || !isAdmin(profile)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

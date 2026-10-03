@@ -17,7 +17,7 @@ import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 // shortcodes (e.g. "wa", "go") — this stores the shortcode as the name too.
 // Rename services later directly in Supabase if you want nicer labels.
 export async function POST(request) {
-  if (!isAuthorizedCron(request)) {
+  if (!(await isAuthorizedCron(request))) {
     const { user, profile } = await getSessionProfile();
     if (!user || !isAdmin(profile)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

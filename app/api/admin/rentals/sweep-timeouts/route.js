@@ -23,7 +23,7 @@ import { logError } from "@/lib/errorLog";
 const TIMEOUT_MINUTES = RENTAL_BACKEND_TIMEOUT_MINUTES;
 
 export async function POST(request) {
-  if (!isAuthorizedCron(request)) {
+  if (!(await isAuthorizedCron(request))) {
     const { user, profile } = await getSessionProfile();
     if (!user || !isAdmin(profile)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

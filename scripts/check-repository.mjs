@@ -72,6 +72,7 @@ for (const file of files) {
     } catch (error) { problem(file, `Syntax error: ${error.message}`); }
     if (file.startsWith("app/api/admin/") && file.endsWith("route.js")) {
       stats.adminRoutes++; checks.push("admin guard");
+      if (/if\s*\(\s*!isAuthorizedCron\(/.test(text)) problem(file, "Cron authentication must be awaited");
       if (!/isAdmin\(profile\)/.test(text)) problem(file, "Admin route is missing its role guard");
     }
   } else if (file.endsWith(".json")) {

@@ -16,7 +16,7 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 // until a working sync source exists — see lib/ltr-sync.js for the parked
 // implementation (kept for reference, not called from here anymore).
 export async function POST(request) {
-  if (!isAuthorizedCron(request)) {
+  if (!(await isAuthorizedCron(request))) {
     const { user, profile } = await getSessionProfile();
     if (!user || !isAdmin(profile)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

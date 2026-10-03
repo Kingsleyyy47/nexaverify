@@ -49,12 +49,14 @@ Go to **Project Settings → API**. You'll need three values for the app's `.env
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — the "anon public" key
 - `SUPABASE_SERVICE_ROLE_KEY` — the "service_role" key. **Never** put this in anything that ships to the browser — it bypasses all security rules. It's only read on the server (Route Handlers).
 
-You'll also need three values that come from DaisySMS/your own choice, not Supabase — all go in the
+You'll also need two values that come from DaisySMS/your own choice, not Supabase — all go in the
 same `.env.local`:
 
 - `DAISYSMS_API_KEY` — from your DaisySMS dashboard.
 - `DAISYSMS_WEBHOOK_SECRET` — any random string you make up yourself (e.g. `openssl rand -hex 16`). Used in section 7.
-- `CRON_SECRET` — at least 32 random characters. Store the same value in Supabase Vault as `nexaverify_cron_secret`; never commit it. Used in section 9.
+Scheduled jobs use a separate random credential stored only in Supabase Vault as
+`nexaverify_cron_secret` (at least 32 characters). Apply the service-only verifier
+migration in `supabase/migrations/20261003000100_cron_vault_auth.sql` for section 9.
 
 That's the complete list of secrets/keys the whole app needs. Nothing else requires a key —
 notably, the live currency-rate feature (section 6) calls a free public API that needs no signup
@@ -146,7 +148,7 @@ re-enable the cron job or re-wire the sync route until that's confirmed with a r
 ## 9. Automatic scheduling (pg_cron + pg_net) — no external cron needed
 
 Three things run on a repeating timer: syncing DaisySMS's service list/prices, refreshing live
-currency rates (section 6), and backing up your data (section 10). All three run entirely inside
+currency rates (section 6), and backing up your data (section 10). All four run entirely inside
 Supabase, on a schedule, without you clicking anything or paying for a separate cron host. (A
 fourth job, long-term rental sync/billing, is currently commented out — see section 8, paused.)
 
@@ -154,8 +156,8 @@ fourth job, long-term rental sync/billing, is currently commented out — see se
 
 1. Open `supabase/cron.sql` from this project.
 2. Check that every URL uses your deployed domain. Create the Vault secret
-   `nexaverify_cron_secret` with the same value as your hosting environment's
-   `CRON_SECRET`. The SQL reads it at execution time; do not paste a real secret into the file.
+   `nexaverify_cron_secret` with the same value as your scheduler's
+   cron credential (at least 32 random characters). Apply the Vault-auth migration first. The SQL reads it at execution time; do not paste a real secret into the file.
 3. Paste the whole file into Supabase's **SQL Editor** and run it. This enables the `pg_cron` and
    `pg_net` extensions and schedules four active jobs:
    - Service list + prices sync — every hour
@@ -163,7 +165,7 @@ fourth job, long-term rental sync/billing, is currently commented out — see se
    - Data backup — once a day
    - Rental timeout sweep — every minute
 
-That's it — from then on, all three keep running on their own. You can check on them any time:
+That's it — from then on, all four keep running on their own. You can check on them any time:
 
 ```sql
 select * from cron.job;                                               -- see what's scheduled
@@ -178,7 +180,7 @@ this up once you've deployed.
 
 If you'd rather not use pg_cron at all, any external scheduler works too — e.g. Vercel Cron hitting
 `POST /api/admin/services/sync`, `POST /api/admin/currency-rates/sync`, and
-`POST /api/admin/backup/run` with an `x-cron-secret` header set to your `CRON_SECRET`. The routes
+`POST /api/admin/backup/run` with an `x-cron-secret` header set to your Vault cron credential. The routes
 don't care which scheduler calls them.
 
 ## 10. Backups
