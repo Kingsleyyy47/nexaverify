@@ -29,7 +29,8 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://www.nexaverify.org/api/admin/services/sync',
-    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json'),
+    timeout_milliseconds := 60000
   );
   $$
 );
@@ -66,7 +67,8 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://www.nexaverify.org/api/admin/backup/run',
-    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json'),
+    timeout_milliseconds := 60000
   );
   $$
 );
@@ -81,7 +83,8 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://www.nexaverify.org/api/admin/currency-rates/sync',
-    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json'),
+    timeout_milliseconds := 60000
   );
   $$
 );
@@ -97,7 +100,8 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://www.nexaverify.org/api/admin/rentals/sweep-timeouts',
-    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json')
+    headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'nexaverify_cron_secret'), 'Content-Type', 'application/json'),
+    timeout_milliseconds := 60000
   );
   $$
 );

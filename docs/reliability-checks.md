@@ -40,4 +40,5 @@ old header. Use at least 32 random characters and never commit the value.
 
 The updated refund backfill only sets markers when the same customer's
 linked purchase and refund ledger totals match. Applying this schema change
-requires database management access; it does not issue historical credits.
+was applied on 3 October 2026 after database safety checks. It does not issue
+historical credits. The preview found zero missing markers backed by full refunds.

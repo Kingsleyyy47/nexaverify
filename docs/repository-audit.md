@@ -49,12 +49,20 @@ or that all possible runtime failures have been eliminated.
 - Cron SQL contained a shared credential. The committed value was removed;
   jobs now read Supabase Vault, and cron authentication only accepts headers.
 
+## Live completion — 3 October 2026
+
+- Supabase management access verified for `nexaverify` (`gbujxsvsmtpyvmnsndhn`).
+- Applied the service-only Vault validator and guarded refund-marker migration.
+  The marker preview found zero eligible rows; no wallet balances were changed.
+- Rotated the exposed credential to 64 random characters in Vault. Runtime
+  validation has no environment fallback, and the old key returns HTTP 403.
+- All four job commands now read Vault and use explicit 60-second timeouts.
+  Service sync, backup, currency sync and a safe auth probe returned HTTP 200.
+  Subsequent automatic timeout sweeps returned HTTP 200 with zero errors.
+- 38 regression tests, production compilation, CI and public live checks passed.
+
 ## Remaining live work
 
-- Rotate the exposed cron credential in Vercel and Supabase Vault and replace
-  the existing job commands. Removing the text does not revoke copies in Git
-  history. Vercel/Supabase management login was not available during review.
-- Apply the guarded refund migration through database management access.
 - Reconcile the 23 historical settlement findings using provider statements
   and manual adjustment evidence. No historic balances were reset or credited.
 - Wallet claim markers and wallet RPCs remain separate transactions. Process
