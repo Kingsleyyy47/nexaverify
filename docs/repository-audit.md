@@ -75,3 +75,29 @@ GitHub Actions runs repository checks, regression tests, dependency audit
 and production compilation on pushes/PRs and twice daily. Public live checks
 run on the schedule. The existing weekly Codex reliability review continues.
 See [reliability checks](./reliability-checks.md) for commands and limitations.
+
+## Weekly review — 12 October 2026
+
+- Repository and production remain on the reviewed main history; no intervening
+  source changes were found. All 306 repository files passed static checks.
+- 38 regression tests passed before and after the patch. Production compilation
+  succeeded for all 129 routes. Authenticated checks covered 40 customer/admin
+  routes, 50 JavaScript assets, and catalogue APIs without paid test orders.
+- Updated Next.js from 15.5.26 to 15.5.27; the production dependency audit
+  reports zero vulnerabilities. The upstream advisories concern self-hosted
+  SSG/ISR caching; the publisher states Vercel deployments are unaffected.
+  Sources: [upstream advisory one](https://github.com/vercel/next.js/security/advisories/GHSA-4jqv-mc3x-m676),
+  [upstream advisory two](https://github.com/vercel/next.js/security/advisories/GHSA-mcj8-r9mp-w47p).
+- Full dependency audit still reports five high and two moderate advisories
+  through development-only Tailwind 3 dependencies. The registry still lists
+  braces 3.0.3 as its latest version; npm proposes a major Tailwind 4 migration.
+  These build-tool findings remain open for a compatible fix or separately
+  verified migration.
+- Read-only settlement scan covered 7,189 transactions, 2,457 rentals,
+  31 Telegram orders, 407 Social Boost orders, 1,750 payment records and
+  two top-up requests. Its 23 findings exactly match the 2 October baseline:
+  21 refund markers without linked credits, one deposit mismatch and one
+  excess refund. No new or resolved findings; no historical credits issued.
+- The saved Supabase management access token returns HTTP 401. Service-role
+  access still supports the settlement audit, but current cron job metadata
+  and transport results could not be inspected through management access.
