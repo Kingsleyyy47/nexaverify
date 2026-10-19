@@ -101,3 +101,29 @@ See [reliability checks](./reliability-checks.md) for commands and limitations.
 - The saved Supabase management access token returns HTTP 401. Service-role
   access still supports the settlement audit, but current cron job metadata
   and transport results could not be inspected through management access.
+
+## Weekly review — 19 October 2026
+
+- Fixed a monitoring false alarm introduced by deployment query parameters
+  on Next.js script URLs. The live checker now parses script sources, keeps
+  query parameters, decodes escaped ampersands, deduplicates asset URLs and
+  limits probes to this origin under `/_next/static/`. Preload links and
+  `data-src` attributes are excluded.
+- Added three regression cases covering queried/escaped URLs, plain/absolute
+  duplicates, and invalid, non-static or cross-origin sources. All 41 tests
+  passed; repository checks covered 308 files, and the production build
+  completed for all 129 routes.
+- Authenticated verification returned HTTP 200 for 40 customer/admin routes,
+  50 script assets, and catalogue APIs. Public checks cover 10 login scripts
+  and unauthenticated private-page redirects.
+- Production dependency audit remains clean. The full dependency audit still
+  reports five high and two moderate findings through development-only
+  Tailwind 3 dependencies, with a major Tailwind 4 migration proposed.
+- Read-only settlement audit covered 7,942 transactions, 2,677 rentals,
+  31 Telegram orders, 407 Social Boost orders, 2,014 payment records and
+  two top-up requests. All 23 findings match the 12 October baseline;
+  no new or resolved discrepancies. No paid test orders or historical
+  wallet adjustments were made.
+- Supabase management access still returns HTTP 401 (invalid access token).
+  A replacement token is needed to inspect current cron metadata and
+  transport results. The service-role settlement audit continues to work.
