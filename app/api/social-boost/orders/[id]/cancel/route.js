@@ -5,38 +5,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelOrders, getOrderStatus, SocialBoostError } from "@/lib/socialboost";
 import { safeErrorResponse, customerSafeMessage } from "@/lib/apiError";
 import { logError, customerErrorMessage } from "@/lib/errorLog";
+import { extractSocialBoostCancelResult } from "@/lib/socialboost-orders.mjs";
 
 // Recognizes the panel's own "already cancelled/completed" error text on a
 // cancel attempt, so that's treated as a successful idempotent no-op rather
 // than a hard failure (our own record was just stale).
 const ALREADY_DONE_RE = /already.*(cancel|complete)/i;
-
-// The panel's documented multi-order response shape is an array of
-// { order, cancel } objects — but "Lord of Panels" (and other clones of this
-// same API spec) have been observed returning the SINGLE result object
-// directly, unwrapped, when only one order id was requested. Silently
-// assuming the array shape and reading `results[0]` in that case yields
-// `undefined`, which the old code then treated as "no error -> success" —
-// i.e. it reported a cancel as successful without ever actually confirming
-// it. This normalizes every shape we've seen (or could plausibly see) into
-// the one `cancel` value, and returns `undefined` — never a made-up success
-// value — when the shape genuinely isn't recognized, so the caller can tell
-// the difference between "confirmed" and "couldn't confirm."
-function extractCancelResult(response, providerOrderId) {
-  if (Array.isArray(response)) {
-    const match = response.find((r) => String(r?.order) === String(providerOrderId)) || response[0];
-    return match ? match.cancel : undefined;
-  }
-  if (response && typeof response === "object") {
-    if ("cancel" in response) return response.cancel;
-    if (Array.isArray(response.orders)) {
-      const match =
-        response.orders.find((r) => String(r?.order) === String(providerOrderId)) || response.orders[0];
-      return match ? match.cancel : undefined;
-    }
-  }
-  return undefined;
-}
 
 // Not every service supports cancellation (see the `cancel` boolean on each
 // service in /services) — the panel just returns an error for that order id
@@ -49,12 +23,12 @@ function extractCancelResult(response, providerOrderId) {
 //   2. Reject up front (no provider call at all) if the order already
 //      reached a terminal 'Completed' state — nothing to cancel.
 //   3. Call the provider's cancel endpoint and normalize its response
-//      shape (see extractCancelResult above) instead of assuming one.
+//      shape and require confirmation for this exact order.
 //   4. If the provider says it's already cancelled/completed on ITS side
 //      (a real possibility if our own record is stale), treat that as
 //      success rather than an error — same idempotency guarantee as step 1,
 //      just discovered a step later.
-//   5. On confirmed cancellation, immediately re-fetch the order's real
+//   5. After the cancellation request is accepted, re-fetch the order's real
 //      status from the provider (rather than assuming a string) so what we
 //      store actually matches what the provider now reports.
 //   6. Claim the status transition AND the refund atomically (WHERE
@@ -90,7 +64,7 @@ export async function POST(_request, { params }) {
   let cancelResult;
   try {
     const results = await cancelOrders([order.provider_order_id]);
-    cancelResult = extractCancelResult(results, order.provider_order_id);
+    cancelResult = extractSocialBoostCancelResult(results, order.provider_order_id);
   } catch (err) {
     if (err instanceof SocialBoostError) {
       const message = await customerSafeMessage(err, {
@@ -126,7 +100,7 @@ export async function POST(_request, { params }) {
       });
       return NextResponse.json({ error: customerErrorMessage(referenceId) }, { status: 400 });
     }
-  } else if (cancelResult === undefined) {
+  } else if (cancelResult !== 1 && cancelResult !== "1") {
     // Response shape we couldn't recognize at all — never silently treat
     // this as success (that was the original bug). Log the raw shape for
     // debugging and tell the customer to retry rather than lying about the
@@ -160,13 +134,12 @@ export async function POST(_request, { params }) {
     );
   }
 
-  // Trust whatever the provider's status endpoint reports verbatim (it
-  // should read "Canceled"/"Cancelled" per its own convention) — only fall
-  // back to our own label when that follow-up call failed outright and we
-  // have nothing from the provider to go on, given /cancel itself already
-  // confirmed the cancellation succeeded.
-  const resolvedStatus = freshStatus?.status || "Canceled";
-  const remains = freshStatus?.remains != null ? Number(freshStatus.remains) : null;
+  // A successful cancel response can still mean the request is pending.
+  // Do not credit a refund until a final provider status is available.
+  const resolvedStatus = freshStatus?.status || "Cancellation requested";
+  const remains = freshStatus?.remains != null && String(freshStatus.remains).trim() !== "" ? Number(freshStatus.remains) : null;
+  const terminal = ["canceled", "cancelled", "partial", "completed"].includes(String(resolvedStatus).trim().toLowerCase());
+  const quantity = Number(order.quantity) || 0;
   const now = new Date().toISOString();
 
   // Step 6: claim the cancellation atomically — refunded_at IS NULL is the
@@ -176,7 +149,7 @@ export async function POST(_request, { params }) {
     .from("social_boost_orders")
     .update({
       status: resolvedStatus,
-      remains: remains != null ? remains : order.remains,
+      remains: Number.isFinite(remains) && remains >= 0 && remains <= quantity ? remains : order.remains,
       cancel_requested_at: order.cancel_requested_at || now,
       refunded_at: now,
       updated_at: now,
@@ -197,20 +170,20 @@ export async function POST(_request, { params }) {
   // delivered — record the cancellation but withhold the refund rather
   // than guess. Un-claims refunded_at so this stays visible as pending and
   // an admin can credit the right amount manually after checking the panel.
-  if (statusCheckFailed || remains == null || !Number.isFinite(remains)) {
+  if (statusCheckFailed || !terminal || remains == null || !Number.isFinite(remains) || remains < 0 || remains > quantity || quantity <= 0) {
     const { data: flagged } = await admin
       .from("social_boost_orders")
       .update({
         refunded_at: null,
         refund_needs_review: true,
-        cancel_error: "Cancelled, but the provider's post-cancel status couldn't be confirmed — refund needs manual review.",
+        cancel_error: "The provider's final cancellation status or remaining quantity could not be confirmed — refund needs manual review.",
       })
       .eq("id", claimed.id)
       .select()
       .single().throwOnError();
     return NextResponse.json({
       order: flagged || claimed,
-      error: "Cancelled, but the refund needs admin review since the provider's status couldn't be confirmed.",
+      error: "Cancellation requested, but the refund needs support review because the provider's final status or remaining quantity could not be confirmed.",
     });
   }
 
@@ -218,8 +191,7 @@ export async function POST(_request, { params }) {
   // (remains < quantity) gets a prorated credit, never the full price, and
   // an order that hadn't started at all (remains >= quantity) gets a full
   // refund, same as rentals' all-or-nothing cancel.
-  const quantity = Number(order.quantity) || 0;
-  const undeliveredRatio = quantity > 0 ? Math.max(0, Math.min(remains, quantity)) / quantity : 0;
+  const undeliveredRatio = String(resolvedStatus).trim().toLowerCase() === "completed" ? 0 : Math.max(0, Math.min(remains, quantity)) / quantity;
   const refundNgn = Math.round(Number(order.price_ngn || 0) * undeliveredRatio * 100) / 100;
 
   if (refundNgn <= 0) {

@@ -6,6 +6,7 @@ import { useCurrency } from "./CurrencyProvider";
 import { PLATFORMS } from "@/lib/socialboost-platform";
 import { usePlatformLogos } from "./usePlatformLogos";
 import AdaptiveLogo from "./AdaptiveLogo";
+import { isSupportedSocialBoostService, readSocialBoostOrderResponse, canCancelSocialBoostOrder } from "@/lib/socialboost-orders.mjs";
 
 // One icon per platform tile on the entry screen below — falls back to a
 // generic grid icon for "Other" (services that don't keyword-match any named
@@ -58,6 +59,8 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
   const [error, setError] = useState("");
   const [orders, setOrders] = useState(initialOrders);
   const [busyOrderId, setBusyOrderId] = useState(null);
+  const [orderError, setOrderError] = useState("");
+  const serviceById = useMemo(() => new Map((services || []).map(service => [String(service.service), service])), [services]);
 
   useEffect(() => {
     (async () => {
@@ -67,7 +70,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
         const res = await fetch("/api/social-boost/services", { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not load services");
-        setServices(data.services || []);
+        setServices((data.services || []).filter((service) => service.enabled !== false && isSupportedSocialBoostService(service)));
       } catch (err) {
         setServicesError(err.message);
       } finally {
@@ -147,6 +150,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (placing) return;
     setError("");
     if (!selectedService) {
       setError("Pick a service first");
@@ -163,10 +167,9 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
           quantity: Number(quantity),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not place order");
+      const data = await readSocialBoostOrderResponse(res, "Could not confirm this order. Check your order history or contact support before placing it again.");
       setOrders((prev) => [data.order, ...prev]);
-      if (data.error) setError(data.error);
+      setOrderError(data.error || "");
       setLink("");
       setQuantity("");
       setSelectedId(null);
@@ -179,12 +182,14 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
   async function refreshOrder(orderId) {
     setBusyOrderId(orderId);
+    setOrderError("");
     try {
       const res = await fetch(`/api/social-boost/orders/${orderId}/refresh`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.order) {
-        setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
-      }
+      const data = await readSocialBoostOrderResponse(res, "Could not refresh this order. Please try again.");
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
+      if (data.error) setOrderError(data.error);
+    } catch (err) {
+      setOrderError(err.message || "Could not refresh this order. Please try again.");
     } finally {
       setBusyOrderId(null);
     }
@@ -192,14 +197,14 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
   async function cancelOrder(orderId) {
     setBusyOrderId(orderId);
+    setOrderError("");
     try {
       const res = await fetch(`/api/social-boost/orders/${orderId}/cancel`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.order) {
-        setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
-      } else if (data.error) {
-        setError(data.error);
-      }
+      const data = await readSocialBoostOrderResponse(res, "Could not confirm this cancellation. Refresh the order before trying again.");
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
+      if (data.error) setOrderError(data.error);
+    } catch (err) {
+      setOrderError(err.message || "Could not confirm this cancellation. Refresh the order before trying again.");
     } finally {
       setBusyOrderId(null);
     }
@@ -207,6 +212,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
 
   return (
     <div className="space-y-6">
+      {orderError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{orderError}</p>}
       <div className="card card-pad">
         {loadingServices ? (
           <p className="text-sm text-gray-400 dark:text-night-400">Loading products…</p>
@@ -228,6 +234,7 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
             </div>
             <div className="text-xs text-gray-500 dark:text-night-300 bg-gray-50 dark:bg-night-800 rounded-lg p-2.5 mb-4">
               Min {selectedService.min} · Max {selectedService.max} per order
+              {selectedService.cancel === false && <p className="mt-1">Cancellation is unavailable for this service.</p>}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -421,16 +428,16 @@ export default function SocialBoostBuyForm({ isAdminView, initialOrders = [] }) 
                     <td className="py-2 whitespace-nowrap">
                       <button
                         type="button"
-                        disabled={busyOrderId === o.id}
+                        disabled={busyOrderId !== null}
                         onClick={() => refreshOrder(o.id)}
                         className="btn-secondary btn-sm mr-1.5"
                       >
                         Refresh
                       </button>
-                      {!o.cancel_requested_at && (
+                      {canCancelSocialBoostOrder(o, serviceById.get(String(o.service_id))) && (
                         <button
                           type="button"
-                          disabled={busyOrderId === o.id}
+                          disabled={busyOrderId !== null}
                           onClick={() => cancelOrder(o.id)}
                           className="btn-secondary btn-sm"
                         >

@@ -5,6 +5,7 @@ import { getSessionProfile, isAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getServices, placeOrder, SocialBoostError } from "@/lib/socialboost";
 import { safeErrorResponse } from "@/lib/apiError";
+import { isSupportedSocialBoostService } from "@/lib/socialboost-orders.mjs";
 
 // Admins can always reach this (their own testing flow, gated only by
 // `enabled`) — everyone else additionally needs
@@ -16,7 +17,7 @@ function customerSafeMessage(err, isAdminCaller) {
 }
 
 export async function GET() {
-  const { user, profile, profileError } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   if (!user || !isAdmin(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -32,7 +33,7 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const { user, profile } = await getSessionProfile();
+  const { user, profile, profileError } = await getSessionProfile();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -82,6 +83,9 @@ export async function POST(request) {
 
   if (!matchedService) {
     return NextResponse.json({ error: "That service is no longer available — refresh the service list." }, { status: 400 });
+  }
+  if (!isSupportedSocialBoostService(matchedService)) {
+    return NextResponse.json({ error: "This service needs options that aren't available in this order form. Choose another service or contact support." }, { status: 400 });
   }
 
   // Blocks purchase server-side regardless of caller (including an admin) —

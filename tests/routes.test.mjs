@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { readObjectBody } from "../lib/request-body.mjs";
+import { isSupportedSocialBoostService, extractSocialBoostCancelResult } from "../lib/socialboost-orders.mjs";
 async function loadRoute(path, deps) {
-  deps = { readObjectBody, ...deps };
+  deps = { readObjectBody, isSupportedSocialBoostService, extractSocialBoostCancelResult, ...deps };
   const key = randomUUID(); globalThis[key] = deps;
   let source = await fs.readFile(new URL(path, import.meta.url), "utf8");
   source = source.replace(/^import[\s\S]*?;\r?\n/gm, "");
@@ -206,4 +207,118 @@ test("cron authentication checks the current Vault credential and cannot reuse a
 test("unavailable Vault validation cannot authorize a scheduled money operation",async()=>{
   const route=await loadRoute("../lib/cron-auth.js",{createAdminClient:()=>({rpc(){return {abortSignal(){return this;},throwOnError:async()=>{throw new Error("database unavailable");}};}})});
   await assert.rejects(route.isAuthorizedCron(new Request("https://example.test",{headers:{"x-cron-secret":"c".repeat(64)}})),/database unavailable/);
+});
+
+
+function socialBoostOrderDb(override = null) {
+  const state = { inserted: [] };
+  return {state,from(table) {
+    let values;
+    const result = () => ({error:null,data:table === "social_boost_config" ? {enabled:true,customer_visible:true,markup_type:"percent",markup_percent:30,markup_ngn:1500}
+      : table === "social_boost_overrides" ? override : table === "currency_rates" ? {ngn_per_unit:1500}
+      : table === "profiles" ? {balance:10000} : {id:"social-order",...values}});
+    return {select(){return this;},eq(){return this;},single(){return this;},maybeSingle(){return this;},
+      insert(v){values=v;state.inserted.push(v);return this;},throwOnError:async()=>result(),
+      then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+  }};
+}
+
+test("Social Boost checkout reads the verified profile and applies admin pricing before one debit",async()=>{
+  for(const [override,expected] of [[null,1950],[{markup_custom:true,markup_type:"flat",markup_ngn:25},1525]]) {
+    const db=socialBoostOrderDb(override),debits=[],purchases=[];
+    const route=await loadRoute("../app/api/social-boost/orders/route.js",{NextResponse,
+      getSessionProfile:async()=>({user:{id:"buyer"},profile:{id:"buyer",role:"customer"},profileError:null}),isAdmin:()=>false,createAdminClient:()=>db,
+      getServices:async()=>[{service:123,type:"Default",name:"Test service",rate:"2",min:"100",max:"1000"}],
+      placeOrder:async args=>{purchases.push(args);return {order:456};},adjustBalance:async(_db,args)=>{debits.push(args);return 8050;},
+      SocialBoostError:class extends Error{},safeErrorResponse:()=>assert.fail("unexpected server error")});
+    const response=await route.POST({json:async()=>({serviceId:123,quantity:500,link:"https://social.example/profile",price:1})});
+    const data=await response.json();assert.equal(response.status,200);assert.equal(data.order.id,"social-order");assert.equal(data.priceNgn,expected);
+    assert.equal(db.state.inserted.length,1);assert.equal(db.state.inserted[0].price_ngn,expected);
+    assert.equal(purchases.length,1);assert.equal(debits.length,1);assert.equal(debits[0].p_user_id,"buyer");assert.equal(debits[0].p_amount,-expected);assert.equal(debits[0].p_reference_id,"social-order");
+  }
+});
+
+test("Social Boost account lookup failures block provider orders and wallet operations",async()=>{
+  const route=await loadRoute("../app/api/social-boost/orders/route.js",{NextResponse,
+    getSessionProfile:async()=>({user:{id:"buyer"},profile:null,profileError:{message:"database unavailable"}}),
+    createAdminClient:()=>assert.fail("database"),getServices:()=>assert.fail("provider"),placeOrder:()=>assert.fail("purchase"),adjustBalance:()=>assert.fail("debit")});
+  assert.equal((await route.POST({json:async()=>({})})).status,503);
+});
+
+test("Social Boost rejects subscription and custom-input services before a provider purchase", async()=>{
+  for(const type of ["Subscriptions","Custom Comments","Package"]){
+    const db=socialBoostOrderDb();
+    const route=await loadRoute("../app/api/social-boost/orders/route.js",{NextResponse,
+      getSessionProfile:async()=>({user:{id:"buyer"},profile:{role:"customer"},profileError:null}),isAdmin:()=>false,createAdminClient:()=>db,
+      getServices:async()=>[{service:123,type,rate:"2",min:"1",max:"1000"}],placeOrder:()=>assert.fail("unsupported purchase"),adjustBalance:()=>assert.fail("debit"),
+      SocialBoostError:class extends Error{}});
+    assert.equal((await route.POST({json:async()=>({serviceId:123,quantity:500,link:"https://social.example/profile"})})).status,400);
+    assert.equal(db.state.inserted.length,0);
+  }
+});
+
+function socialCancelDb(initial = {}) {
+  const row = {id:"order",user_id:"buyer",provider_order_id:"42",quantity:1000,price_ngn:500,status:"Pending",refunded_at:null,cancel_requested_at:null,...initial};
+  const db = {row, writes:0, from() {
+    let patch, filters=[];
+    const result = () => {
+      if(!filters.every(([key,value])=>row[key]===value)) return {data:null,error:null};
+      if(patch) {
+        assert.ok(patch.remains == null || Number.isFinite(patch.remains), "never write non-finite provider quantities");
+        Object.assign(row,patch); db.writes++;
+      }
+      return {data:{...row},error:null};
+    };
+    return {select(){return this;},eq(key,value){filters.push([key,value]);return this;},is(key,value){filters.push([key,value]);return this;},
+      single(){return this;},maybeSingle(){return this;},update(values){patch=values;return this;},
+      throwOnError:async()=>result(),then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+  }};
+  return db;
+}
+function socialCancelDeps(db, result, status, credits) {
+  return {NextResponse, getSessionProfile:async()=>({user:{id:"buyer"},profile:{role:"customer"}}),isAdmin:()=>false,createAdminClient:()=>db,
+    cancelOrders:async()=>result,getOrderStatus:async()=>status,SocialBoostError:class extends Error{},adjustBalance:async(_db,args)=>{credits.push(args);return 10000;},
+    safeErrorResponse:()=>assert.fail("unexpected cancellation error"),customerSafeMessage:async()=>"Unavailable",logError:async()=>"ERR-TEST",customerErrorMessage:()=>"Contact support"};
+}
+const socialCancelRequest = () => [new Request("https://example.test/api/social-boost/orders/order/cancel", {method:"POST"}), {params:Promise.resolve({id:"order"})}];
+
+test("Social Boost never accepts false or another order's cancellation as confirmation",async()=>{
+  for(const result of [[{order:42,cancel:false}],[{order:42,cancel:0}],[{order:42,cancel:null}],[{order:99,cancel:1}]]) {
+    const db=socialCancelDb(), credits=[];
+    const route=await loadRoute("../app/api/social-boost/orders/[id]/cancel/route.js",socialCancelDeps(db,result,{status:"Canceled",remains:1000},credits));
+    assert.equal((await route.POST(...socialCancelRequest())).status,502);
+    assert.equal(db.writes,0); assert.equal(credits.length,0);
+  }
+});
+
+test("Social Boost pending cancellations and invalid remaining quantities cannot credit a wallet",async()=>{
+  for(const status of [{status:"Pending",remains:1000},{status:"Canceled",remains:""},{status:"Canceled",remains:"invalid"},{status:"Canceled",remains:1001},{status:"Canceled",remains:-1}]) {
+    const db=socialCancelDb(),credits=[];
+    const route=await loadRoute("../app/api/social-boost/orders/[id]/cancel/route.js",socialCancelDeps(db,[{order:42,cancel:1}],status,credits));
+    const response=await route.POST(...socialCancelRequest()), data=await response.json();
+    assert.equal(response.status,200); assert.equal(data.order.refunded_at,null); assert.equal(data.order.refund_needs_review,true);
+    assert.match(data.error,/review/); assert.equal(credits.length,0);
+  }
+});
+
+test("Social Boost confirmed cancellation refunds only the undelivered portion once",async()=>{
+  const db=socialCancelDb(),credits=[];
+  const route=await loadRoute("../app/api/social-boost/orders/[id]/cancel/route.js",socialCancelDeps(db,[{order:42,cancel:1}],{status:"Canceled",remains:"400"},credits));
+  const response=await route.POST(...socialCancelRequest()); assert.equal(response.status,200);
+  assert.equal(credits.length,1); assert.equal(credits[0].p_amount,200); assert.equal(credits[0].p_reference_id,"order"); assert.equal(credits[0].p_user_id,"buyer");
+  assert.equal((await route.POST(...socialCancelRequest())).status,200); assert.equal(credits.length,1);
+});
+
+test("Social Boost completed delivery cannot receive a cancellation refund",async()=>{
+  const db=socialCancelDb(),credits=[];
+  const route=await loadRoute("../app/api/social-boost/orders/[id]/cancel/route.js",socialCancelDeps(db,[{order:42,cancel:1}],{status:"Completed",remains:1000},credits));
+  const data=await (await route.POST(...socialCancelRequest())).json();
+  assert.equal(data.order.status,"Completed"); assert.equal(credits.length,0);
+});
+
+test("Social Boost cancellation rejects another customer's order before contacting the provider",async()=>{
+  const db=socialCancelDb({user_id:"other"});
+  const d=socialCancelDeps(db,null,null,[]); d.cancelOrders=()=>assert.fail("provider cancellation");
+  const route=await loadRoute("../app/api/social-boost/orders/[id]/cancel/route.js",d);
+  assert.equal((await route.POST(...socialCancelRequest())).status,403); assert.equal(db.writes,0);
 });

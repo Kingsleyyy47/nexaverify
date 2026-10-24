@@ -127,3 +127,34 @@ See [reliability checks](./reliability-checks.md) for commands and limitations.
 - Supabase management access still returns HTTP 401 (invalid access token).
   A replacement token is needed to inspect current cron metadata and
   transport results. The service-role settlement audit continues to work.
+
+## Social Boost repair — 24 October 2026
+
+- Reproduced a live checkout HTTP 500 using an empty, non-purchasing request.
+  The checkout referenced `profileError` without reading it from the session;
+  every authenticated purchase failed before validation. The catalogue loaded
+  9,892 services and the provider balance endpoint confirmed USD funds.
+- Fixed the session lookup and added regressions for global/admin custom
+  pricing, one wallet debit, and account lookup failures. Customer checkout
+  now offers only standard services supported by its link/quantity fields;
+  subscription, package and custom-input types remain in the admin catalogue
+  and are rejected before any provider purchase.
+- Validated successful order responses before updating history; malformed
+  responses no longer insert undefined orders. Refresh/cancel failures and
+  accepted-order settlement warnings are visible outside the purchase form.
+  Unavailable or settled cancellation controls are hidden.
+- Cancellation responses must confirm the requested provider order. Pending
+  cancellation requests and invalid remaining quantities cannot trigger a
+  refund. Confirmed final cancellations refund only the undelivered portion;
+  completed delivery gets no refund. Uncertain cases require support review,
+  including accepted cancellations whose provider status remains pending.
+  Historical orders and balances were not modified; paid provider actions
+  were tested with mocks.
+- The dependency audit identified new upstream advisories on Next.js 15.5.27.
+  Updated to the publisher's patched 15.5.28 release:
+  [image optimization advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw),
+  [Server Actions advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r).
+- All 54 regression tests pass, including 13 new Social Boost cases. Repository
+  checks cover 310 files. The production dependency audit reports zero
+  vulnerabilities after the patch. Production compilation completed for all
+  129 routes.
